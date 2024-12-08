@@ -17,8 +17,9 @@
 #ifndef __INTERVAL_H__
 #define __INTERVAL_H__
 
-#include "segment.h"
 #include "../linear_algebra/binary_matrix.h"
+#include "segment.h"
+#include "triangulation.h"
 
 namespace fdapde {
   

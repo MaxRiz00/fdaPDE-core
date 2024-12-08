@@ -14,21 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_FINITE_ELEMENTS_MODULE_H__
-#define __FDAPDE_FINITE_ELEMENTS_MODULE_H__
+#ifndef __BS_BILINEAR_FORM_ASSEMBLER_H__
+#define __BS_BILINEAR_FORM_ASSEMBLER_H__
 
-#include "finite_elements/dof_handler.h"
-#include "finite_elements/dof_segment.h"
-#include "finite_elements/dof_tetrahedron.h"
-#include "finite_elements/dof_triangle.h"
-#include "finite_elements/fe_assembler.h"
-#include "finite_elements/fe_bilinear_form_assembler.h"
-#include "finite_elements/fe_function.h"
-#include "finite_elements/fe_integration.h"
-#include "finite_elements/fe_linear_form_assembler.h"
-#include "finite_elements/fe_map.h"
-#include "finite_elements/fe_p.h"
-#include "finite_elements/fe_space.h"
-#include "finite_elements/lagrange_basis.h"
+#include <unordered_map>
 
-#endif   // __FDAPDE_FINITE_ELEMENTS_MODULE_H__
+#include "bs_assembler_base.h"
+
+namespace fdapde {
+namespace internals {
+  
+// galerkin and petrov-galerkin spline assembly loop
+template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
+class bs_bilinear_form_assembly_loop :
+    public bs_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
+    public assembly_xpr_base<bs_bilinear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> { };
+
+}   // namespace internals
+}   // namespace fdapde
+
+#endif   // __BS_BILINEAR_FORM_ASSEMBLER_H__

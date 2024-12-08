@@ -28,7 +28,7 @@ namespace internals {
 template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
 class fe_bilinear_form_assembly_loop :
     public fe_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
-    public fe_assembly_xpr_base<fe_bilinear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
+    public assembly_xpr_base<fe_bilinear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
     // detect trial and test spaces from bilinear form
     using TrialSpace = trial_space_t<Form_>;
     using TestSpace  = test_space_t <Form_>;
@@ -37,6 +37,7 @@ class fe_bilinear_form_assembly_loop :
     static constexpr bool is_petrov_galerkin = !is_galerkin;
     using Base = fe_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
     using Form = typename Base::Form;
+    using DofHandlerType = typename Base::DofHandlerType;
     static constexpr int local_dim = Base::local_dim;
     static constexpr int embed_dim = Base::embed_dim;
     using Base::form_;
@@ -74,10 +75,10 @@ class fe_bilinear_form_assembly_loop :
     static constexpr auto test_shape_grads_   = Base::template eval_shape_grads <Quadrature, test_fe_traits >();
     static constexpr auto trial_shape_grads_  = Base::template eval_shape_grads <Quadrature, trial_fe_traits>();
     // private data members
-    const DofHandler<local_dim, embed_dim>* trial_dof_handler_;
+    const DofHandlerType* trial_dof_handler_;
     Quadrature quadrature_ {};
-    constexpr const DofHandler<local_dim, embed_dim>* test_dof_handler() const { return Base::dof_handler_; }
-    constexpr const DofHandler<local_dim, embed_dim>* trial_dof_handler() const {
+    constexpr const DofHandlerType* test_dof_handler() const { return Base::dof_handler_; }
+    constexpr const DofHandlerType* trial_dof_handler() const {
         return is_galerkin ? Base::dof_handler_ : trial_dof_handler_;
     }
     const TrialSpace* trial_space_;

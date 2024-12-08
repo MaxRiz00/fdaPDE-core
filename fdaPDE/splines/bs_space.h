@@ -26,7 +26,7 @@ template <typename BsSpace_> class BsFunction;
 
 template <typename Triangulation_> class BsSpace {
     fdapde_assert(
-      Triangulation_::local_dim == 1 && Triangulation_::embed_dim == 1, THIS_CLASS_IS_ONLY_FOR_INTERVAL_MESHES);
+      Triangulation_::local_dim == 1 && Triangulation_::embed_dim == 1, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
     template <typename T> struct subscript_t_impl {
         using type = std::decay_t<decltype(std::declval<T>().operator[](std::declval<int>()))>;
     };
@@ -38,10 +38,8 @@ template <typename Triangulation_> class BsSpace {
     using FeType = std::decay_t<FeType_>;
     using BasisType = SplineBasis;
     using ShapeFunctionType = subscript_t<BasisType>;
-    // using FaceBasisType = typename face_dof_descriptor::BasisType;
-    // using FaceShapeFunctionType = subscript_type_of<FaceBasisType>;
-  using DofHandlerType = BsDofHandler<local_dim, embed_dim>; // prefer DofHandler<local_dim, embed_dim, space_category::bspline>
-  
+    using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::bspline>;
+
     BsSpace() = default;
     BsSpace(const Triangulation_& interval, int order) :
         interval_(std::addressof(interval)), dof_handler_(interval) {
@@ -58,10 +56,9 @@ template <typename Triangulation_> class BsSpace {
     const DofHandlerType& dof_handler() const { return dof_handler_; }
     DofHandlerType& dof_handler() { return dof_handler_; }
     constexpr int n_shape_functions() const { return basis_.size(); }
-    // constexpr int n_shape_functions_face() const { return n_components * face_basis_.size(); }
+    constexpr int n_shape_functions_face() const { return 1; }
     int n_dofs() const { return dof_handler_.n_dofs(); }
     const BasisType& basis() const { return basis_; }
-    // const FaceBasisType& face_basis() const { return face_basis_; }
   
     // evaluation
     template <typename InputType>
@@ -70,41 +67,39 @@ template <typename Triangulation_> class BsSpace {
         return basis_[i](p);
     }
     template <typename InputType>
-        requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().gradient()), InputType>)
+        requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().gradient(1)), InputType>)
     constexpr auto eval_shape_dx(int i, const InputType& p) const {
         return basis_[i].gradient(1)(p);
     }
     template <typename InputType>
-        requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().divergence()), InputType>)
+        requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().gradient(2)), InputType>)
     constexpr auto eval_shape_ddx(int i, const InputType& p) const {
         return basis_[i].gradient(2)(p);
     }
-    // template <typename InputType>
-    //     requires(std::is_invocable_v<FaceShapeFunctionType, InputType>)
-    // constexpr auto eval_face_shape_value(int i, const InputType& p) const {
-    //     return face_basis_[i](p);
-    // }
-    // template <typename InputType>
-    //     requires(std::is_invocable_v<decltype(std::declval<FaceShapeFunctionType>().gradient()), InputType>)    
-    // constexpr auto eval_face_shape_grad(int i, const InputType& p) const {
-    //     return face_basis_[i].gradient()(p);
-    // }
-    // template <typename InputType>
-    //     requires(std::is_invocable_v<decltype(std::declval<FaceShapeFunctionType>().divergence()), InputType>)
-    // constexpr auto eval_face_shape_div(int i, const InputType& p) const {
-    //     fdapde_static_assert(n_components > 1, THIS_METHOD_IS_FOR_VECTOR_FINITE_ELEMENTS_ONLY);
-    //     return face_basis_[i].divergence()(p);
-    // }
-
-  // evaluation on physical domain
-  
+    template <typename InputType>
+    constexpr auto eval_face_shape_value(int i, [[maybe_unused]] const InputType& p) const {
+        return (i == 0 || i == n_dofs() - 1) ? 1.0 : 0.0;
+    }
+    template <typename InputType> constexpr auto eval_face_shape_dx (int i, const InputType& p) const {
+        return basis_[i].gradient(1)(p);
+    }
+    template <typename InputType> constexpr auto eval_face_shape_ddx(int i, const InputType& p) const {
+        return basis_[i].gradient(2)(p);
+    }
+    // evaluation on physical domain
     // evaluate value of the i-th shape function defined on physical domain [a, b]
     template <typename InputType> auto eval_cell_value(int i, const InputType& p) const {
-        return eval_shape_value(i, map_to_reference(p));
+        if constexpr (fdapde::is_subscriptable<InputType, int>) {
+            if (p[0] < triangulation.range()[0] || p[0] > triangulation.range()[1]) return 0.0;
+            return eval_shape_value(i, map_to_reference(p));
+        } else {
+            if (p < triangulation.range()[0] || p > triangulation.range()[1]) return 0.0;
+            return eval_shape_value(i, map_to_reference(p));
+        }
     }
 
-  // need to return something which represent a basis function on the whole physical domain
-  
+    // need to return something which represent a basis function on the whole physical domain
+
     // generate fe_function bounded to this finite element space
     /* FeFunction<FeSpace<Triangulation_, FeType_>> make_fe_function(const Eigen::Matrix<double, Dynamic, 1>& coeff_vec) { */
     /*     return FeFunction<FeSpace<Triangulation_, FeType_>>(*this, coeff_vec); */

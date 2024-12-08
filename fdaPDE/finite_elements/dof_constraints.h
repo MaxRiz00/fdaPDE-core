@@ -21,17 +21,16 @@
 
 namespace fdapde {
 
-template <int LocalDim, int EmbedDim> class DofHandler;
-
 // managment of affine constraints on degrees of freedom of type \sum_{j} c_ij * dof_ij = b_j
-template <int LocalDim, int EmbedDim> class DofConstraints {
+template <typename DofHandler> class DofConstraints {
    public:
-    static constexpr int local_dim = LocalDim;
-    static constexpr int embed_dim = EmbedDim;
+    using DofHandlerType = std::decay_t<DofHandler>;
+    static constexpr int local_dim = DofHandlerType::local_dim;
+    static constexpr int embed_dim = DofHandlerType::embed_dim;
     static constexpr double eps = 1e30;
 
     DofConstraints() = default;
-    DofConstraints(const DofHandler<local_dim, embed_dim>& dof_handler) : dof_handler_(&dof_handler) { }
+    DofConstraints(const DofHandlerType& dof_handler) : dof_handler_(&dof_handler) { }
 
     // guarantees that the linear system Ax = b is such that all (affine) constraints are respected
     template <typename T> void enforce_constraints(T&& t) const {
@@ -66,9 +65,8 @@ template <int LocalDim, int EmbedDim> class DofConstraints {
         int n_boundary_dofs = dof_handler_->n_boundary_dofs(marker);
         fdapde_assert(
           sizeof...(Callable) == dof_handler_->dof_multiplicity() && (marker == BoundaryAll || n_boundary_dofs > 0));
-	
-        for (typename DofHandler<local_dim, embed_dim>::boundary_dofs_iterator it =
-               dof_handler_->boundary_dofs_begin(marker);
+
+        for (typename DofHandlerType::boundary_dofs_iterator it = dof_handler_->boundary_dofs_begin(marker);
              it != dof_handler_->boundary_dofs_end(marker); ++it) {
             int dof_id = it->id();
             if (dof_id < dof_handler_->n_unique_dofs()) {
@@ -100,7 +98,7 @@ template <int LocalDim, int EmbedDim> class DofConstraints {
         return;
     }
    private:
-    const DofHandler<local_dim, embed_dim>* dof_handler_;
+    const DofHandlerType* dof_handler_;
     std::vector<fdapde::Triplet<double>> constraint_pattern_;   // triplets (i, j, c_ij)
     std::vector<fdapde::Duplet<double>>  constraint_values_;    // pairs (i, b_i)
 };

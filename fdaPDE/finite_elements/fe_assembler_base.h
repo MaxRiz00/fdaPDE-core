@@ -19,6 +19,7 @@
 
 #include <unordered_map>
 
+#include "../assembly.h"
 #include "../fields/meta.h"
 #include "../linear_algebra/constexpr_matrix.h"
 #include "../linear_algebra/mdarray.h"
@@ -37,9 +38,6 @@ enum fe_assembler_flags {
     compute_cell_diameter       = 0x0020
 };
 
-[[maybe_unused]] static constexpr int CellMajor = 0;
-[[maybe_unused]] static constexpr int FaceMajor = 1;
-  
 namespace internals {
 
 // informations sent from the assembly loop to the integrated forms
@@ -64,46 +62,6 @@ template <int LocalDim> struct fe_assembler_packet {
     double trial_div = 0, test_div = 0;
 };
   
-// detect trial space from bilinear form
-template <typename Xpr> constexpr decltype(auto) trial_space(Xpr&& xpr) {
-    constexpr bool found = meta::xpr_find<
-      decltype([]<typename Xpr_>() { return requires { typename Xpr_::TrialSpace; }; }), std::decay_t<Xpr>>();
-    fdapde_static_assert(found, NO_TRIAL_SPACE_FOUND_IN_EXPRESSION);
-    return meta::xpr_query<
-      decltype([]<typename Xpr_>(Xpr_&& xpr) -> auto& { return xpr.fe_space(); }),
-      decltype([]<typename Xpr_>() { return requires { typename Xpr_::TrialSpace; }; })>(std::forward<Xpr>(xpr));
-}
-template <typename Xpr> using trial_space_t = std::decay_t<decltype(trial_space(std::declval<Xpr>()))>;
-// detect test space from bilinear form
-template <typename Xpr> constexpr decltype(auto)  test_space(Xpr&& xpr) {
-    constexpr bool found = meta::xpr_find<
-      decltype([]<typename Xpr_>() { return requires { typename Xpr_::TestSpace; }; }), std::decay_t<Xpr>>();
-    fdapde_static_assert(found, NO_TEST_SPACE_FOUND_IN_EXPRESSION);
-    return meta::xpr_query<
-      decltype([]<typename Xpr_>(Xpr_&& xpr) -> auto& { return xpr.fe_space(); }),
-      decltype([]<typename Xpr_>() { return requires { typename Xpr_::TestSpace; }; })>(std::forward<Xpr>(xpr));
-}
-template <typename Xpr> using test_space_t = std::decay_t<decltype(test_space(std::declval<Xpr>()))>;
-
-template <typename T>
-    requires(
-      std::is_floating_point_v<T> ||
-      requires(T t, int k) {
-          { t.size() } -> std::convertible_to<std::size_t>;
-          { t.operator[](k) } -> std::convertible_to<double>;
-      })
-constexpr auto scalar_or_kth_component_of(const T& t, std::size_t k) {
-    if constexpr (std::is_floating_point_v<T>) {
-        return t;
-    } else {
-        fdapde_constexpr_assert(k < t.size());
-        return t[k];
-    }
-}
-
-// implementation of galerkin assembly loop for the discretization of arbitrarily bilinear forms
-template <typename Derived> struct fe_assembly_xpr_base;
-
 // traits for surface integration \int_{\partial D} (...)
 template <typename FeSpace_, typename... Quadrature_> struct fe_face_assembler_traits {
     using FeType = typename FeSpace_::FeType;
@@ -125,7 +83,7 @@ template <typename FeSpace_, typename... Quadrature_> struct fe_face_assembler_t
     fdapde_static_assert(
       internals::is_fe_quadrature_simplex<Quadrature>, SUPPLIED_QUADRATURE_FORMULA_IS_NOT_FOR_SIMPLEX_INTEGRATION);
     using geo_iterator = typename Triangulation<local_dim, embed_dim>::boundary_iterator;
-    using dof_iterator = typename DofHandler<local_dim, embed_dim>::boundary_iterator;
+    using dof_iterator = typename DofHandler<local_dim, embed_dim, fdapde::finite_element>::boundary_iterator;
 };
 
 // traits for integration \int_D (...) over the whole domain D
@@ -149,7 +107,7 @@ template <typename FeSpace_, typename... Quadrature_> struct fe_cell_assembler_t
     fdapde_static_assert(
       internals::is_fe_quadrature_simplex<Quadrature>, SUPPLIED_QUADRATURE_FORMULA_IS_NOT_FOR_SIMPLEX_INTEGRATION);
     using geo_iterator = typename Triangulation<local_dim, embed_dim>::cell_iterator;
-    using dof_iterator = typename DofHandler<local_dim, embed_dim>::cell_iterator;
+    using dof_iterator = typename DofHandler<local_dim, embed_dim, fdapde::finite_element>::cell_iterator;
 };
   
 // base class for vector finite element assembly loops
@@ -171,6 +129,7 @@ struct fe_assembler_base {
     static constexpr int Options = Options_;
     using FunctionSpace = TestSpace;
     using FeType = typename FunctionSpace::FeType;
+    using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::finite_element>;
     using fe_traits = std::conditional_t<
       Options == CellMajor, fe_cell_assembler_traits<FunctionSpace, Quadrature_...>,
       fe_face_assembler_traits<FunctionSpace, Quadrature_...>>;
@@ -340,59 +299,11 @@ struct fe_assembler_base {
 
     Form form_;
     Quadrature quadrature_ {};
-    const DofHandler<local_dim, embed_dim>* dof_handler_;
+    const DofHandlerType* dof_handler_;
     const TestSpace* test_space_;
     typename fe_traits::geo_iterator begin_, end_;
 };
     
-// arithmetic between matrix assembly loops
-template <typename Derived> struct fe_assembly_xpr_base {
-    constexpr const Derived& derived() const { return static_cast<const Derived&>(*this); }
-};
-
-template <typename Lhs, typename Rhs>
-struct fe_assembly_add_op : public fe_assembly_xpr_base<fe_assembly_add_op<Lhs, Rhs>> {
-    fdapde_static_assert(
-      std::is_same_v<decltype(std::declval<Lhs>().assemble()) FDAPDE_COMMA decltype(std::declval<Rhs>().assemble())>,
-      YOU_ARE_SUMMING_NON_COMPATIBLE_ASSEMBLY_LOOPS);
-    using OutputType = decltype(std::declval<Lhs>().assemble());
-    fe_assembly_add_op(const Lhs& lhs, const Rhs& rhs) : lhs_(lhs), rhs_(rhs) {
-        fdapde_assert(lhs.rows() == rhs.rows() && lhs.cols() == rhs.cols());
-    }
-    OutputType assemble() const {
-        if constexpr (std::is_same_v<OutputType, SpMatrix<double>>) {
-            SpMatrix<double> assembled_mat(lhs_.rows(), lhs_.cols());
-            std::vector<Eigen::Triplet<double>> triplet_list;
-            assemble(triplet_list);
-            // linearity of the integral is implicitly used here, as duplicated triplets are summed up (see Eigen docs)
-            assembled_mat.setFromTriplets(triplet_list.begin(), triplet_list.end());
-            assembled_mat.makeCompressed();
-            return assembled_mat;
-        } else {
-            DVector<double> assembled_vec(lhs_.rows());
-            assembled_vec.setZero();
-            assemble(assembled_vec);
-            return assembled_vec;
-        }
-    }
-    template <typename T> void assemble(T& assembly_buff) const {
-        lhs_.assemble(assembly_buff);
-        rhs_.assemble(assembly_buff);
-        return;
-    }
-    constexpr int n_dofs() const { return lhs_.n_dofs(); }
-    constexpr int rows() const { return lhs_.rows(); }
-    constexpr int cols() const { return lhs_.cols(); }
-   private:
-    Lhs lhs_;
-    Rhs rhs_;
-};
-  
-template <typename Lhs, typename Rhs>
-fe_assembly_add_op<Lhs, Rhs> operator+(const fe_assembly_xpr_base<Lhs>& lhs, const fe_assembly_xpr_base<Rhs>& rhs) {
-    return fe_assembly_add_op<Lhs, Rhs>(lhs.derived(), rhs.derived());
-}
-
 }   // namespace internals
 }   // namespace fdapde
 

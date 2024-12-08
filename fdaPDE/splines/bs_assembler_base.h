@@ -14,21 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_FINITE_ELEMENTS_MODULE_H__
-#define __FDAPDE_FINITE_ELEMENTS_MODULE_H__
+#ifndef __BS_ASSEMBLER_BASE_H__
+#define __BS_ASSEMBLER_BASE_H__
+  
+namespace fdapde{
+namespace internals {
 
-#include "finite_elements/dof_handler.h"
-#include "finite_elements/dof_segment.h"
-#include "finite_elements/dof_tetrahedron.h"
-#include "finite_elements/dof_triangle.h"
-#include "finite_elements/fe_assembler.h"
-#include "finite_elements/fe_bilinear_form_assembler.h"
-#include "finite_elements/fe_function.h"
-#include "finite_elements/fe_integration.h"
-#include "finite_elements/fe_linear_form_assembler.h"
-#include "finite_elements/fe_map.h"
-#include "finite_elements/fe_p.h"
-#include "finite_elements/fe_space.h"
-#include "finite_elements/lagrange_basis.h"
 
-#endif   // __FDAPDE_FINITE_ELEMENTS_MODULE_H__
+}   // namespace internals
+}   // namespace fdapde
+
+#endif   // __BS_ASSEMBLER_BASE_H__

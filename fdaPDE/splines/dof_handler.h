@@ -21,23 +21,28 @@
 #include "../utils/symbols.h"
 
 namespace fdapde {
-  
-class BsDofHandler {
+
+struct bspline { };
+
+template <int LocalDim, int EmbedDim, typename SpaceCategory> class DofHandler;
+template <>
+class DofHandler<1, 1, fdapde::bspline> {
    public:
     using TriangulationType = Triangulation<1, 1>;
+    using space_category = fdapde::bspline;
     static constexpr int local_dim = TriangulationType::local_dim;
     static constexpr int embed_dim = TriangulationType::embed_dim;
 
     // a geometrical segment with attached dofs
     struct CellType : public Segment<TriangulationType> {
         using Base = Segment<TriangulationType>;
-        const BsDofHandler* dof_handler_;
+        const DofHandler* dof_handler_;
        public:
         static constexpr int local_dim = 1;
         static constexpr int embed_dim = 1;
 
         CellType() : dof_handler_(nullptr) { }
-        CellType(int cell_id, const BsDofHandler* dof_handler) :
+        CellType(int cell_id, const DofHandler* dof_handler) :
             Base(cell_id, dof_handler->triangulation()), dof_handler_(dof_handler) { }
         std::vector<int> dofs() const { return dof_handler_->active_dofs(Base::id()); }
         std::vector<int> dofs_markers() const {
@@ -58,8 +63,8 @@ class BsDofHandler {
         }
     };
     // constructor
-    BsDofHandler() = default;
-    BsDofHandler(const TriangulationType& triangulation) : triangulation_(std::addressof(triangulation)) { }
+    DofHandler() = default;
+    DofHandler(const TriangulationType& triangulation) : triangulation_(std::addressof(triangulation)) { }
     // getters
     CellType cell(int id) const { return CellType(id, this); }
     Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> dofs() const {
@@ -102,7 +107,7 @@ class BsDofHandler {
         using Base = internals::filtering_iterator<cell_iterator, CellType>;
         using Base::index_;
         friend Base;
-        const BsDofHandler* dof_handler_;
+        const DofHandler* dof_handler_;
         int marker_;
         cell_iterator& operator()(int i) {
             Base::val_ = dof_handler_->cell(i);
@@ -111,14 +116,14 @@ class BsDofHandler {
        public:
         cell_iterator() = default;
         cell_iterator(
-          int index, const BsDofHandler* dof_handler, const BinaryVector<fdapde::Dynamic>& filter, int marker) :
+          int index, const DofHandler* dof_handler, const BinaryVector<fdapde::Dynamic>& filter, int marker) :
             Base(index, 0, dof_handler->triangulation()->n_cells(), filter),
             dof_handler_(dof_handler),
             marker_(marker) {
             for (; index_ < Base::end_ && !filter[index_]; ++index_);
             if (index_ != Base::end_) { operator()(index_); }
         }
-        cell_iterator(int index, const BsDofHandler* dof_handler, int marker) :
+        cell_iterator(int index, const DofHandler* dof_handler, int marker) :
             cell_iterator(
               index, dof_handler,
               marker == TriangulationAll ?
@@ -139,7 +144,52 @@ class BsDofHandler {
         return cell_iterator(triangulation_->n_cells(), this, marker);
     }
 
-    // class boundary_dofs_iterator {};
+    class BoundaryDofType {
+        int id_;
+        const DofHandler* dof_handler_;
+       public:
+        BoundaryDofType() = default;
+        BoundaryDofType(int id, const DofHandler* dof_handler) : id_(id), dof_handler_(dof_handler) { }
+        int id() const { return id_; }
+        int marker() const { return dof_handler_->dofs_markers_[id_]; }
+        Eigen::Matrix<double, embed_dim, 1> coord() const {
+            return Eigen::Matrix<double, embed_dim, 1>(dof_handler_->dofs_coords_[id_]);
+        }
+    };
+    class boundary_dofs_iterator : public internals::filtering_iterator<boundary_dofs_iterator, BoundaryDofType> {
+        using Base = internals::filtering_iterator<boundary_dofs_iterator, BoundaryDofType>;
+        using Base::index_;
+        friend Base;
+        const DofHandler* dof_handler_;
+        int marker_;
+        boundary_dofs_iterator& operator()(int i) {
+            Base::val_ = BoundaryDofType(i, dof_handler_);
+            return *this;
+        }
+       public:
+        boundary_dofs_iterator(
+          int index, const DofHandler* dof_handler, const BinaryVector<fdapde::Dynamic>& filter, int marker) :
+            Base(index, 0, dof_handler->n_dofs(), filter), dof_handler_(dof_handler), marker_(marker) {
+            for (; index_ < Base::end_ && !filter[index_]; ++index_);
+            if (index_ != Base::end_) { operator()(index_); }
+        }
+        // filter boundary dofs by marker
+        boundary_dofs_iterator(int index, const DofHandler* dof_handler, int marker) :
+            boundary_dofs_iterator(
+              index, dof_handler,
+              marker == BoundaryAll ? dof_handler->boundary_dofs_ :
+                                      dof_handler->boundary_dofs_ &
+                                        fdapde::make_binary_vector(
+                                          dof_handler->dofs_markers_.begin(), dof_handler->dofs_markers_.end(), marker),
+              marker) { }
+        int marker() const { return marker_; }
+    };
+    boundary_dofs_iterator boundary_dofs_begin(int marker = BoundaryAll) const {
+        return boundary_dofs_iterator(0, this, marker);
+    }
+    boundary_dofs_iterator boundary_dofs_end(int marker = BoundaryAll) const {
+        return boundary_dofs_iterator(n_dofs_, this, marker);
+    }
 
     template <typename BsType> void enumerate(BsType&& bs) {
         n_dofs_ = bs.size();
@@ -153,11 +203,12 @@ class BsDofHandler {
             while (i < n_dofs_ && dofs_coords_[i] == dofs_coords_[i + 1]) { i++; }
             dofs_.push_back(i);
         }
-        // update boundary and inherit markers from geometry
-        boundary_dofs_.resize(n_dofs_);
-        dofs_markers_ = std::vector<int>(n_dofs_, Unmarked);
-        for (int i = dofs_[0]; i < dofs_[1]; ++i) { boundary_dofs_.set(i); }
-        for (int i = dofs_.back() - 1; i <= dofs_.back(); ++i) { boundary_dofs_.set(i); }
+        // Regardless of the number of physical dofs at the interval boundary, only the basis functions associated with
+        // the first and last dofs are non-zero at the boundary nodes. Hence, we treat only these dofs as boundary dofs
+	boundary_dofs_.resize(n_dofs_);
+        boundary_dofs_.set(0);
+        boundary_dofs_.set(dofs_.back());
+	// inherit markers from geometry
         dofs_markers_ = triangulation_->nodes_markers();
         return;
     }
@@ -167,7 +218,7 @@ class BsDofHandler {
     std::vector<int> dofs_;
     int n_dofs_;
     std::vector<int> dofs_markers_;
-    const Triangulation<1, 1>* triangulation_;
+    const TriangulationType* triangulation_;
 };
 
 }   // namespace fdapde

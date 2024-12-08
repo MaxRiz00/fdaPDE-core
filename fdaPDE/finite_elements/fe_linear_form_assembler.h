@@ -28,7 +28,7 @@ namespace internals {
 template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
 class fe_linear_form_assembly_loop :
     public fe_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
-    public fe_assembly_xpr_base<fe_linear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
+    public assembly_xpr_base<fe_linear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
     using Base = fe_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
     using Form = typename Base::Form;
     static constexpr int local_dim = Base::local_dim;

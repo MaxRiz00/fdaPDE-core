@@ -344,6 +344,7 @@ class FeFunction :
     using Base = std::conditional_t<
       FeSpace::n_components == 1, fdapde::ScalarBase<FeSpace::local_dim, FeFunction<FeSpace>>,
       fdapde::MatrixBase<FeSpace::local_dim, FeFunction<FeSpace>>>;
+    using DofHandlerType = typename FeSpace::DofHandlerType;
     using InputType = SVector<FeSpace::local_dim>;
     using Scalar = double;
     using OutputType =
@@ -367,7 +368,7 @@ class FeFunction :
         int e_id = fe_space_->triangulation().locate(p);
         if (e_id == -1) return std::numeric_limits<Scalar>::quiet_NaN();   // return NaN if point lies outside domain
         // map p to reference cell and evaluate
-        typename DofHandler<local_dim, embed_dim>::CellType cell = fe_space_->dof_handler().cell(e_id);
+        typename DofHandlerType::CellType cell = fe_space_->dof_handler().cell(e_id);
         InputType ref_p = cell.invJ() * (p - cell.node(0));
         DVector<int> active_dofs = cell.dofs();
         OutputType value;
@@ -386,7 +387,7 @@ class FeFunction :
         int e_id = fe_space_->triangulation().locate(p);
         if (e_id == -1) return std::numeric_limits<Scalar>::quiet_NaN();   // return NaN if point lies outside domain
         // map p to reference cell and evaluate
-        typename DofHandler<local_dim, embed_dim>::CellType cell = fe_space_->dof_handler().cell(e_id);
+        typename DofHandlerType::CellType cell = fe_space_->dof_handler().cell(e_id);
         InputType ref_p = cell.invJ() * (p - cell.node(0));
         DVector<int> active_dofs = cell.dofs();
         Scalar value = 0;
