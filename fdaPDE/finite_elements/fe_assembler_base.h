@@ -228,20 +228,18 @@ struct fe_assembler_base {
       std::unordered_map<const void*, DMatrix<double>>& fe_map_buff, typename fe_traits::dof_iterator begin,
       typename fe_traits::dof_iterator end) const {
         DMatrix<double> quad_nodes;
+        Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, Quadrature::local_dim>> ref_quad_nodes(
+          quadrature_.nodes.data());
         quad_nodes.resize(n_quadrature_nodes * (end_.index() - begin_.index()), embed_dim);
         int local_cell_id = 0;
         for (typename fe_traits::geo_iterator it = begin_; it != end_; ++it) {
             for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
                 quad_nodes.row(local_cell_id * n_quadrature_nodes + q_k) =
-                  it->J() *
-                    Eigen::Map<const SMatrix<n_quadrature_nodes, Quadrature::local_dim>>(quadrature_.nodes.data())
-                      .row(q_k)
-                      .transpose() +
-                  it->node(0);
+                  it->J() * ref_quad_nodes.row(q_k).transpose() + it->node(0);
             }
             local_cell_id++;
         }
-        // evaluate FeMap nodes at quadrature nodes
+        // evaluate Map nodes at quadrature nodes
         meta::xpr_apply_if<
           decltype([]<typename Xpr_, typename... Args>(Xpr_& xpr, Args&&... args) {
               xpr.init(std::forward<Args>(args)...);

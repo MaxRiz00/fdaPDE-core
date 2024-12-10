@@ -42,7 +42,7 @@ template <typename Triangulation_> class BsSpace {
 
     BsSpace() = default;
     BsSpace(const Triangulation_& interval, int order) :
-        interval_(std::addressof(interval)), dof_handler_(interval) {
+        interval_(std::addressof(interval)), dof_handler_(interval), order_(order) {
         dof_handler_.enumerate(BasisType(interval, order));
 	// build reference [-1, 1] interval with nodes mapped from physical interval [a, b]
         Eigen::Matrix<double, Dynamic, 1> ref_nodes(triangulation.n_nodes());
@@ -59,7 +59,8 @@ template <typename Triangulation_> class BsSpace {
     constexpr int n_shape_functions_face() const { return 1; }
     int n_dofs() const { return dof_handler_.n_dofs(); }
     const BasisType& basis() const { return basis_; }
-  
+    int order() const { return order_; }
+
     // evaluation
     template <typename InputType>
         requires(std::is_invocable_v<ShapeFunctionType, InputType>)
@@ -112,8 +113,9 @@ template <typename Triangulation_> class BsSpace {
     };
 
     const Triangulation* triangulation_;
-    DofHandlerType dof_handler_;   // dof_handler is over the physical domain
-    BasisType basis_;              // basis_ is defined over the reference interval [-1, +1
+    DofHandlerType dof_handler_;   // dof_handler over physical domain
+    BasisType basis_;              // basis_ over reference interval [-1, +1]
+    int order_;                    // spline order
 };
 
 }   // namespace fdapde
