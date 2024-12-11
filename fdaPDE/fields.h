@@ -27,5 +27,6 @@
 #include "fields/polynomial.h"
 #include "fields/scalar_field.h"
 #include "fields/space_time_field.h"
+#include "fields/spline.h"
 
 #endif   // __FDAPDE_FIELDS_MODULE_H__
