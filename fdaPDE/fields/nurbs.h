@@ -7,8 +7,37 @@
 #include "scalar_field.h"
 #include "spline.h"
 
+#include <tuple>
 
 namespace fdapde{
+
+// Funziona ma è migliorabile, magari una versione iterativa? Comunque la ricorsione non fa più di 3 passaggi
+template <int N, int J = 0>
+inline double multicontract(
+    const MdArray<double, full_dynamic_extent_t<N - J>> &weights,
+    const std::array<std::vector<double>, N> &parts
+) {
+    if constexpr (N == J + 1) {
+        // Base case sum_{i=0}^{N-1} w_i * p_i
+        double contracted_value = 0.0;
+        for (int i = 0; i < weights.extent(0); ++i) {
+            contracted_value += weights(i) * parts[J][i];
+        }
+        return contracted_value;
+    } else {
+        // Perform contraction along dimension J
+        auto extent_J = weights.extent(J);
+        //fdapde_assert(parts[J].extent(0) == extent_J); non funzione xk non ho l'extent
+
+        double contracted_value = 0.0;
+
+        for (int idx = 0; idx < extent_J; ++idx) {
+            auto sub_block = weights.template slice<0>(idx);
+            contracted_value += parts[J][idx] * multicontract<N, J+1 >(sub_block, parts);
+        }
+        return contracted_value;
+    }
+}
 
 template<int M>
 class Nurbs: public ScalarBase<M,Nurbs<M>> {
@@ -24,65 +53,87 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
 
         private:
             std::array<std::vector<double>,M> knots_ ;
-            //Eigen::Tensor<double,M> weights_;
             MdArray<double,full_dynamic_extent_t<M>> weights_;
-            std::array<M, int> index_ ;
+            std::array<int,M> index_ ;
             int order_;
 
             std::array<std::size_t, M> minIdx_;
-            Eigen::Array<Eigen::Index, M> extents_;
+            std::array<Eigen::Index, M> extents_; // fare il min_idx e max idx ??? al posto di minIdx e extents
             double num0_;
 
         public:
             Nurbs() = default;
 
-            Nurbs(const std::array<std::vector<double>,M>& knots, const MdArray<double,full_dynamic_extent_t<M>>& weights, const std::array<M, int>& index, int order): 
+            Nurbs(std::array<std::vector<double>,M>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>& index, int order): 
                 knots_(knots), index_(index), order_(order){
 
                 for (std::size_t i = 0; i < M; ++i) {
                     minIdx_[i] = (index_[i] >= order)? (index_[i]-order) : 0;
-                    extents_[i] = (index_[i] + order < weights.extent(i))? (index_[i]+order+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]); // cambiare dimension
+                    extents_[i] = (index_[i] + order < weights.extent(i))? (index_[i]+order+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]); 
 
                 }
 
                 // allocate space for the weights
-                weights_.resize(extents_);
+                std::apply([&](auto... dims) { weights_.resize(dims...); }, extents_);
 
-                // Store the pairs
-                std::vector<std::pair<size_t, size_t>> pairs;
-                // Create pairs
+                // Create pairs of min and max indices 
+                std::array<std::pair<size_t, size_t>, M> pairs; 
                 for (size_t i = 0; i < M; ++i) {
-                    pairs.emplace_back(minIdx_[i], minIdx_[i] + extents_[i]);
+                    pairs[i] = {minIdx_[i], minIdx_[i] + extents_[i]-1};
+                    std::cout<<"Pair["<<i<<"] = "<<pairs[i].first<<","<<pairs[i].second<<std::endl;
                 }
 
-                //per ritornare un blocco, cioè un MdArray con lo stesso ordine dell'MdArray di partenza: auto blk = md.block({a1, a2}, {b1, b2});
-                // copy the block of weights
-                weights_ = weights.block(pairs);
-                num0_ = weights(index_);
+                
+                // fill the block of weights with only the necessary values
+                weights_ = std::apply([&](auto... slicers) { return weights.block(slicers...); }, pairs);
 
-                //weights_ = weights.slice(minIdx_, extents_);
-                //num0_ = weights(index_);
-
+                // compute the starting numerator
+                num0_ = std::apply([&](auto... idx) { return weights_(idx...); }, index_);      
+                
                 // alloca per il gradiente 
-                // alloca per l'hessiana
+                // alloca per l'hessiana  
+
+                std::cout << "NURBS correctly initialized! " << std::endl; 
 
             };
-            /*
+            
 
-            //evaluates the NURBS at a given point 
-            inline double operator()(const SVector<M>& x) const {
+            //evaluates the NURBS at a given point, funziona
+            template <typename InputType_>
+            requires(fdapde::is_subscriptable<InputType_, int>)
+            constexpr Scalar operator()(const InputType_& p_) const {
                 
                 double num = num0_;
-                std::array<std::vector<double>,M> spline_evaluation;
+                std::array<std::vector<double>,M> spline_evaluation {};
                 double den;
 
-                //builds the M-dim SVector containing in each position the set of spline basis evaluated
-                // and compute the NURBS numerator
+                // Initialize each vector to the appropriate size
+                for (std::size_t i = 0; i < M; ++i) {
+                    spline_evaluation[i].resize(extents_[i]);
+                }
+
                 for(std::size_t i=0;i<M;i++){
-                    //resize i-th tensor according to i-th weights dimension
+
+                    // pad the spline evaluation with order + 1 repetitions of the first and last knot
+                    int n = knots_[i].size();
+                    std::vector<double> used_knots;
+                    used_knots.resize(n + 2 * order_);
+                    // pad the knot vector to obtain a full basis for the whole knot span [knots[0], knots[n-1]]
+                    for (int k = 0; k < n + 2 * order_; ++k) {
+                        if (k < order_) {
+                            used_knots[k] = knots_[i][0];
+                        } else {
+                            if (k < n + order_) {
+                                used_knots[k] = knots_[i][k - order_];
+                            } else {
+                                used_knots[k] = knots_[i][n - 1];
+                            }
+                        }
+                    }
 
                     for(std::size_t j = 0; j<extents_[i]; j++ ){
-                        spline_evaluation[i][j] = Spline(knots_[i],min_Idx[i]+j, order_) (x);
+                        auto spline = Spline(used_knots, minIdx_[i]+j, order_);
+                        spline_evaluation[i][j] = spline(std::vector<double>{p_[i]}); 
                     }
 
                     //numerator update
@@ -94,13 +145,13 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                     return 0;
                 // compute the sum that appears at the denominator of the formula
                 
-                den = multicontract<M,0>(weights_, spline_evaluation);
+                den = multicontract<M>(weights_, spline_evaluation);
                 return num/den;
-            }; */
-
-            
+            }; 
 
     };
 }
+
+#endif
 
 
