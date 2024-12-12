@@ -441,6 +441,12 @@ template <typename MdArray, typename BlkExtents> class MdArrayBlock {
             return (((static_cast<index_t>(idxs) + offset_[Ns_]) * mdarray_->mapping().stride(Ns_)) + ... + 0);
         }));
     }
+    template <typename IndexPack>   // access via index-pack object
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr const_reference operator()(IndexPack&& index_pack) const {
+        return internals::apply_index_pack<Order>(
+          [&]<int... Ns_>() -> decltype(auto) { return operator()(index_pack[Ns_]...); });
+    }
     // non-constant access
     template <typename... Idxs>
         requires(std::is_convertible_v<Idxs, index_t> && ...) &&
@@ -451,6 +457,12 @@ template <typename MdArray, typename BlkExtents> class MdArrayBlock {
         return mdarray_->operator[](internals::apply_index_pack<Order>([&]<int... Ns_>() {
             return (((static_cast<index_t>(idxs) + offset_[Ns_]) * mdarray_->mapping().stride(Ns_)) + ... + 0);
         }));
+    }
+    template <typename IndexPack>   // access via index-pack object
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr reference operator()(IndexPack&& index_pack) {
+        return internals::apply_index_pack<Order>(
+          [&]<int... Ns_>() -> decltype(auto) { return operator()(index_pack[Ns_]...); });
     }
    private:
     std::array<index_t, Order> offset_ {};
@@ -664,6 +676,12 @@ template <typename MdArray, int... Slicers> class MdArraySlice {
         return mdarray_->operator[](internals::apply_index_pack<Order>(
           [&]<int... Ns_>() { return ((static_cast<index_t>(idxs) * internal_stride_[Ns_]) + ... + offset_); }));
     }
+    template <typename IndexPack>   // access via index-pack object
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr const_reference operator()(IndexPack&& index_pack) const {
+        return internals::apply_index_pack<Order>(
+          [&]<int... Ns_>() -> decltype(auto) { return operator()(index_pack[Ns_]...); });
+    }
     constexpr const_reference operator[](int index) const { return mdarray_->operator[](offset_ + index); }
     // non-constant access
     template <typename... Idxs>
@@ -676,6 +694,12 @@ template <typename MdArray, int... Slicers> class MdArraySlice {
           idxs...);
         return mdarray_->operator[](internals::apply_index_pack<Order>(
           [&]<int... Ns_>() { return ((static_cast<index_t>(idxs) * internal_stride_[Ns_]) + ... + offset_); }));
+    }
+    template <typename IndexPack>   // access via index-pack object
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr reference operator()(IndexPack&& index_pack) {
+        return internals::apply_index_pack<Order>(
+          [&]<int... Ns_>() -> decltype(auto) { return operator()(index_pack[Ns_]...); });
     }
     constexpr reference operator[](int index) { return mdarray_->operator[](offset_ + index); }
     constexpr auto matrix() const {
@@ -938,11 +962,22 @@ template <typename Scalar_, typename Extents_, typename LayoutPolicy_ = internal
         mapping_ = mapping_t(extents_);
         data_.resize(size());   // re-allocate space
     }
+    template <typename IndexPack>
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr void resize(IndexPack&& index_pack) {
+        internals::apply_index_pack<Order>([&]<int... Ns_> { resize(index_pack[Ns_]...); });
+    }
     // constant access
     template <typename... Idxs>
         requires(std::is_convertible_v<Idxs, index_t> && ...) && (sizeof...(Idxs) == extents_t::Order)
     constexpr const_reference operator()(Idxs... idxs) const {
         return data_[mapping_(static_cast<index_t>(idxs)...)];
+    }
+    template <typename IndexPack>   // access via index-pack object
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr const_reference operator()(IndexPack&& index_pack) const {
+        return internals::apply_index_pack<Order>(
+          [&]<int... Ns_>() -> decltype(auto) { return operator()(index_pack[Ns_]...); });
     }
     constexpr const_reference operator[](index_t i) const { return data_[i]; }
     // non-constant access
@@ -950,6 +985,12 @@ template <typename Scalar_, typename Extents_, typename LayoutPolicy_ = internal
         requires(std::is_convertible_v<Idxs, index_t> && ...) && (sizeof...(Idxs) == extents_t::Order)
     constexpr reference operator()(Idxs... idxs) {
         return data_[mapping_(static_cast<index_t>(idxs)...)];
+    }
+    template <typename IndexPack>   // access via index-pack object
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr reference operator()(IndexPack&& index_pack) {
+        return internals::apply_index_pack<Order>(
+          [&]<int... Ns_>() -> decltype(auto) { return operator()(index_pack[Ns_]...); });
     }
     constexpr reference operator[](index_t i) { return data_[i]; }
     // block-access operations
@@ -959,11 +1000,23 @@ template <typename Scalar_, typename Extents_, typename LayoutPolicy_ = internal
     constexpr auto block(Slicers_... slicers) {
         return fdapde::submdarray(*this, slicers...);
     }
+    template <typename IndexPack>   // access via index-pack object
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr auto block(IndexPack&& lower_index, IndexPack&& upper_index) {
+        return internals::apply_index_pack<Order>(
+          [&]<int... Ns_> { return fdapde::submdarray(*this, std::make_pair(lower_index[Ns_], upper_index[Ns_])...); });
+    }
     template <typename... Slicers_>   // dynamic-sized
         requires(sizeof...(Slicers_) == Order) &&
                 ((internals::is_integer_v<Slicers_> || internals::is_pair_v<Slicers_>) && ...)
     constexpr auto block(Slicers_... slicers) const {
         return fdapde::submdarray(*this, slicers...);
+    }
+    template <typename IndexPack>   // access via index-pack object
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr auto block(IndexPack&& lower_index, IndexPack&& upper_index) const {
+        return internals::apply_index_pack<Order>(
+          [&]<int... Ns_> { return fdapde::submdarray(*this, std::make_pair(lower_index[Ns_], upper_index[Ns_])...); });
     }
     template <int... Exts_, typename... Slicers_>   // static-sized (const access)
         requires(sizeof...(Exts_) == Order && sizeof...(Exts_) == sizeof...(Slicers_)) &&
@@ -1000,11 +1053,24 @@ template <typename Scalar_, typename Extents_, typename LayoutPolicy_ = internal
     constexpr auto slice(Slicers__... slicers) {
         return MdArraySlice<MdArray<Scalar, extents_t, layout_t>, Slicers...>(this, slicers...);
     }
+    template <int... Slicers, typename IndexPack>
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr auto slice(IndexPack&& index_pack) {
+        return internals::apply_index_pack<sizeof...(Slicers)>(
+          [&]<int... Ns_> { return slice<Slicers...>(index_pack[Ns_]...); });
+    }
     template <int... Slicers, typename... Slicers__>
         requires(std::is_convertible_v<Slicers__, int> && ...)
     constexpr auto slice(Slicers__... slicers) const {
         return MdArraySlice<const MdArray<Scalar, extents_t, layout_t>, Slicers...>(this, slicers...);
     }
+    template <int... Slicers, typename IndexPack>
+        requires(is_subscriptable<IndexPack, index_t>)
+    constexpr auto slice(IndexPack&& index_pack) const {
+        return internals::apply_index_pack<sizeof...(Slicers)>(
+          [&]<int... Ns_> { return slice<Slicers...>(index_pack[Ns_]...); });
+    }
+  
     constexpr auto matrix() const {
         fdapde_static_assert(Order == 2 || Order == 1, THIS_METHOD_IS_ONLY_FOR_ORDER_TWO_OR_ORDER_ONE_MDARRAY);
         if constexpr (Order == 1) {
