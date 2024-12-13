@@ -18,14 +18,24 @@
 #define __BS_SPACE_H__
 
 #include "../utils/symbols.h"
+#include "bs_assembler_base.h"
 #include "dof_handler.h"
 
 namespace fdapde {
 
+// forward declarations
 template <typename BsSpace_> class BsFunction;
+namespace internals {
 
+template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
+class bs_bilinear_form_assembly_loop;
+template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
+class bs_linear_form_assembly_loop;
+
+}   // namespace internals
+  
 template <typename Triangulation_> class BsSpace {
-    fdapde_assert(
+    fdapde_static_assert(
       Triangulation_::local_dim == 1 && Triangulation_::embed_dim == 1, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
     template <typename T> struct subscript_t_impl {
         using type = std::decay_t<decltype(std::declval<T>().operator[](std::declval<int>()))>;
@@ -35,21 +45,30 @@ template <typename Triangulation_> class BsSpace {
     using Triangulation = std::decay_t<Triangulation_>;
     static constexpr int local_dim = Triangulation::local_dim;
     static constexpr int embed_dim = Triangulation::embed_dim;
-    using FeType = std::decay_t<FeType_>;
     using BasisType = SplineBasis;
     using ShapeFunctionType = subscript_t<BasisType>;
     using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::bspline>;
+    using space_category = fdapde::bspline;
+    template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
+    using bilinear_form_assembly_loop =
+      internals::bs_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
+    template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
+    using linear_form_assembler_loop =
+      internals::bs_linear_form_assembly_loop  <Triangulation__, Form__, Options__, Quadrature__...>;
 
     BsSpace() = default;
     BsSpace(const Triangulation_& interval, int order) :
-        interval_(std::addressof(interval)), dof_handler_(interval), order_(order) {
+        triangulation_(std::addressof(interval)), dof_handler_(interval), order_(order) {
         dof_handler_.enumerate(BasisType(interval, order));
 	// build reference [-1, 1] interval with nodes mapped from physical interval [a, b]
-        Eigen::Matrix<double, Dynamic, 1> ref_nodes(triangulation.n_nodes());
-        for (int i = 0; i < nodes.rows(); ++i) { ref_nodes[i] = map_to_reference(triangulation.nodes(i, 0)); }
-        ref_interval_ = Triangulation(ref_nodes);
+        Eigen::Matrix<double, Dynamic, 1> ref_nodes(triangulation_->n_nodes());
+        for (int i = 0; i < triangulation_->n_nodes(); ++i) {
+            ref_nodes[i] = map_to_reference(triangulation_->nodes()(i, 0));
+	    std::cout << triangulation_->nodes()(i, 0) << " : " << ref_nodes[i] << " -- ";
+        }
+	std::cout << std::endl;
         // generate basis on reference [-1, 1] interval
-        basis_ = BasisType(ref_interval, order);
+        basis_ = BasisType(Triangulation(ref_nodes), order);
     }
     // observers
     const Triangulation& triangulation() const { return *triangulation_; }
@@ -60,7 +79,6 @@ template <typename Triangulation_> class BsSpace {
     int n_dofs() const { return dof_handler_.n_dofs(); }
     const BasisType& basis() const { return basis_; }
     int order() const { return order_; }
-
     // evaluation
     template <typename InputType>
         requires(std::is_invocable_v<ShapeFunctionType, InputType>)
@@ -90,13 +108,13 @@ template <typename Triangulation_> class BsSpace {
     // evaluation on physical domain
     // evaluate value of the i-th shape function defined on physical domain [a, b]
     template <typename InputType> auto eval_cell_value(int i, const InputType& p) const {
-        if constexpr (fdapde::is_subscriptable<InputType, int>) {
-            if (p[0] < triangulation.range()[0] || p[0] > triangulation.range()[1]) return 0.0;
-            return eval_shape_value(i, map_to_reference(p));
-        } else {
-            if (p < triangulation.range()[0] || p > triangulation.range()[1]) return 0.0;
-            return eval_shape_value(i, map_to_reference(p));
+        double p_;
+        if constexpr (fdapde::is_subscriptable<InputType, int>) { p_ = p[0]; }
+	else { p_ = p; }
+        if (p_ < triangulation_->range()[0] || p_ > triangulation_->range()[1]) {
+            return std::numeric_limits<double>::quiet_NaN();   // return NaN if point lies outside domain
         }
+        return eval_shape_value(i, map_to_reference(p_));
     }
 
     // need to return something which represent a basis function on the whole physical domain
@@ -108,8 +126,8 @@ template <typename Triangulation_> class BsSpace {
    private:
     // linear mapping from p \in [a, b] to \hat p \in [-1, +1]
     double map_to_reference(double p) {
-        double a = triangulation.range()[0], b = triangulation.range()[1];
-        return ((b - a) / 2) * p + (b + a) / 2;
+        double a = triangulation_->range()[0], b = triangulation_->range()[1];
+        return (p - (b - a) / 2) * 2 / (b + a);
     };
 
     const Triangulation* triangulation_;

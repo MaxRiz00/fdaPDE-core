@@ -29,7 +29,7 @@ namespace fdapde {
 
 template <typename Derived_> struct FeMap;
 
-enum fe_assembler_flags {
+enum class fe_assembler_flags {
     compute_shape_values        = 0x0001,
     compute_shape_grad          = 0x0002,
     compute_second_derivatives  = 0x0004,

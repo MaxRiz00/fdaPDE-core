@@ -64,10 +64,10 @@ class DofHandler<1, 1, fdapde::bspline> {
     };
     // constructor
     DofHandler() = default;
-    DofHandler(const TriangulationType& triangulation) : triangulation_(std::addressof(triangulation)) { }
+    DofHandler(const TriangulationType& triangulation) : triangulation_(std::addressof(triangulation)), order_() { }
     // getters
     CellType cell(int id) const { return CellType(id, this); }
-    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> dofs() const {
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> dofs() const {   // dofs active on cell
         return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
           dofs_.data(), dofs_.size() / 2, 2);
     }
@@ -90,16 +90,14 @@ class DofHandler<1, 1, fdapde::bspline> {
         }
         return result;
     }
+    // In any given knot span [u_i, u_{i+1}) at most p+1 basis functions are non zero, namely N_{i-p,p}, ..., N_{i,p}
+    // (property P2.2, pag 55, Piegl, L., & Tiller, W. (2012). The NURBS book. Springer Science & Business Media.)
     std::vector<int> active_dofs(int i) const {
-        int cell_id = 2 * i;
-	int n_dofs = dofs_[cell_id + 1] - dofs_[cell_id] + 1;
-        std::vector<int> tmp(n_dofs);
-        for (int j = 0; j <= n_dofs; ++j) { tmp[j] = dofs_[cell_id] + j; }
-        return tmp;
+        std::vector<int> dofs;
+        for (int j = 0; j < order_ + 1; ++j) { dofs.push_back(i + j); }
+        return dofs;
     }
-    template <typename ContainerT> void active_dofs(int cell_id, ContainerT& dst) const {
-        for (int i = dofs_[cell_id], n = dofs_[cell_id + 1]; i <= n; ++i) { dst.push_back(i); }
-    }
+    template <typename ContainerT> void active_dofs(int i, ContainerT& dst) const { dst = active_dofs(i); }
     operator bool() const { return n_dofs_ != 0; }
 
     // iterates over geometric cells coupled with dofs informations (possibly filtered by marker)
@@ -193,16 +191,14 @@ class DofHandler<1, 1, fdapde::bspline> {
 
     template <typename BsType> void enumerate(BsType&& bs) {
         n_dofs_ = bs.size();
+        order_ = bs.order();
         dofs_coords_.resize(n_dofs_);
         for (int i = 0; i < n_dofs_; ++i) { dofs_coords_[i] = bs[i].knot(); }
-        int i = 0, n_cells = triangulation()->n_cells();
+        int n_cells = triangulation()->n_cells();
         for (int j = 0; j < n_cells; ++j) {
-            dofs_.push_back(i);
-            while (i < n_dofs_ && dofs_coords_[i] == dofs_coords_[i + 1]) { i++; }
-            i++;
-            while (i < n_dofs_ && dofs_coords_[i] == dofs_coords_[i + 1]) { i++; }
-            dofs_.push_back(i);
-        }
+            dofs_.push_back(j);
+	    dofs_.push_back(j + order_);
+        }	
         // Regardless of the number of physical dofs at the interval boundary, only the basis functions associated with
         // the first and last dofs are non-zero at the boundary nodes. Hence, we treat only these dofs as boundary dofs
 	boundary_dofs_.resize(n_dofs_);
@@ -219,6 +215,7 @@ class DofHandler<1, 1, fdapde::bspline> {
     int n_dofs_;
     std::vector<int> dofs_markers_;
     const TriangulationType* triangulation_;
+    int order_;
 };
 
 }   // namespace fdapde

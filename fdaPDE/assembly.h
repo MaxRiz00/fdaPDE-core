@@ -24,6 +24,15 @@ namespace fdapde {
 [[maybe_unused]] static constexpr int CellMajor = 0;
 [[maybe_unused]] static constexpr int FaceMajor = 1;
 
+// test function forward decl
+template <typename FunctionSpace, typename SpaceCategory_> struct TestFunction;
+template <typename FunctionSpace>   // deduction guide
+TestFunction(FunctionSpace function_space) -> TestFunction<FunctionSpace, typename FunctionSpace::space_category>;
+// trial function forward decl
+template <typename FunctionSpace, typename SpaceCategory_> struct TrialFunction;
+template <typename FunctionSpace>   // deduction guide
+TrialFunction(FunctionSpace function_space) -> TrialFunction<FunctionSpace, typename FunctionSpace::space_category>;
+
 namespace internals {
 
 // set of internal utilities to write weak form assembly loops
@@ -34,7 +43,7 @@ template <typename Xpr> constexpr decltype(auto) trial_space(Xpr&& xpr) {
       decltype([]<typename Xpr_>() { return requires { typename Xpr_::TrialSpace; }; }), std::decay_t<Xpr>>();
     fdapde_static_assert(found, NO_TRIAL_SPACE_FOUND_IN_EXPRESSION);
     return meta::xpr_query<
-      decltype([]<typename Xpr_>(Xpr_&& xpr) -> auto& { return xpr.fe_space(); }),
+      decltype([]<typename Xpr_>(Xpr_&& xpr) -> auto& { return xpr.function_space(); }),
       decltype([]<typename Xpr_>() { return requires { typename Xpr_::TrialSpace; }; })>(std::forward<Xpr>(xpr));
 }
 template <typename Xpr> using trial_space_t = std::decay_t<decltype(trial_space(std::declval<Xpr>()))>;
@@ -44,7 +53,7 @@ template <typename Xpr> constexpr decltype(auto)  test_space(Xpr&& xpr) {
       decltype([]<typename Xpr_>() { return requires { typename Xpr_::TestSpace; }; }), std::decay_t<Xpr>>();
     fdapde_static_assert(found, NO_TEST_SPACE_FOUND_IN_EXPRESSION);
     return meta::xpr_query<
-      decltype([]<typename Xpr_>(Xpr_&& xpr) -> auto& { return xpr.fe_space(); }),
+      decltype([]<typename Xpr_>(Xpr_&& xpr) -> auto& { return xpr.function_space(); }),
       decltype([]<typename Xpr_>() { return requires { typename Xpr_::TestSpace; }; })>(std::forward<Xpr>(xpr));
 }
 template <typename Xpr> using test_space_t = std::decay_t<decltype(test_space(std::declval<Xpr>()))>;

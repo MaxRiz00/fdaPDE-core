@@ -21,7 +21,6 @@
 #include "finite_elements/dof_segment.h"
 #include "finite_elements/dof_tetrahedron.h"
 #include "finite_elements/dof_triangle.h"
-#include "finite_elements/fe_assembler.h"
 #include "finite_elements/fe_bilinear_form_assembler.h"
 #include "finite_elements/fe_function.h"
 #include "finite_elements/fe_integration.h"

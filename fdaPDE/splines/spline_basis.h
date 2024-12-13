@@ -77,6 +77,7 @@ class SplineBasis {
     constexpr int size() const { return basis_.size(); }
     constexpr const std::vector<double>& knots_vector() const { return knots_; }
     int n_knots() const { return knots_.size(); }
+    int order() const { return order_; }
 };
 
 } // namespace fdapde

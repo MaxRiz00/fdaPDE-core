@@ -114,7 +114,7 @@ class fe_bilinear_form_assembly_loop :
 	cexpr::Matrix<double, n_trial_basis, n_quadrature_nodes> trial_divs;
 	
         std::unordered_map<const void*, DMatrix<double>> fe_map_buff;
-        if constexpr (Form::XprBits & fe_assembler_flags::compute_physical_quad_nodes) {
+        if constexpr (Form::XprBits & int(fe_assembler_flags::compute_physical_quad_nodes)) {
             Base::distribute_quadrature_nodes(
               fe_map_buff, begin, end);   // distribute quadrature nodes on physical mesh (if required)
         }
@@ -124,14 +124,14 @@ class fe_bilinear_form_assembly_loop :
         for (iterator it = begin; it != end; ++it) {
             // update fe_packet content based on form requests
             fe_packet.cell_measure = it->measure();
-            if constexpr (Form::XprBits & fe_assembler_flags::compute_cell_diameter) {
+            if constexpr (Form::XprBits & int(fe_assembler_flags::compute_cell_diameter)) {
                 fe_packet.cell_diameter = it->diameter();
             }
-            if constexpr (Form::XprBits & fe_assembler_flags::compute_shape_grad) {
+            if constexpr (Form::XprBits & int(fe_assembler_flags::compute_shape_grad)) {
                 Base::eval_shape_grads_on_cell(it, test_shape_grads_, test_grads);
                 if constexpr (is_petrov_galerkin) Base::eval_shape_grads_on_cell(it, trial_shape_grads_, trial_grads);
             }
-            if constexpr (Form::XprBits & fe_assembler_flags::compute_shape_div) {
+            if constexpr (Form::XprBits & int(fe_assembler_flags::compute_shape_div)) {
                 // divergence is defined only for vector elements, skeep computation for scalar element case
                 if constexpr (n_test_components != 1) Base::eval_shape_div_on_cell(it, test_shape_grads_, test_divs);
                 if constexpr (is_petrov_galerkin && n_trial_components != 1)
@@ -145,24 +145,24 @@ class fe_bilinear_form_assembly_loop :
                 for (int j = 0; j < n_test_basis; ++j) {   // test function loop
                     double value = 0;
                     for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
-                        if constexpr (Form::XprBits & fe_assembler_flags::compute_shape_values) {
+                        if constexpr (Form::XprBits & int(fe_assembler_flags::compute_shape_values)) {
                             fe_packet.trial_value.assign_inplace_from(trial_shape_values_.template slice<0, 1>(i, q_k));
                             fe_packet.test_value .assign_inplace_from(test_shape_values_ .template slice<0, 1>(j, q_k));
                         }
-                        if constexpr (Form::XprBits & fe_assembler_flags::compute_shape_grad) {
+                        if constexpr (Form::XprBits & int(fe_assembler_flags::compute_shape_grad)) {
                             fe_packet.trial_grad.assign_inplace_from(is_galerkin ?
                                 test_grads.template slice<0, 1>(i, q_k) : trial_grads.template slice<0, 1>(i, q_k));
                             fe_packet.test_grad .assign_inplace_from(test_grads.template slice<0, 1>(j, q_k));
 
                         }
-                        if constexpr (Form::XprBits & fe_assembler_flags::compute_shape_div) {
+                        if constexpr (Form::XprBits & int(fe_assembler_flags::compute_shape_div)) {
                             if constexpr (n_trial_components != 1) {
                                 fe_packet.trial_div =
                                   (is_galerkin && n_test_components != 1) ? test_divs(i, q_k) : trial_divs(i, q_k);
                             }
                             if constexpr (n_test_components != 1) fe_packet.test_div = test_divs(j, q_k);
                         }
-                        if constexpr (Form::XprBits & fe_assembler_flags::compute_physical_quad_nodes) {
+                        if constexpr (Form::XprBits & int(fe_assembler_flags::compute_physical_quad_nodes)) {
                             fe_packet.quad_node_id = local_cell_id * n_quadrature_nodes + q_k;
                         }
                         value += Quadrature::weights[q_k] * form_(fe_packet);
