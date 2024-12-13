@@ -64,9 +64,7 @@ template <typename Triangulation_> class BsSpace {
         Eigen::Matrix<double, Dynamic, 1> ref_nodes(triangulation_->n_nodes());
         for (int i = 0; i < triangulation_->n_nodes(); ++i) {
             ref_nodes[i] = map_to_reference(triangulation_->nodes()(i, 0));
-	    std::cout << triangulation_->nodes()(i, 0) << " : " << ref_nodes[i] << " -- ";
         }
-	std::cout << std::endl;
         // generate basis on reference [-1, 1] interval
         basis_ = BasisType(Triangulation(ref_nodes), order);
     }

@@ -83,7 +83,6 @@ class bs_bilinear_form_assembly_loop :
         iterator end  (Base::end_.index()  , test_dof_handler(), Base::end_.marker()  );
 	// prepare assembly loop
         std::vector<int> test_active_dofs, trial_active_dofs;
-        int n_quadrature_nodes = Base::quad_nodes_.rows();
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_values_, test_shape_dx_, test_shape_ddx_;
         MdArray<double, MdExtents<Dynamic, Dynamic>> trial_shape_values_, trial_shape_dx_, trial_shape_ddx_;
 	
@@ -92,7 +91,6 @@ class bs_bilinear_form_assembly_loop :
             Base::distribute_quadrature_nodes(
               bs_map_buff, begin, end);   // distribute quadrature nodes on physical mesh (if required)
         }
-
 	// start assembly loop
         internals::bs_assembler_packet<local_dim> bs_packet {};
         int local_cell_id = 0;
@@ -114,7 +112,7 @@ class bs_bilinear_form_assembly_loop :
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it);
             }
             if constexpr (Form::XprBits & int(bs_assembler_flags::compute_shape_ddx)) {
-                test_shape_ddx_  = Base::eval_shapeddx(test_space_->basis(), test_active_dofs, it);
+                test_shape_ddx_  = Base::eval_shape_ddx(test_space_->basis(), test_active_dofs, it);
                 trial_shape_ddx_ = Base::eval_shape_ddx(
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it);
             }
@@ -123,7 +121,7 @@ class bs_bilinear_form_assembly_loop :
                  i < n_trial_basis; ++i) {   // trial function loop
                 for (int j = 0, n_test_basis = test_active_dofs.size(); j < n_test_basis; ++j) {   // test function loop
                     double value = 0;
-                    for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
+                    for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
                         if constexpr (Form::XprBits & int(bs_assembler_flags::compute_shape_values)) {
                             bs_packet.trial_value = trial_shape_values_(i, q_k);
                             bs_packet.test_value  = test_shape_values_ (j, q_k);
@@ -137,7 +135,7 @@ class bs_bilinear_form_assembly_loop :
                             bs_packet.test_ddx  = test_shape_ddx_ (j, q_k);
                         }
                         if constexpr (Form::XprBits & int(fe_assembler_flags::compute_physical_quad_nodes)) {
-                            bs_packet.quad_node_id = local_cell_id * n_quadrature_nodes + q_k;
+                            bs_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
                         }
                         value += Base::quad_weights_(q_k, 0) * form_(bs_packet);
                     }

@@ -124,17 +124,12 @@ class Spline : public ScalarBase<1, Spline> {
         requires(fdapde::is_subscriptable<InputType_, int>)
     constexpr Scalar operator()(const InputType_& p_) const {
         auto p = p_[0];
-	std::cout << "order: " << order_ << std::endl;
-	for(auto xyz : knots_) std::cout << xyz << ", ";
-	std::cout << std::endl;
         int m = knots_.size() - 1;
         std::vector<double> N(order_ + 1, 0.0);
         // special cases
         if ((i_ == 0 && p == knots_[0]) || (i_ == m - order_ - 1 && p == knots_[m])) return 1.0;
         // local property: return 0 if p is outside the range of this basis function
-	std::cout << "i_ " << i_ << "/" << knots_.size() << " : " << knots_[i_] << ", " << p << ", " << knots_[i_ + order_ + 1] << std::endl;
-	//if (p < knots_[i_] || p >= knots_[i_ + order_ + 1]) return 0.0;
-	std::cout << ":)" << std::endl;
+	if (p < knots_[i_] || p >= knots_[i_ + order_ + 1]) return 0.0;
         // initialize 0th degree basis functions
         for (int j = 0; j <= order_; ++j) {
             if (p >= knots_[i_ + j] && p < knots_[i_ + j + 1]) { N[j] = 1.0; }
@@ -155,7 +150,6 @@ class Spline : public ScalarBase<1, Spline> {
                 }
             }
         }
-	std::cout << N[0] << std::endl;
         return N[0];
     }
     constexpr Derivative gradient(int n = 1) const { return Derivative(knots_, i_, order_, n); }
@@ -172,7 +166,7 @@ class Spline : public ScalarBase<1, Spline> {
 
 constexpr auto dx (const Spline& spline) { return spline.gradient(1); }
 constexpr auto ddx(const Spline& spline) { return spline.gradient(2); }
-  
-} // namespace fdapde
+
+}   // namespace fdapde
 
 #endif // __SPLINE_H__

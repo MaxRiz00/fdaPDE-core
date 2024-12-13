@@ -87,7 +87,7 @@ struct bs_assembler_base {
                                  return !(std::is_invocable_v<Xpr, bs_assembler_packet<Xpr::StaticInputSize>>);
                              })>(form)),
         dof_handler_(std::addressof(internals::test_space(form_).dof_handler())),
-        test_space_(std::addressof(internals::test_space(form_))),
+        test_space_ (std::addressof(internals::test_space(form_))),
         begin_(begin),
         end_(end) {
         fdapde_assert(dof_handler_->n_dofs() > 0);
@@ -107,12 +107,18 @@ struct bs_assembler_base {
         }
 	// build grid of quadrature nodes on reference domain
 	n_quadrature_nodes_ = quad_nodes__.rows();
-        int n_cells = end_.index() - begin_.index(), n_src_points = quad_nodes__.rows(); // --------------------------------------
+        int n_cells = end_.index() - begin_.index(), n_src_points = quad_nodes__.rows();
         quad_nodes_.resize(n_cells * n_src_points, local_dim);
         int i = 0;
+
+        auto map_to_reference = [a = test_space_->triangulation().range()[0],
+                                 b = test_space_->triangulation().range()[1]](double p) {
+            return (p - (b - a) / 2) * 2 / (b + a);
+        };
+
         for (auto it = begin_; it != end_; ++it) {
             // map src nodes on cell it
-            double a = it->nodes()[0], b = it->nodes()[1];
+            double a = map_to_reference(it->nodes()[0]), b = map_to_reference(it->nodes()[1]);
             for (int j = 0; j < quad_nodes__.rows(); ++j) {
                 quad_nodes_(i, 0) = (b - a) / 2 * quad_nodes__(j, 0) + (b + a) / 2;
                 i++;
@@ -125,22 +131,16 @@ struct bs_assembler_base {
     template <typename BasisType__, typename IteratorType>
     MdArray<double, MdExtents<Dynamic, Dynamic>>
     eval_shape_values(BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell) const {
-      std::cout << "###########################" << std::endl;
         using BasisType = std::decay_t<BasisType__>;
         int n_basis = active_dofs.size();
         MdArray<double, MdExtents<Dynamic, Dynamic>> shape_values_(n_basis, n_quadrature_nodes_);
         for (int i = 0; i < n_basis; ++i) {
             // evaluation of \psi_i at q_j, j = 1, ..., n_quadrature_nodes
             for (int j = 0; j < n_quadrature_nodes_; ++j) {
-	      std::cout << "cell_id: " << cell->id() << std::endl;
-	      std::cout << cell->id() * n_quadrature_nodes_ + j << std::endl;
-	      std::cout << quad_nodes_.rows() << std::endl;
                 shape_values_(i, j) =
                   basis[active_dofs[i]](quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
-		std::cout << i << ", " << j << std::endl;
             }
         }
-	std::cout << "FATTO EVAL VALUES" << std::endl;
         return shape_values_;
     }
     // evaluation of k-th order derivative of basis function
@@ -153,7 +153,7 @@ struct bs_assembler_base {
         int n_basis = active_dofs.size();
 	// instantiate derivative functors once
         std::vector<DerivativeType> basis_der(n_basis);
-        for (int i = 0; i < n_basis; ++i) { basis_der[i] = basis[i].gradient(order); }
+        for (int i = 0; i < n_basis; ++i) { basis_der[i] = basis[active_dofs[i]].gradient(order); }
 
         MdArray<double, MdExtents<Dynamic, Dynamic>> shape_derivatives_(n_basis, n_quadrature_nodes_);
         for (int i = 0; i < n_basis; ++i) {
