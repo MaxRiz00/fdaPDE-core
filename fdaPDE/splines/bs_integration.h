@@ -115,10 +115,10 @@ void get_bs_quadrature(int order, T& quad_nodes, T& quad_weights) {
             quad_weights_(i, 0) = q.weights[i];
         }
     };
-    if (order == 0 || order == 1) { copy_(bs_quadrature_gauss_legendre<1, 1> {}, quad_nodes, quad_weights); }
+    // guarantee the exact integration of terms like (\psi_i * \psi_j)
+    if (order == 0 || order == 1) { copy_(bs_quadrature_gauss_legendre<1, 2> {}, quad_nodes, quad_weights); }
     if (order >  1 && order <= 3) { copy_(bs_quadrature_gauss_legendre<1, 3> {}, quad_nodes, quad_weights); }
-    if (order >  3 && order <= 5) { copy_(bs_quadrature_gauss_legendre<1, 3> {}, quad_nodes, quad_weights); }
-    if (order >  5 && order <= 7) { copy_(bs_quadrature_gauss_legendre<1, 4> {}, quad_nodes, quad_weights); }
+    if (order >  3 && order <= 5) { copy_(bs_quadrature_gauss_legendre<1, 4> {}, quad_nodes, quad_weights); }
 }
 
 }   // namespace internals

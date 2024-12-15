@@ -52,6 +52,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
     const DMatrix<int, Eigen::RowMajor>& dofs() const { return dofs_; }
     int n_dofs() const { return n_dofs_; }
     int n_unique_dofs() const { return n_unique_dofs_; }
+    int n_dofs_per_cell() const { return n_dofs_per_cell_; }
     bool is_dof_on_boundary(int i) const { return boundary_dofs_[i]; }
     Eigen::Map<const DVector<int>> dofs_markers() const {
         return Eigen::Map<const DVector<int>>(dofs_markers_.data(), n_dofs_, 1);
@@ -214,7 +215,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
     std::vector<int> dofs_to_cell_;                 // for each dof, the id of (one of) the cell containing it
     DofConstraints<Derived> dof_constraints_;
     std::vector<int> dofs_markers_;
-    int n_dofs_ = 0, n_unique_dofs_ = 0;
+    int n_dofs_per_cell_ = 0, n_dofs_ = 0, n_unique_dofs_ = 0;
     DMatrix<double> reference_dofs_barycentric_coords_;
 
     // local enumeration of dofs on cell
@@ -260,7 +261,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
         fdapde_static_assert(
           dof_descriptor::n_dofs_per_cell > 0 && dof_descriptor::dof_multiplicity > 0,
           FINITE_ELEMENT_DESCRIPTION_REQUESTS_THE_INSERTION_OF_AT_LEAST_ONE_DEGREE_OF_FREEDOM_PER_CELL);
-        dofs_.resize(triangulation_->n_cells(), dof_descriptor::n_dofs_per_cell * dof_descriptor::dof_multiplicity);
+        n_dofs_per_cell_ = dof_descriptor::n_dofs_per_cell * dof_descriptor::dof_multiplicity;
+        dofs_.resize(triangulation_->n_cells(), n_dofs_per_cell_);
 	// copy coordinates of dofs defined on reference unit simplex
 	typename FEType::cell_dof_descriptor<TriangulationType::local_dim> fe;
 	reference_dofs_barycentric_coords_.resize(fe.dofs_bary_coords().rows(), fe.dofs_bary_coords().cols());

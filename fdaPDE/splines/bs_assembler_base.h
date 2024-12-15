@@ -110,12 +110,11 @@ struct bs_assembler_base {
         int n_cells = end_.index() - begin_.index(), n_src_points = quad_nodes__.rows();
         quad_nodes_.resize(n_cells * n_src_points, local_dim);
         int i = 0;
-
+	// utility lambda to map p \in [a, b] to \hat p \in [-1, 1]
         auto map_to_reference = [a = test_space_->triangulation().range()[0],
                                  b = test_space_->triangulation().range()[1]](double p) {
             return (p - (b - a) / 2) * 2 / (b + a);
         };
-
         for (auto it = begin_; it != end_; ++it) {
             // map src nodes on cell it
             double a = map_to_reference(it->nodes()[0]), b = map_to_reference(it->nodes()[1]);
@@ -128,52 +127,45 @@ struct bs_assembler_base {
     const TestSpace& test_space() const { return *test_space_; }
    protected:
     // evaluation of \psi_i(q_j), i = 1, ..., n_basis, j = 1, ..., n_quadrature_nodes
-    template <typename BasisType__, typename IteratorType>
-    MdArray<double, MdExtents<Dynamic, Dynamic>>
-    eval_shape_values(BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell) const {
+    template <typename BasisType__, typename IteratorType, typename DstMdArray>
+    void eval_shape_values(
+      BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell, DstMdArray& dst) const {
         using BasisType = std::decay_t<BasisType__>;
         int n_basis = active_dofs.size();
-        MdArray<double, MdExtents<Dynamic, Dynamic>> shape_values_(n_basis, n_quadrature_nodes_);
         for (int i = 0; i < n_basis; ++i) {
             // evaluation of \psi_i at q_j, j = 1, ..., n_quadrature_nodes
             for (int j = 0; j < n_quadrature_nodes_; ++j) {
-                shape_values_(i, j) =
-                  basis[active_dofs[i]](quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
+                dst(i, j) = basis[active_dofs[i]](quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
             }
         }
-        return shape_values_;
+        return;
     }
     // evaluation of k-th order derivative of basis function
-    template <typename BasisType__, typename IteratorType>
+    template <typename BasisType__, typename IteratorType, typename DstMdArray>
         requires(requires(BasisType__ basis, int i, int k) { basis[i].gradient(k); })
-    MdArray<double, MdExtents<Dynamic, Dynamic>> eval_shape_derivative(
-      BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell, int order) const {
+    void eval_shape_derivative(
+      BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell, DstMdArray& dst, int order) const {
         using BasisType = std::decay_t<BasisType__>;
 	using DerivativeType = decltype(std::declval<BasisType>()[std::declval<int>()].gradient(std::declval<int>()));
         int n_basis = active_dofs.size();
-	// instantiate derivative functors once
-        std::vector<DerivativeType> basis_der(n_basis);
-        for (int i = 0; i < n_basis; ++i) { basis_der[i] = basis[active_dofs[i]].gradient(order); }
-
-        MdArray<double, MdExtents<Dynamic, Dynamic>> shape_derivatives_(n_basis, n_quadrature_nodes_);
         for (int i = 0; i < n_basis; ++i) {
+            DerivativeType der = basis[active_dofs[i]].gradient(order);
             // evaluation of d^k\psi_i/dx^k at q_j, j = 1, ..., n_quadrature_nodes
             for (int j = 0; j < n_quadrature_nodes_; ++j) {
-                shape_derivatives_(i, j) =
-                  basis_der[i](quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
+                dst(i, j) = der(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
             }
         }
-        return shape_derivatives_;
+        return;
     }
-    template <typename BasisType__, typename IteratorType>
-    MdArray<double, MdExtents<Dynamic, Dynamic>>
-    eval_shape_dx(BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell) const {
-        return eval_shape_derivative(basis, active_dofs, cell, /* order = */ 1);
+    template <typename BasisType__, typename IteratorType, typename DstMdArray>
+    void
+    eval_shape_dx(BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell, DstMdArray& dst) const {
+        eval_shape_derivative(basis, active_dofs, cell, dst, /* order = */ 1);
     }
-    template <typename BasisType__, typename IteratorType>
-    MdArray<double, MdExtents<Dynamic, Dynamic>>
-    eval_shape_ddx(BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell) const {
-        return eval_shape_derivative(basis, active_dofs, cell, /* order = */ 2);
+    template <typename BasisType__, typename IteratorType, typename DstMdArray>
+    void
+    eval_shape_ddx(BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell, DstMdArray& dst) const {
+        eval_shape_derivative(basis, active_dofs, cell, dst, /* order = */ 2);
     }
     void distribute_quadrature_nodes(
       std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>>& bs_map_buff, dof_iterator begin,
@@ -201,10 +193,11 @@ struct bs_assembler_base {
     }
 
     Form form_;
-    Eigen::Matrix<double, Dynamic, Dynamic> quad_nodes_, quad_weights_;
     const DofHandlerType* dof_handler_;
     const TestSpace* test_space_;
     geo_iterator begin_, end_;
+    // quadrature
+    Eigen::Matrix<double, Dynamic, Dynamic> quad_nodes_, quad_weights_;
     int n_quadrature_nodes_;
 };
 

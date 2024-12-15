@@ -72,6 +72,7 @@ class DofHandler<1, 1, fdapde::bspline> {
           dofs_.data(), dofs_.size() / 2, 2);
     }
     int n_dofs() const { return n_dofs_; }
+    int n_dofs_per_cell() const { return n_dofs_per_cell_; }
     bool is_dof_on_boundary(int i) const { return boundary_dofs_[i]; }
     const std::vector<int>& dofs_markers() const { return dofs_markers_; }
     int dof_marker(int dof) const { return dofs_markers_[dof]; }
@@ -192,6 +193,7 @@ class DofHandler<1, 1, fdapde::bspline> {
     template <typename BsType> void enumerate(BsType&& bs) {
         n_dofs_ = bs.size();
         order_ = bs.order();
+        n_dofs_per_cell_ = order_ + 1;
         dofs_coords_.resize(n_dofs_);
         for (int i = 0; i < n_dofs_; ++i) { dofs_coords_[i] = bs[i].knot(); }
         int n_cells = triangulation()->n_cells();
@@ -212,7 +214,7 @@ class DofHandler<1, 1, fdapde::bspline> {
     std::vector<double> dofs_coords_;       // physical knots vector
     BinaryVector<Dynamic> boundary_dofs_;   // whether the i-th dof is on boundary or not
     std::vector<int> dofs_;
-    int n_dofs_;
+    int n_dofs_per_cell_ = 0, n_dofs_ = 0;
     std::vector<int> dofs_markers_;
     const TriangulationType* triangulation_;
     int order_;

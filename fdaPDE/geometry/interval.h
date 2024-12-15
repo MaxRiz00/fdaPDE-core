@@ -64,7 +64,6 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
     };
     // construct from interval's bounds [a, b] and the number of equidistant nodes n used to split [a, b]
     Triangulation(double a, double b, int n) : Triangulation(DVector<double>::LinSpaced(n, a, b)) { }
-
     // getters
     const typename Base::CellType& cell(int id) const {
         if (Base::flags_ & cache_cells) {   // cell caching enabled
@@ -117,7 +116,7 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
 	  std::vector<int>({node_id == 0 ? 1 : (n_nodes_ - 2)}) : std::vector<int>({node_id - 1, node_id + 1});
     }
    private:
-      // localize element containing point using a O(log(n)) binary search strategy
+    // localize element containing point using a O(log(n)) binary search strategy
     int locate_(double p) const {
         // check if point is inside
         if (p < range_[0] || p > range_[1]) {

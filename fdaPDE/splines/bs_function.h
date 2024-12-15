@@ -18,7 +18,7 @@
 #define __BS_FUNCTION_H__
 
 #include "../fields/scalar_field.h"
-#include "bs_assembler_base.h"
+#include "bs_bilinear_form_assembler.h"
 
 namespace fdapde {  
 namespace internals {
@@ -212,11 +212,13 @@ struct TrialFunction<BsSpace_, bspline> : public internals::bs_scalar_trial_func
     constexpr TrialFunction() = default;
     constexpr TrialFunction(BsSpace_& bs_space) : Base(bs_space) { }
     // norm evaluation
-    // double l2_squared_norm() {
-    //     internals::fe_mass_assembly_loop<typename TrialSpace::FeType> assembler(Base::fe_space_->dof_handler());
-    //     return coeff_.dot(assembler.assemble() * coeff_);
-    // }
-    // double l2_norm() { return std::sqrt(l2_squared_norm()); }
+    double l2_squared_norm() {
+        TrialFunction u(*Base::bs_space_);
+        TestFunction  v(*Base::bs_space_);
+        auto assembler = integrate(*Base::bs_space_->triangulation())(u * v);
+        return coeff_.dot(assembler.assemble() * coeff_);
+    }
+    double l2_norm() { return std::sqrt(l2_squared_norm()); }
     const DVector<double>& coeff() const { return coeff_; }
     void set_coeff(const DVector<double>& coeff) { coeff_ = coeff; }
    private:
@@ -288,13 +290,14 @@ template <typename BsSpace_> class BsFunction : public fdapde::ScalarBase<BsSpac
         }
         return value;
     }
-    // norms of fe functions
-    // double l2_squared_norm() {
-    //     internals::fe_mass_assembly_loop<typename FeSpace::FeType> assembler(fe_space_->dof_handler());
-    //     return coeff_.dot(assembler.assemble() * coeff_);
-    // }
-    // double l2_norm() { return std::sqrt(l2_squared_norm()); }
-
+    // norm evaluation
+    double l2_squared_norm() {
+        TrialFunction u(*bs_space_);
+        TestFunction  v(*bs_space_);
+        auto assembler = integrate(*(bs_space_->triangulation()))(u * v);
+        return coeff_.dot(assembler.assemble() * coeff_);
+    }
+    double l2_norm() { return std::sqrt(l2_squared_norm()); }
     // getters
     const Eigen::Matrix<double, Dynamic, 1>& coeff() const { return coeff_; }
     constexpr BsSpace& function_space() { return *bs_space_; }

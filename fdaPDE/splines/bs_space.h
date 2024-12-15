@@ -59,6 +59,7 @@ template <typename Triangulation_> class BsSpace {
     BsSpace() = default;
     BsSpace(const Triangulation_& interval, int order) :
         triangulation_(std::addressof(interval)), dof_handler_(interval), order_(order) {
+        a_ = triangulation_->range()[0], b_ = triangulation_->range()[1];   // store interval range
         dof_handler_.enumerate(BasisType(interval, order));
 	// build reference [-1, 1] interval with nodes mapped from physical interval [a, b]
         Eigen::Matrix<double, Dynamic, 1> ref_nodes(triangulation_->n_nodes());
@@ -105,6 +106,9 @@ template <typename Triangulation_> class BsSpace {
     }
     // evaluation on physical domain
     // evaluate value of the i-th shape function defined on physical domain [a, b]
+    template <typename InputType> auto eval_cell_value(int i, [[maybe_unused]] int cell_id, const InputType& p) const {
+        return eval_cell_value(i, p);   // cell_id unused since there is no point location involved
+    }
     template <typename InputType> auto eval_cell_value(int i, const InputType& p) const {
         double p_;
         if constexpr (fdapde::is_subscriptable<InputType, int>) { p_ = p[0]; }
@@ -112,21 +116,19 @@ template <typename Triangulation_> class BsSpace {
         if (p_ < triangulation_->range()[0] || p_ > triangulation_->range()[1]) {
             return std::numeric_limits<double>::quiet_NaN();   // return NaN if point lies outside domain
         }
-        return eval_shape_value(i, map_to_reference(p_));
+        return eval_shape_value(i, cexpr::Matrix<double, embed_dim, 1>(map_to_reference(p_)));
     }
-
-    // need to return something which represent a basis function on the whole physical domain
-
-    // generate fe_function bounded to this finite element space
-    /* FeFunction<FeSpace<Triangulation_, FeType_>> make_fe_function(const Eigen::Matrix<double, Dynamic, 1>& coeff_vec) { */
-    /*     return FeFunction<FeSpace<Triangulation_, FeType_>>(*this, coeff_vec); */
-    /* } */
+    // return i-th basis function on physical domain
+    BsFunction<BsSpace<Triangulation_>> operator[](int i) {
+        fdapde_assert(i < dof_handler_.n_dofs());
+	Eigen::Matrix<double, Dynamic, 1> coeff = Eigen::Matrix<double, Dynamic, 1>::Zero(dof_handler_.n_dofs());
+	coeff[i] = 1;
+        return BsFunction<BsSpace<Triangulation_>>(*this, coeff);
+    }
    private:
+    double a_, b_;   // triangulation range
     // linear mapping from p \in [a, b] to \hat p \in [-1, +1]
-    double map_to_reference(double p) {
-        double a = triangulation_->range()[0], b = triangulation_->range()[1];
-        return (p - (b - a) / 2) * 2 / (b + a);
-    };
+    double map_to_reference(double p) const { return (p - (b_ - a_) / 2) * 2 / (b_ + a_); };
 
     const Triangulation* triangulation_;
     DofHandlerType dof_handler_;   // dof_handler over physical domain

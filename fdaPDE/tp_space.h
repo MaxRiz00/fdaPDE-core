@@ -33,7 +33,6 @@ class TpSpace {
        public:
         using index_t = int;
         static constexpr int tp_order = sizeof...(DofHandler);
-        static constexpr int n_dofs_per_cell = (std::decay_t<DofHandler>::n_nodes_per_cell * ... * 1);
         struct CellType {
             CellType() = default;
             CellType(dof_handler_t* tp_dof_handler, const std::array<index_t, tp_order>& idxs) :
@@ -74,12 +73,12 @@ class TpSpace {
         // compute dof table
         Eigen::Matrix<double, Dynamic, Dynamic> dofs() const {
             int n_cells = 1;
-            Eigen::Matrix<double, Dynamic, Dynamic> dof_table(n_cells, n_dofs_per_cell);
+            Eigen::Matrix<double, Dynamic, Dynamic> dof_table(n_cells, n_dofs_per_cell());
             std::array<index_t, tp_order> multi_index;
             multi_index.fill(0);
             for (int i = 0; i < n_cells; ++i) {
                 std::vector<index_t> cell_dof = active_dofs(multi_index);
-                for (int j = 0; j < n_dofs_per_cell; ++j) { dof_table(i, j) = cell_dof[j]; }
+                for (int j = 0; j < n_dofs_per_cell(); ++j) { dof_table(i, j) = cell_dof[j]; }
                 // increase multi-index
                 multi_index[0]++;
                 int j = 0;
@@ -91,6 +90,12 @@ class TpSpace {
             return dof_table;
         }
         index_t n_dofs() const { return n_dofs_; }
+        index_t n_dofs_per_cell() const {
+            index_t n_dofs_per_cell_ = 1;
+            std::apply(
+              [&](auto... ts) { ([&]() { n_dofs_per_cell_ *= ts->n_dofs_per_cell(); }(), ...); }, tp_dof_handler_);
+            return n_dofs_per_cell_;
+        }
         // is_dof_on_boundary()
         // n_boundary_dofs()
         template <typename... IndexType>
@@ -120,7 +125,7 @@ class TpSpace {
                 index_t n_rhs_dofs = rhs_active_dofs.size();
                 // perform dof tensor product
                 std::vector<index_t> tp_dofs;
-                tp_dofs.reserve(n_dofs_per_cell);
+                tp_dofs.reserve(n_dofs_per_cell());
                 int offset = std::get<0>(tp_dof_handler_)->n_dofs();
                 for (int i = 0; i < n_lhs_dofs; ++i) {
                     for (int j = 0; j < n_rhs_dofs; ++j) {
@@ -144,10 +149,10 @@ class TpSpace {
                   tp_dof_handler_);
                 // perform dof tensor product
                 std::vector<index_t> tp_dofs;
-                tp_dofs.reserve(n_dofs_per_cell);
+                tp_dofs.reserve(n_dofs_per_cell());
                 std::array<index_t, tp_order> multi_index;
                 multi_index.fill(0);
-                for (int i = 0; i < n_dofs_per_cell; ++i) {
+                for (int i = 0; i < n_dofs_per_cell(); ++i) {
                     tp_dofs.push_back(internals::apply_index_pack<tp_order>(
                       [&]<int... Ns_>() { return ((active_dofs[Ns_][multi_index[Ns_]] * offset_[Ns_]) + ... + 0); }));
                     // increase multi-index
