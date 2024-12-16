@@ -22,9 +22,9 @@
 #include "fe_function.h"
 
 namespace fdapde {
-  
-// anytime you compose a trial or test function with a functor which is not callable at fe_assembler_packet, we wrap it
-// into a FeMap, a fe_assembler_packet callable type encoding the functor evaluated at a fixed set of (quadrature) nodes
+
+// given a not fe_assembler_packet callable type Derived_, builds a map from a discrete set of points (e.g., quadrature
+// nodes) to the evaluation of Derived_ at that points
 template <typename Derived_>
 struct FeMap :
     public std::conditional_t<
@@ -70,9 +70,6 @@ struct FeMap :
         }
     }
     // fe assembler evaluation
-
-  // here we need to better state what is the scalar field interface and what the matrix field one
-  
     constexpr OutputType operator()(const InputType& fe_packet) const {
         if constexpr (is_scalar) {
             return map_->operator()(fe_packet.quad_node_id, 0);

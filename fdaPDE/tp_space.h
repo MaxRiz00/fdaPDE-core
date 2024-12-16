@@ -126,10 +126,10 @@ class TpSpace {
                 // perform dof tensor product
                 std::vector<index_t> tp_dofs;
                 tp_dofs.reserve(n_dofs_per_cell());
-                int offset = std::get<0>(tp_dof_handler_)->n_dofs();
+                int rhs_offset = std::get<1>(tp_dof_handler_)->n_dofs();
                 for (int i = 0; i < n_lhs_dofs; ++i) {
                     for (int j = 0; j < n_rhs_dofs; ++j) {
-                        tp_dofs.push_back(lhs_active_dofs[i] + rhs_active_dofs[j] * offset);
+                        tp_dofs.push_back(lhs_active_dofs[i] * rhs_offset + rhs_active_dofs[j]);
                     }
                 }
                 return tp_dofs;
@@ -253,7 +253,9 @@ class TpFunction :
             index_.fill(0);
         }
         constexpr multi_index_t(const std::array<T, Size>& limits) :
-            limits_(limits), curr_(0), size_(std::accumulate(limits.begin(), limits.end(), 0)) {
+            limits_(limits),
+            curr_(0),
+            size_(std::accumulate(limits.begin(), limits.end(), 1, std::multiplies<index_t>())) {
             index_.fill(0);
         }
         // observers

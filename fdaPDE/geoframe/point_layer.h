@@ -40,12 +40,12 @@ template <typename GeoFrame_> struct point_layer {
 
     point_layer() : geoframe_(nullptr), coords_() { }
     point_layer(const std::string& layer_name, GeoFrame_* geoframe) noexcept :
-        geoframe_(geoframe), coords_() { }
+      geoframe_(geoframe), coords_(), locs_at_mesh_nodes_(true) { }
     template <typename CoordsType>
         requires(std::is_convertible_v<CoordsType, DMatrix<double>>)
     point_layer(const std::string& layer_name, GeoFrame_* geoframe, const std::shared_ptr<CoordsType>& coords) noexcept
         :
-        geoframe_(geoframe), coords_(coords) { }
+        geoframe_(geoframe), coords_(coords), locs_at_mesh_nodes_(false) { }
 
     // observers
     size_t rows() { data_.rows(); }
@@ -55,6 +55,7 @@ template <typename GeoFrame_> struct point_layer {
     const auto& field_descriptors() const { return data_.field_descriptors(); }
     Eigen::Matrix<double, embed_dim, 1> geometry(int i) const { return coordinates().row(i); }
     bool contains(const std::string& column) const { return data_.contains(column); }
+    bool locs_at_mesh_nodes() const { return locs_at_mesh_nodes_; }
 
     template <typename... DataT> void set_data(DataT&&... data) {
         data_ = storage_t(std::forward<DataT>(data)...);
@@ -67,6 +68,7 @@ template <typename GeoFrame_> struct point_layer {
     const Triangulation<local_dim, embed_dim>& triangulation() const { return geoframe_->triangulation(); }
     DVector<int> locate() const { return triangulation().locate(*coords_); }
    private:
+    bool locs_at_mesh_nodes_ = false;
     GeoFrame_* geoframe_;
     std::shared_ptr<DMatrix<double>> coords_;
     storage_t data_;

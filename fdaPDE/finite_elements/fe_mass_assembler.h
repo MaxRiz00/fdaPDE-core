@@ -28,13 +28,15 @@ template <typename LhsFeSpace, typename RhsFeSpace = LhsFeSpace>
 class fe_mass_assembly_loop {
     static constexpr int local_dim = LhsFeSpace::local_dim;
     static constexpr int embed_dim = LhsFeSpace::embed_dim;
+    using LhsFeType = typename LhsFeSpace::FeType;
+    using RhsFeType = typename RhsFeSpace::FeType;
     // select the quadrature which optimally integrates the highest order finite element
     using Quadrature = higher_degree_fe_quadrature_t<
-      typename LhsFeSpace::template cell_quadrature_t<local_dim>,
-      typename RhsFeSpace::template cell_quadrature_t<local_dim>>;
+      typename LhsFeType::template cell_quadrature_t<local_dim>,
+      typename RhsFeType::template cell_quadrature_t<local_dim>>;
     static constexpr int n_quadrature_nodes = Quadrature::order;
-    using lhs_cell_dof_descriptor = LhsFeSpace::template cell_dof_descriptor<local_dim>;
-    using rhs_cell_dof_descriptor = RhsFeSpace::template cell_dof_descriptor<local_dim>;
+    using lhs_cell_dof_descriptor = typename LhsFeType::template cell_dof_descriptor<local_dim>;
+    using rhs_cell_dof_descriptor = typename RhsFeType::template cell_dof_descriptor<local_dim>;
     using LhsBasisType = typename lhs_cell_dof_descriptor::BasisType;
     using RhsBasisType = typename rhs_cell_dof_descriptor::BasisType;
     // number of basis on reference element
@@ -56,8 +58,8 @@ class fe_mass_assembly_loop {
         }
         return int_table_;
     }};
-    typename LhsFeSpace::DofHandlerType* lhs_dof_handler_;
-    typename RhsFeSpace::DofHandlerType* rhs_dof_handler_;
+    const typename LhsFeSpace::DofHandlerType* lhs_dof_handler_;
+    const typename RhsFeSpace::DofHandlerType* rhs_dof_handler_;
    public:
     fe_mass_assembly_loop() = default;
     fe_mass_assembly_loop(const fe_mass_assembly_loop&) = default;
@@ -80,7 +82,7 @@ class fe_mass_assembly_loop {
     fe_mass_assembly_loop(const DofHandler& dof_handler) :
         lhs_dof_handler_(&dof_handler), rhs_dof_handler_(&dof_handler) { }
 
-    SpMatrix<double> assemble() {
+    SpMatrix<double> assemble() const {
         if (!lhs_dof_handler_) lhs_dof_handler_->enumerate(LhsFeSpace {});
         if (!rhs_dof_handler_) rhs_dof_handler_->enumerate(RhsFeSpace {});
 

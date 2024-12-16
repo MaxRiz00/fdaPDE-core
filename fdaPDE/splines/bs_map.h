@@ -23,71 +23,51 @@
 
 namespace fdapde {
   
-// anytime you compose a trial or test function with a functor which is not callable at fe_assembler_packet, we wrap it
-// into a BsMap, a fe_assembler_packet callable type encoding the functor evaluated at a fixed set of (quadrature) nodes
-template <typename Derived_>
-struct BsMap :
-    public std::conditional_t<
-      meta::is_scalar_field_v<Derived_>, ScalarBase<Derived_::StaticInputSize, BsMap<Derived_>>,
-      MatrixBase<Derived_::StaticInputSize, BsMap<Derived_>>> {
+// given a not fe_assembler_packet callable type Derived_, builds a map from a discrete set of points (e.g., quadrature
+// nodes) to the evaluation of Derived_ at that points
+template <typename Derived_> struct BsMap : public ScalarBase<Derived_::StaticInputSize, BsMap<Derived_>> {
    private:
     using OutputType = decltype(std::declval<Derived_>().operator()(std::declval<typename Derived_::InputType>()));
-    static constexpr bool is_scalar = meta::is_scalar_field_v<Derived_>;
     using Derived = std::decay_t<Derived_>;
+    using MatrixType = Eigen::Matrix<double, Dynamic, Dynamic>;
    public:
     using InputType = internals::bs_assembler_packet<Derived::StaticInputSize>;
     using Scalar = double;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
-    using Base = std::conditional_t<
-      is_scalar, ScalarBase<StaticInputSize, BsMap<Derived>>, MatrixBase<StaticInputSize, BsMap<Derived>>>;
+    using Base = ScalarBase<StaticInputSize, BsMap<Derived>>;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = Derived::XprBits | int(bs_assembler_flags::compute_physical_quad_nodes);
     static constexpr int ReadOnly = 1;
-    static constexpr int Rows = []() { if constexpr(is_scalar) return 1; else return Derived::Rows; }();
-    static constexpr int Cols = []() { if constexpr(is_scalar) return 1; else return Derived::Cols; }();
+    static constexpr int Rows = 1;
+    static constexpr int Cols = 1;
 
     constexpr BsMap() = default;
     constexpr BsMap(const Derived_& xpr) : xpr_(&xpr) { }
     template <typename CellIterator>
     void init(
-      std::unordered_map<const void*, DMatrix<double>>& buff, const DMatrix<double>& nodes,
-      [[maybe_unused]] CellIterator begin, [[maybe_unused]] CellIterator end) const {
+      std::unordered_map<const void*, MatrixType>& buff, const MatrixType& nodes, [[maybe_unused]] CellIterator begin,
+      [[maybe_unused]] CellIterator end) const {
         const void* ptr = reinterpret_cast<const void*>(xpr_);
         if (buff.find(ptr) == buff.end()) {
             DMatrix<double> mapped(nodes.rows(), Rows * Cols);
-            if constexpr (is_scalar) {
-                for (int i = 0, n = nodes.rows(); i < n; ++i) { mapped(i, 0)  = xpr_->operator()(nodes.row(i)); }
-            } else {
-                for (int i = 0, n = nodes.rows(); i < n; ++i) {
-                    auto tmp = xpr_->operator()(nodes.row(i));
-                    for (int j = 0; j < tmp.size(); ++j) { mapped(i, j) = tmp[j]; }
-                }
-            }
+            for (int i = 0, n = nodes.rows(); i < n; ++i) { mapped(i, 0) = xpr_->operator()(nodes.row(i)); }
             buff[ptr] = mapped;
             map_ = &buff[ptr];
         } else {
             map_ = &buff[ptr];
         }
     }
-    // fe assembler evaluation
-
-  // here we need to better state what is the scalar field interface and what the matrix field one
-  
-    constexpr OutputType operator()(const InputType& fe_packet) const {
-        if constexpr (is_scalar) {
-            return map_->operator()(fe_packet.quad_node_id, 0);
-        } else {
-            return map_->row(fe_packet.quad_node_id);
-        }
+    // bs assembler evaluation
+    constexpr OutputType operator()(const InputType& bs_packet) const {
+        return map_->operator()(bs_packet.quad_node_id, 0);
     }
-    constexpr auto eval(int i, const InputType& fe_packet) const { return map_->operator()(fe_packet.quad_node_id, i); }
     constexpr const Derived& derived() const { return xpr_; }
     constexpr int input_size() const { return StaticInputSize; }
     constexpr int rows() const { return Rows; }
     constexpr int cols() const { return Cols; }
    private:
     const Derived* xpr_;
-    mutable const DMatrix<Scalar>* map_;
+    mutable const MatrixType* map_;
 };
 
 }   // namespace fdapde

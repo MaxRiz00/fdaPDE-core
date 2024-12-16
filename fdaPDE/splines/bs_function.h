@@ -280,13 +280,14 @@ template <typename BsSpace_> class BsFunction : public fdapde::ScalarBase<BsSpac
         double ref_p;
         if constexpr (fdapde::is_subscriptable<InputType, int>) { ref_p = p[0]; }
 	else { ref_p = p; }
-        ref_p = ((b - a) / 2) * ref_p + (b + a) / 2;
-	// get active dofs
+        ref_p = (ref_p - (b - a) / 2) * 2 / (b + a);
+        // get active dofs
         typename DofHandlerType::CellType cell = bs_space_->dof_handler().cell(e_id);
 	std::vector<int> active_dofs = cell.dofs();
         Scalar value = 0;
         for (int i = 0, n = active_dofs.size(); i < n; ++i) {
-            value += coeff_[active_dofs[i]] * bs_space_->eval_shape_value(active_dofs[i], ref_p);
+            value += coeff_[active_dofs[i]] *
+                     bs_space_->eval_shape_value(active_dofs[i], cexpr::Matrix<double, embed_dim, 1>(ref_p));
         }
         return value;
     }

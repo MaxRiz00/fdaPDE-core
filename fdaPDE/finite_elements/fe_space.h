@@ -68,11 +68,9 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
     FeSpace(const Triangulation_& triangulation, FeType_ fe) :
         triangulation_(std::addressof(triangulation)), dof_handler_(triangulation) {
         dof_handler_.enumerate(fe);
-	// degenerate case for 1D boundary integration uses default initialization
-        if constexpr (local_dim - 1 != 0) {
-            cell_basis_ = BasisType(unit_cell_dofs_.dofs_phys_coords());
-            face_basis_ = FaceBasisType(unit_face_dofs_.dofs_phys_coords());
-        }
+        cell_basis_ = BasisType(unit_cell_dofs_.dofs_phys_coords());
+        // degenerate case for 1D boundary integration uses default initialization
+        if constexpr (local_dim - 1 != 0) { face_basis_ = FaceBasisType(unit_face_dofs_.dofs_phys_coords()); }
     }
     // observers
     const Triangulation& triangulation() const { return *triangulation_; }
