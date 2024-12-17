@@ -57,7 +57,6 @@ template <typename Xpr> struct is_matrix_field {
     }();
 };
 template <typename Xpr> static constexpr bool is_matrix_field_v = is_matrix_field<Xpr>::value;
-
   
 // wraps all leafs in Xpr which satisfies boolean condition C with template type T
 template <template <typename> typename T, typename C, typename Xpr> constexpr auto xpr_wrap(Xpr&& xpr) {
@@ -107,7 +106,8 @@ template <typename C, typename Xpr> static constexpr bool xpr_find() {
 }
 template <typename C, typename Xpr> static constexpr bool xpr_find(Xpr xpr) { return xpr_find<C, std::decay_t<Xpr>>(); }
 
-// query Xpr to return the result of F on the first node in Xpr satisfying boolean condition C
+// query Xpr to return the result of F on the first node (following a depth first search strategy) in Xpr satisfying
+// boolean condition C
 template <typename F, typename C, typename Xpr, typename... Args>
 constexpr decltype(auto) xpr_query(Xpr&& xpr, Args&&... args) {
     using Xpr_ = std::decay_t<Xpr>;
@@ -126,7 +126,6 @@ constexpr decltype(auto) xpr_query(Xpr&& xpr, Args&&... args) {
         }
     }
 }
-
 // apply functor F to all nodes in Xpr satisfying condition C
 template <typename F, typename C, typename Xpr, typename... Args>
 constexpr void xpr_apply_if(Xpr&& xpr, Args&&... args) {

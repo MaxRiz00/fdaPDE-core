@@ -22,9 +22,9 @@
 #include "fe_function.h"
 
 namespace fdapde {
-  
-// anytime you compose a trial or test function with a functor which is not callable at fe_assembler_packet, we wrap it
-// into a FeMap, a fe_assembler_packet callable type encoding the functor evaluated at a fixed set of (quadrature) nodes
+
+// given a not fe_assembler_packet callable type Derived_, builds a map from a discrete set of points (e.g., quadrature
+// nodes) to the evaluation of Derived_ at that points
 template <typename Derived_>
 struct FeMap :
     public std::conditional_t<
@@ -70,9 +70,6 @@ struct FeMap :
         }
     }
     // fe assembler evaluation
-
-  // here we need to better state what is the scalar field interface and what the matrix field one
-  
     constexpr OutputType operator()(const InputType& fe_packet) const {
         if constexpr (is_scalar) {
             return map_->operator()(fe_packet.quad_node_id, 0);
@@ -119,12 +116,12 @@ struct FeMap<FeFunction<FeSpace>> :
 	    int cell_id = begin.index();
             for (int i = 0, n = nodes.rows(); i < n; ++i) {
                 // map node to reference cell and evaluate
-                auto cell = xpr_->fe_space().dof_handler().cell(cell_id + i / n_quad_nodes);
+                auto cell = xpr_->function_space().dof_handler().cell(cell_id + i / n_quad_nodes);
                 SVector<FeSpace::local_dim> ref_node = cell.invJ() * (nodes.row(i).transpose() - cell.node(0));
                 DVector<int> active_dofs = cell.dofs();
                 Scalar value = 0;
-                for (int i = 0, n = xpr_->fe_space().n_shape_functions(); i < n; ++i) {
-                    value += xpr_->coeff()[active_dofs[i]] * xpr_->fe_space().eval(i, ref_node);
+                for (int i = 0, n = xpr_->function_space().n_shape_functions(); i < n; ++i) {
+                    value += xpr_->coeff()[active_dofs[i]] * xpr_->function_space().eval(i, ref_node);
                 }
                 mapped(i, 0) = value;
             }

@@ -260,10 +260,17 @@ template <typename Triangulation_, int Order_ = 2> struct GeoFrame {
         geoframe_assert(std::filesystem::exists(file_name), "file " + file_name + " not found.");
         auto csv = fdapde::read_csv<Scalar>(file_name);
         geoframe_assert(csv.rows() == triangulation_->n_nodes(), "wrong csv size.");
-        push(name, layer_t::point, csv.cols());
+        push(name, layer_t::point);
         // move data in memory buffer
-        get_as(layer_t::point, name).data().assign_inplace_from(csv.data());
-	get_as(layer_t::point, name).set_colnames(csv.colnames());
+        std::vector<std::pair<std::string, std::vector<Scalar>>> data;
+        for (const std::string& n : csv.colnames()) { data.emplace_back(n, std::vector<Scalar> {}); }
+        int i = 0, n_col = csv.colnames().size();
+        for (const Scalar& s : csv.data()) {
+            data[i].second.push_back(s);
+            i = (i + 1) % n_col;
+        }
+        get_as(layer_t::point, name).set_data(data);
+        get_as(layer_t::point, name).data().set_colnames(csv.colnames());
 	idx_to_layer_name_[n_layers_] = name;
 	n_layers_++;
         return;
@@ -276,14 +283,21 @@ template <typename Triangulation_, int Order_ = 2> struct GeoFrame {
         if constexpr (fdapde::is_eigen_dense_v<CoordsType>) {
             geoframe_assert(csv.rows() == coords.rows(), "wrong csv size.");
         } else {
-            geoframe_assert(csv.rows() == coords.size() / embed_dim, "wrong csv size.");
+            geoframe_assert(csv.rows() == (coords.size() / embed_dim), "wrong csv size.");
         }
-        push(name, layer_t::point, coords, csv.cols());
+        push(name, layer_t::point, coords);
         // move data in memory buffer
-        get_as(layer_t::point, name).data().assign_inplace_from(csv.data());
-	get_as(layer_t::point, name).set_colnames(csv.colnames());
-	idx_to_layer_name_[n_layers_] = name;
-	n_layers_++;
+        std::vector<std::pair<std::string, std::vector<Scalar>>> data;
+        for (const std::string& n : csv.colnames()) { data.emplace_back(n, std::vector<Scalar> {}); }
+        int i = 0, n_col = csv.colnames().size();
+        for (const Scalar& s : csv.data()) {
+            data[i].second.push_back(s);
+            i = (i + 1) % n_col;
+        }
+        get_as(layer_t::point, name).set_data(data);
+        get_as(layer_t::point, name).data().set_colnames(csv.colnames());
+        idx_to_layer_name_[n_layers_] = name;
+        n_layers_++;
         return;
     }
   
@@ -408,6 +422,10 @@ template <typename Triangulation_, int Order_ = 2> struct GeoFrame {
     const DMatrix<int, Eigen::RowMajor>& cells() const { return triangulation_->cells(); }
    private:
     // internal utilities
+    template <typename LayerType> decltype(auto) get_as_(const std::string& name) const {
+        geoframe_assert(fetch_<LayerType>(layers_).contains(name), std::string("key " + name + " not found."));
+        return fetch_<LayerType>(layers_).at(name);
+    }
     template <typename LayerType> decltype(auto) get_as_(const std::string& name) {
         geoframe_assert(fetch_<LayerType>(layers_).contains(name), std::string("key " + name + " not found."));
         return fetch_<LayerType>(layers_).at(name);

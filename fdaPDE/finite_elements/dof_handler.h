@@ -28,24 +28,31 @@
 
 namespace fdapde {
 
-template <int LocalDim, int EmbedDim> class DofHandler;
-template <int LocalDim, int EmbedDim, typename Derived> class DofHandlerBase {
+struct finite_element { };
+
+template <int LocalDim, int EmbedDim, typename SpaceCategory> class DofHandler;
+
+namespace internals {
+
+template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_base {
    public:
     using TriangulationType = Triangulation<LocalDim, EmbedDim>;
     using CellType = std::conditional_t<
       LocalDim == 1, DofSegment<Derived>,
       std::conditional_t<LocalDim == 2, DofTriangle<Derived>, DofTetrahedron<Derived>>>;
+    using space_category = fdapde::finite_element;
     static constexpr int n_nodes_per_cell = TriangulationType::n_nodes_per_cell;
     static constexpr int local_dim = TriangulationType::local_dim;
     static constexpr int embed_dim = TriangulationType::embed_dim;
-    DofHandlerBase() = default;
-    DofHandlerBase(const TriangulationType& triangulation) :
+    fe_dof_handler_base() = default;
+    fe_dof_handler_base(const TriangulationType& triangulation) :
         triangulation_(&triangulation), dof_constraints_(static_cast<Derived&>(*this)) { }
     // getters
     CellType cell(int id) const { return CellType(id, static_cast<const Derived*>(this)); }
     const DMatrix<int, Eigen::RowMajor>& dofs() const { return dofs_; }
     int n_dofs() const { return n_dofs_; }
     int n_unique_dofs() const { return n_unique_dofs_; }
+    int n_dofs_per_cell() const { return n_dofs_per_cell_; }
     bool is_dof_on_boundary(int i) const { return boundary_dofs_[i]; }
     Eigen::Map<const DVector<int>> dofs_markers() const {
         return Eigen::Map<const DVector<int>>(dofs_markers_.data(), n_dofs_, 1);
@@ -206,9 +213,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class DofHandlerBase {
     DMatrix<int, Eigen::RowMajor> dofs_;
     BinaryVector<fdapde::Dynamic> boundary_dofs_;   // whether the i-th dof is on boundary or not
     std::vector<int> dofs_to_cell_;                 // for each dof, the id of (one of) the cell containing it
-    DofConstraints<local_dim, embed_dim> dof_constraints_;
+    DofConstraints<Derived> dof_constraints_;
     std::vector<int> dofs_markers_;
-    int n_dofs_ = 0, n_unique_dofs_ = 0;
+    int n_dofs_per_cell_ = 0, n_dofs_ = 0, n_unique_dofs_ = 0;
     DMatrix<double> reference_dofs_barycentric_coords_;
 
     // local enumeration of dofs on cell
@@ -254,7 +261,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class DofHandlerBase {
         fdapde_static_assert(
           dof_descriptor::n_dofs_per_cell > 0 && dof_descriptor::dof_multiplicity > 0,
           FINITE_ELEMENT_DESCRIPTION_REQUESTS_THE_INSERTION_OF_AT_LEAST_ONE_DEGREE_OF_FREEDOM_PER_CELL);
-        dofs_.resize(triangulation_->n_cells(), dof_descriptor::n_dofs_per_cell * dof_descriptor::dof_multiplicity);
+        n_dofs_per_cell_ = dof_descriptor::n_dofs_per_cell * dof_descriptor::dof_multiplicity;
+        dofs_.resize(triangulation_->n_cells(), n_dofs_per_cell_);
 	// copy coordinates of dofs defined on reference unit simplex
 	typename FEType::cell_dof_descriptor<TriangulationType::local_dim> fe;
 	reference_dofs_barycentric_coords_.resize(fe.dofs_bary_coords().rows(), fe.dofs_bary_coords().cols());
@@ -287,10 +295,14 @@ template <int LocalDim, int EmbedDim, typename Derived> class DofHandlerBase {
     }
     const Derived& derived() const { return static_cast<const Derived&>(*this); }
 };
-  
-template <int EmbedDim> class DofHandler<2, EmbedDim> : public DofHandlerBase<2, EmbedDim, DofHandler<2, EmbedDim>> {
+
+}   // namespace internals
+
+template <int EmbedDim>
+class DofHandler<2, EmbedDim, fdapde::finite_element> :
+    public internals::fe_dof_handler_base<2, EmbedDim, DofHandler<2, EmbedDim, fdapde::finite_element>> {
    public:
-    using Base = DofHandlerBase<2, EmbedDim, DofHandler<2, EmbedDim>>;
+    using Base = internals::fe_dof_handler_base<2, EmbedDim, DofHandler<2, EmbedDim, fdapde::finite_element>>;
     using TriangulationType = typename Base::TriangulationType;
     using CellType = typename Base::CellType;
     using Base::dofs_;
@@ -475,9 +487,11 @@ template <int EmbedDim> class DofHandler<2, EmbedDim> : public DofHandlerBase<2,
     std::unordered_map<int, std::vector<int>> edge_to_dofs_;   // for each edge, the dofs which are not on its nodes
 };
 
-template <> class DofHandler<3, 3> : public DofHandlerBase<3, 3, DofHandler<3, 3>> {
+template <>
+class DofHandler<3, 3, fdapde::finite_element> :
+    public internals::fe_dof_handler_base<3, 3, DofHandler<3, 3, fdapde::finite_element>> {
    private:
-    using Base = DofHandlerBase<3, 3, DofHandler<3, 3>>;
+    using Base = internals::fe_dof_handler_base<3, 3, DofHandler<3, 3, fdapde::finite_element>>;
     using CellType = typename Base::CellType;
     using Base::n_dofs_;
     using Base::triangulation_;
@@ -606,9 +620,11 @@ template <> class DofHandler<3, 3> : public DofHandlerBase<3, 3, DofHandler<3, 3
     }
 };
 
-template <int EmbedDim> class DofHandler<1, EmbedDim> : public DofHandlerBase<1, EmbedDim, DofHandler<1, EmbedDim>> {
+template <int EmbedDim>
+class DofHandler<1, EmbedDim, fdapde::finite_element> :
+    public internals::fe_dof_handler_base<1, EmbedDim, DofHandler<1, EmbedDim, fdapde::finite_element>> {
    public:
-    using Base = DofHandlerBase<1, EmbedDim, DofHandler<1, EmbedDim>>;
+    using Base = internals::fe_dof_handler_base<1, EmbedDim, DofHandler<1, EmbedDim, fdapde::finite_element>>;
     using TriangulationType = typename Base::TriangulationType;
     using CellType = typename Base::CellType;
     using Base::dofs_;
@@ -673,9 +689,6 @@ template <int EmbedDim> class DofHandler<1, EmbedDim> : public DofHandlerBase<1,
     int n_dofs_per_node_ = 0, n_dofs_per_cell_ = 0, n_dofs_internal_per_cell_ = 0;
     int dof_multiplicity_ = 0;
 };
-  
-// template argument deduction guide
-template <int LocalDim, int EmbedDim> DofHandler(Triangulation<LocalDim, EmbedDim>) -> DofHandler<LocalDim, EmbedDim>;
 
 }   // namespace fdapde
 

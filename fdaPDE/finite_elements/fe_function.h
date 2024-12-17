@@ -18,36 +18,33 @@
 #define __FE_FUNCTION_H__
 
 #include "../fields/scalar_field.h"
-#include "fe_assembler.h"
 #include "fe_mass_assembler.h"
 
-namespace fdapde {
-
-template <typename FeSpace_> struct TestFunction;
-template <typename FeSpace_> struct TrialFunction;
-
+namespace fdapde {  
 namespace internals {
 
 template <typename FeSpace_>
-struct scalar_test_function_impl : public fdapde::ScalarBase<FeSpace_::local_dim, TestFunction<FeSpace_>> {
+struct fe_scalar_test_function_impl :
+    public fdapde::ScalarBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>> {
     using TestSpace = std::decay_t<FeSpace_>;
-    using Base = fdapde::ScalarBase<FeSpace_::local_dim, TestFunction<FeSpace_>>;
+    using Base = fdapde::ScalarBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>>;
     using InputType = internals::fe_assembler_packet<TestSpace::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = TestSpace::local_dim;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_values;
+    static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_values);
 
-    constexpr scalar_test_function_impl() noexcept = default;
-    constexpr scalar_test_function_impl(FeSpace_& fe_space) noexcept : fe_space_(&fe_space) { }
+    constexpr fe_scalar_test_function_impl() noexcept = default;
+    constexpr fe_scalar_test_function_impl(FeSpace_& fe_space) noexcept : fe_space_(&fe_space) { }
 
     struct FirstPartialDerivative : fdapde::ScalarBase<TestSpace::local_dim, FirstPartialDerivative> {
-        using Derived = TestFunction<FeSpace_>;
+        using TestSpace = std::decay_t<FeSpace_>;
+        using Derived = TestFunction<FeSpace_, finite_element>;
         using InputType = internals::fe_assembler_packet<TestSpace::local_dim>;
         using Scalar = double;
         static constexpr int StaticInputSize = TestSpace::local_dim;
         static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_grad;
+        static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_grad);
 
         FirstPartialDerivative() noexcept = default;
         FirstPartialDerivative([[maybe_unused]] const Derived& f, int i) noexcept : i_(i) { }
@@ -59,31 +56,32 @@ struct scalar_test_function_impl : public fdapde::ScalarBase<FeSpace_::local_dim
     };
     // fe assembly evaluation
     constexpr Scalar operator()(const InputType& fe_packet) const { return fe_packet.test_value(0); }
-    constexpr TestSpace& fe_space() { return *fe_space_; }
-    constexpr const TestSpace& fe_space() const { return *fe_space_; }
+    constexpr TestSpace& function_space() { return *fe_space_; }
+    constexpr const TestSpace& function_space() const { return *fe_space_; }
     constexpr int input_size() const { return StaticInputSize; }
    private:
     TestSpace* fe_space_;
 };
 
 template <typename FeSpace_>
-struct vector_test_function_impl : public fdapde::MatrixBase<FeSpace_::local_dim, TestFunction<FeSpace_>> {
+struct fe_vector_test_function_impl :
+    public fdapde::MatrixBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>> {
     using TestSpace = std::decay_t<FeSpace_>;
-    using Base = fdapde::MatrixBase<FeSpace_::local_dim, TestFunction<FeSpace_>>;
+    using Base = fdapde::MatrixBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>>;
     using InputType = internals::fe_assembler_packet<TestSpace::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = TestSpace::local_dim;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_values;
+    static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_values);
     static constexpr int ReadOnly = 1;
     static constexpr int Rows = FeSpace_::n_components;
     static constexpr int Cols = 1;
 
-    constexpr vector_test_function_impl() noexcept = default;
-    constexpr vector_test_function_impl(FeSpace_& fe_space) noexcept : fe_space_(&fe_space) { }
+    constexpr fe_vector_test_function_impl() noexcept = default;
+    constexpr fe_vector_test_function_impl(FeSpace_& fe_space) noexcept : fe_space_(&fe_space) { }
 
     template <typename Derived_> struct Jacobian : fdapde::MatrixBase<TestSpace::local_dim, Jacobian<Derived_>> {
-        // using TestSpace = std::decay_t<FeSpace_>;
+        using TestSpace = std::decay_t<FeSpace_>;
         using Derived = Derived_;
         template <typename T> using Meta = Jacobian<T>;
         using InputType = internals::fe_assembler_packet<TestSpace::local_dim>;
@@ -92,7 +90,7 @@ struct vector_test_function_impl : public fdapde::MatrixBase<FeSpace_::local_dim
         static constexpr int Rows = TestSpace::local_dim;
         static constexpr int Cols = TestSpace::n_components;
         static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_grad;
+        static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_grad);
 
         explicit constexpr Jacobian(const Derived_& xpr) noexcept : xpr_(xpr) { }
         // fe assembly evaluation (fe_packet provides the gradients stored by rows, hence perform a transposed access)
@@ -106,14 +104,14 @@ struct vector_test_function_impl : public fdapde::MatrixBase<FeSpace_::local_dim
         typename internals::ref_select<const Derived>::type xpr_;
     };
     template <typename Derived_> struct Divergence : fdapde::ScalarBase<TestSpace::local_dim, Divergence<Derived_>> {
-        // using TestSpace = std::decay_t<FeSpace_>;
+        using TestSpace = std::decay_t<FeSpace_>;
         using Derived = Derived_;
         template <typename T> using Meta = Divergence<T>;
         using InputType = internals::fe_assembler_packet<TestSpace::local_dim>;
         using Scalar = typename Derived::Scalar;
         static constexpr int StaticInputSize = TestSpace::local_dim;
         static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_div;
+        static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_div);
 
         explicit constexpr Divergence(const Derived& xpr) noexcept : xpr_(xpr) { }
         // fe assembly evaluation
@@ -132,32 +130,34 @@ struct vector_test_function_impl : public fdapde::MatrixBase<FeSpace_::local_dim
     constexpr int cols() const { return Cols; }
     constexpr int input_size() const { return StaticInputSize; }
     constexpr int size() const { return Rows * Cols; }
-    constexpr const TestSpace& fe_space() const { return *fe_space_; }
-    constexpr TestSpace& fe_space() { return *fe_space_; }
+    constexpr const TestSpace& function_space() const { return *fe_space_; }
+    constexpr TestSpace& function_space() { return *fe_space_; }
    private:
     TestSpace* fe_space_;
 };
 
 template <typename FeSpace_>
-struct scalar_trial_function_impl : public fdapde::ScalarBase<FeSpace_::local_dim, TrialFunction<FeSpace_>> {
+struct fe_scalar_trial_function_impl :
+    public fdapde::ScalarBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>> {
     using TrialSpace = std::decay_t<FeSpace_>;
-    using Base = fdapde::ScalarBase<FeSpace_::local_dim, TrialFunction<FeSpace_>>;
+    using Base = fdapde::ScalarBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>>;
     using InputType = internals::fe_assembler_packet<TrialSpace::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = TrialSpace::local_dim;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_values;
+    static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_values);
 
-    constexpr scalar_trial_function_impl() noexcept = default;
-    constexpr scalar_trial_function_impl(FeSpace_& fe_space) noexcept : fe_space_(&fe_space) { }
+    constexpr fe_scalar_trial_function_impl() noexcept = default;
+    constexpr fe_scalar_trial_function_impl(FeSpace_& fe_space) noexcept : fe_space_(&fe_space) { }
 
     struct FirstPartialDerivative : fdapde::ScalarBase<TrialSpace::local_dim, FirstPartialDerivative> {
-        using Derived = TrialFunction<FeSpace_>;
+        using TrialSpace = std::decay_t<FeSpace_>;
+        using Derived = TrialFunction<FeSpace_, finite_element>;
         using InputType = internals::fe_assembler_packet<TrialSpace::local_dim>;
         using Scalar = double;
         static constexpr int StaticInputSize = TrialSpace::local_dim;
         static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_grad;
+        static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_grad);
 
         FirstPartialDerivative() noexcept = default;
         FirstPartialDerivative([[maybe_unused]] const Derived& f, int i) noexcept : i_(i) { }
@@ -169,30 +169,32 @@ struct scalar_trial_function_impl : public fdapde::ScalarBase<FeSpace_::local_di
     };
     // fe assembly evaluation
     constexpr Scalar operator()(const InputType& fe_packet) const { return fe_packet.trial_value(0); }
-    constexpr TrialSpace& fe_space() { return *fe_space_; }
-    constexpr const TrialSpace& fe_space() const { return *fe_space_; }
+    constexpr TrialSpace& function_space() { return *fe_space_; }
+    constexpr const TrialSpace& function_space() const { return *fe_space_; }
     constexpr int input_size() const { return StaticInputSize; }
    private:
     TrialSpace* fe_space_;
 };
 
 template <typename FeSpace_>
-struct vector_trial_function_impl : public fdapde::MatrixBase<FeSpace_::local_dim, TrialFunction<FeSpace_>> {
+struct fe_vector_trial_function_impl :
+    public fdapde::MatrixBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>> {
     using TrialSpace = std::decay_t<FeSpace_>;
-    using Base = fdapde::MatrixBase<FeSpace_::local_dim, TrialFunction<FeSpace_>>;
+    using Base = fdapde::MatrixBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>>;
     using InputType = internals::fe_assembler_packet<TrialSpace::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = TrialSpace::local_dim;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_values;
+    static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_values);
     static constexpr int ReadOnly = 1;
     static constexpr int Rows = FeSpace_::n_components;
     static constexpr int Cols = 1;
 
-    constexpr vector_trial_function_impl() noexcept = default;
-    constexpr vector_trial_function_impl(FeSpace_& fe_space) noexcept : fe_space_(&fe_space) { }
+    constexpr fe_vector_trial_function_impl() noexcept = default;
+    constexpr fe_vector_trial_function_impl(FeSpace_& fe_space) noexcept : fe_space_(&fe_space) { }
 
     template <typename Derived_> struct Jacobian : fdapde::MatrixBase<TrialSpace::local_dim, Jacobian<Derived_>> {
+        using TrialSpace = std::decay_t<FeSpace_>;
         using Derived = Derived_;
         template <typename T> using Meta = Jacobian<T>;
         using InputType = internals::fe_assembler_packet<TrialSpace::local_dim>;
@@ -201,7 +203,7 @@ struct vector_trial_function_impl : public fdapde::MatrixBase<FeSpace_::local_di
         static constexpr int Rows = TrialSpace::local_dim;
         static constexpr int Cols = TrialSpace::n_components;
         static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_grad;
+        static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_grad);
 
         explicit constexpr Jacobian(const Derived_& xpr) noexcept : xpr_(xpr) { }
         // fe assembly evaluation (fe_packet provides the gradients stored by rows, hence perform a transposed access)
@@ -215,13 +217,14 @@ struct vector_trial_function_impl : public fdapde::MatrixBase<FeSpace_::local_di
         typename internals::ref_select<const Derived>::type xpr_;
     };
     template <typename Derived_> struct Divergence : fdapde::ScalarBase<TrialSpace::local_dim, Divergence<Derived_>> {
+        using TrialSpace = std::decay_t<FeSpace_>;
         using Derived = Derived_;
         template <typename T> using Meta = Divergence<T>;
         using InputType = internals::fe_assembler_packet<TrialSpace::local_dim>;
         using Scalar = typename Derived::Scalar;
         static constexpr int StaticInputSize = TrialSpace::local_dim;
         static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = 0 | fe_assembler_flags::compute_shape_div;
+        static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_shape_div);
 
         explicit constexpr Divergence(const Derived_& xpr) noexcept : xpr_(xpr) { }
         // fe assembly evaluation
@@ -241,8 +244,8 @@ struct vector_trial_function_impl : public fdapde::MatrixBase<FeSpace_::local_di
     constexpr int cols() const { return Cols; }
     constexpr int input_size() const { return StaticInputSize; }
     constexpr int size() const { return Rows * Cols; }
-    constexpr const TrialSpace& fe_space() const { return *fe_space_; }
-    constexpr TrialSpace& fe_space() { return *fe_space_; }
+    constexpr const TrialSpace& function_space() const { return *fe_space_; }
+    constexpr TrialSpace& function_space() { return *fe_space_; }
    private:
     TrialSpace* fe_space_;
 };
@@ -250,43 +253,50 @@ struct vector_trial_function_impl : public fdapde::MatrixBase<FeSpace_::local_di
 }   // namespace internals
 
 template <typename FeSpace_>
-struct TestFunction :
+    requires(std::is_same_v<typename std::decay_t<FeSpace_>::space_category, finite_element>)
+struct TestFunction<FeSpace_, finite_element> :
     public std::conditional_t<
-      FeSpace_::n_components == 1, internals::scalar_test_function_impl<FeSpace_>,
-      internals::vector_test_function_impl<FeSpace_>> {
+      FeSpace_::n_components == 1, internals::fe_scalar_test_function_impl<FeSpace_>,
+      internals::fe_vector_test_function_impl<FeSpace_>> {
     using Base = std::conditional_t<
-      FeSpace_::n_components == 1, internals::scalar_test_function_impl<FeSpace_>,
-      internals::vector_test_function_impl<FeSpace_>>;
+      FeSpace_::n_components == 1, internals::fe_scalar_test_function_impl<FeSpace_>,
+      internals::fe_vector_test_function_impl<FeSpace_>>;
     constexpr TestFunction() = default;
     constexpr TestFunction(FeSpace_& fe_space) : Base(fe_space) { }
 };
 
 // partial derivative of scalar test function
 template <typename FeSpace_>
-struct PartialDerivative<TestFunction<FeSpace_>, 1> : public TestFunction<FeSpace_>::FirstPartialDerivative {
+struct PartialDerivative<TestFunction<FeSpace_, finite_element>, 1> :
+    public TestFunction<FeSpace_, finite_element>::FirstPartialDerivative {
+    using Base = TestFunction<FeSpace_, finite_element>::FirstPartialDerivative;
     PartialDerivative() = default;
-    PartialDerivative(const TestFunction<FeSpace_>& f, int i) : TestFunction<FeSpace_>::FirstPartialDerivative(f, i) { }
+    PartialDerivative(const TestFunction<FeSpace_, finite_element>& f, int i) : Base(f, i) { }
 };
 // gradient of vectorial test function
 template <typename FeSpace_>
     requires(FeSpace_::n_components > 1)
-constexpr auto grad(const TestFunction<FeSpace_>& xpr) {
-    return typename TestFunction<FeSpace_>::template Jacobian<TestFunction<FeSpace_>>(xpr);
+constexpr auto grad(const TestFunction<FeSpace_, finite_element>& xpr) {
+    return
+      typename TestFunction<FeSpace_, finite_element>::template Jacobian<TestFunction<FeSpace_, finite_element>>(xpr);
 }
 // divergence of vectorial test function
 template <typename FeSpace_>
     requires(FeSpace_::n_components > 1)
-constexpr auto div(const TestFunction<FeSpace_>& xpr) {
-    return typename TestFunction<FeSpace_>::template Divergence<TestFunction<FeSpace_>>(xpr);
+constexpr auto div(const TestFunction<FeSpace_, finite_element>& xpr) {
+    return
+      typename TestFunction<FeSpace_, finite_element>::template Divergence<TestFunction<FeSpace_, finite_element>>(xpr);
 }
 
 template <typename FeSpace_>
-struct TrialFunction : public std::conditional_t<
-      FeSpace_::n_components == 1, internals::scalar_trial_function_impl<FeSpace_>,
-      internals::vector_trial_function_impl<FeSpace_>> {
+    requires(std::is_same_v<typename std::decay_t<FeSpace_>::space_category, finite_element>)
+struct TrialFunction<FeSpace_, finite_element> :
+    public std::conditional_t<
+      FeSpace_::n_components == 1, internals::fe_scalar_trial_function_impl<FeSpace_>,
+      internals::fe_vector_trial_function_impl<FeSpace_>> {
     using Base = std::conditional_t<
-      FeSpace_::n_components == 1, internals::scalar_trial_function_impl<FeSpace_>,
-      internals::vector_trial_function_impl<FeSpace_>>;
+      FeSpace_::n_components == 1, internals::fe_scalar_trial_function_impl<FeSpace_>,
+      internals::fe_vector_trial_function_impl<FeSpace_>>;
     using TrialSpace = typename Base::TrialSpace;
     static constexpr int local_dim = FeSpace_::local_dim;
     static constexpr int embed_dim = FeSpace_::embed_dim;
@@ -314,22 +324,26 @@ struct TrialFunction : public std::conditional_t<
 
 // partial derivative of scalar trial function
 template <typename FeSpace_>
-struct PartialDerivative<TrialFunction<FeSpace_>, 1> : public TrialFunction<FeSpace_>::FirstPartialDerivative {
+struct PartialDerivative<TrialFunction<FeSpace_, finite_element>, 1> :
+    public TrialFunction<FeSpace_, finite_element>::FirstPartialDerivative {
+    using Base = TrialFunction<FeSpace_, finite_element>::FirstPartialDerivative;
     PartialDerivative() = default;
-    PartialDerivative(const TrialFunction<FeSpace_>& f, int i) :
-        TrialFunction<FeSpace_>::FirstPartialDerivative(f, i) { }
+    PartialDerivative(const TrialFunction<FeSpace_, finite_element>& f, int i) : Base(f, i) { }
 };
 // gradient of vectorial trial function
 template <typename FeSpace_>
-constexpr auto grad(const TrialFunction<FeSpace_>& xpr)
-    requires(FeSpace_::n_components > 1) {
-    return typename TrialFunction<FeSpace_>::template Jacobian<TrialFunction<FeSpace_>>(xpr);
+    requires(FeSpace_::n_components > 1)
+constexpr auto grad(const TrialFunction<FeSpace_, finite_element>& xpr) {
+    return
+      typename TrialFunction<FeSpace_, finite_element>::template Jacobian<TrialFunction<FeSpace_, finite_element>>(xpr);
 }
 // divergence of vectorial trial function
 template <typename FeSpace_>
     requires(FeSpace_::n_components > 1)
-constexpr auto div(const TrialFunction<FeSpace_>& xpr) {
-    return typename TrialFunction<FeSpace_>::template Divergence<TrialFunction<FeSpace_>>(xpr);
+constexpr auto div(const TrialFunction<FeSpace_, finite_element>& xpr) {
+    return
+      typename TrialFunction<FeSpace_, finite_element>::template Divergence<TrialFunction<FeSpace_, finite_element>>(
+        xpr);
 }
 
 // representation of u(x) = \sum_{i=1}^{n_dofs} u_i \psi_i(x) with \{ \psi_i \}_i a finite element basis system
@@ -344,6 +358,7 @@ class FeFunction :
     using Base = std::conditional_t<
       FeSpace::n_components == 1, fdapde::ScalarBase<FeSpace::local_dim, FeFunction<FeSpace>>,
       fdapde::MatrixBase<FeSpace::local_dim, FeFunction<FeSpace>>>;
+    using DofHandlerType = typename FeSpace::DofHandlerType;
     using InputType = SVector<FeSpace::local_dim>;
     using Scalar = double;
     using OutputType =
@@ -367,7 +382,7 @@ class FeFunction :
         int e_id = fe_space_->triangulation().locate(p);
         if (e_id == -1) return std::numeric_limits<Scalar>::quiet_NaN();   // return NaN if point lies outside domain
         // map p to reference cell and evaluate
-        typename DofHandler<local_dim, embed_dim>::CellType cell = fe_space_->dof_handler().cell(e_id);
+        typename DofHandlerType::CellType cell = fe_space_->dof_handler().cell(e_id);
         InputType ref_p = cell.invJ() * (p - cell.node(0));
         DVector<int> active_dofs = cell.dofs();
         OutputType value;
@@ -386,7 +401,7 @@ class FeFunction :
         int e_id = fe_space_->triangulation().locate(p);
         if (e_id == -1) return std::numeric_limits<Scalar>::quiet_NaN();   // return NaN if point lies outside domain
         // map p to reference cell and evaluate
-        typename DofHandler<local_dim, embed_dim>::CellType cell = fe_space_->dof_handler().cell(e_id);
+        typename DofHandlerType::CellType cell = fe_space_->dof_handler().cell(e_id);
         InputType ref_p = cell.invJ() * (p - cell.node(0));
         DVector<int> active_dofs = cell.dofs();
         Scalar value = 0;
@@ -434,18 +449,18 @@ class FeFunction :
 
     // getters
     const DVector<double>& coeff() const { return coeff_; }
-    constexpr FeSpace& fe_space() { return *fe_space_; }
-    constexpr const FeSpace& fe_space() const { return *fe_space_; }
+    constexpr FeSpace& function_space() { return *fe_space_; }
+    constexpr const FeSpace& function_space() const { return *fe_space_; }
     constexpr int rows() const { return Rows; }
     constexpr int cols() const { return Cols; }
     constexpr int input_size() const { return StaticInputSize; }
     void set_coeff(const DVector<double>& coeff) { coeff_ = coeff; }
     // linear algebra between fe functions
     friend constexpr FeFunction<FeSpace_> operator+(FeFunction<FeSpace_>& lhs, FeFunction<FeSpace_>& rhs) {
-        return FeFunction<FeSpace_>(lhs.fe_space(), lhs.coeff() + rhs.coeff());
+        return FeFunction<FeSpace_>(lhs.function_space(), lhs.coeff() + rhs.coeff());
     }
     friend constexpr FeFunction<FeSpace_> operator-(FeFunction<FeSpace_>& lhs, FeFunction<FeSpace_>& rhs) {
-        return FeFunction<FeSpace_>(lhs.fe_space(), lhs.coeff() - rhs.coeff());
+        return FeFunction<FeSpace_>(lhs.function_space(), lhs.coeff() - rhs.coeff());
     }
     // assignment from expansion coefficient vector
     FeFunction& operator=(const DVector<double>& coeff) {

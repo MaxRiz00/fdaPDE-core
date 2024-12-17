@@ -27,7 +27,7 @@ class Spline : public ScalarBase<1, Spline> {
    public:
     using Base = ScalarBase<1, Spline>;
     static constexpr int StaticInputSize = 1;
-    static constexpr int NestAsRef = 0;   // avoid nesting as reference, .derive() generates temporaries
+    static constexpr int NestAsRef = 0;
     static constexpr int XprBits = 0;
     static constexpr int Order = Dynamic;
     using Scalar = double;
@@ -50,7 +50,7 @@ class Spline : public ScalarBase<1, Spline> {
             knots_(knots), i_(i), order_(order), n_(n) { }
 
         // non-recursive implementation of order k-th spline derivative evaluation at point, as detailed in "Piegl, L.,
-        // & Tiller, W. (2012). The NURBS book. Springer Science & Business Media. Algorithm A2.3 pag 72"
+        // & Tiller, W. (2012). The NURBS book. Springer Science & Business Media. Algorithm A2.5 pag 77"
         template <typename InputType_>
             requires(fdapde::is_subscriptable<InputType_, int>)
         constexpr Scalar operator()(const InputType_& p_) const {
@@ -129,7 +129,7 @@ class Spline : public ScalarBase<1, Spline> {
         // special cases
         if ((i_ == 0 && p == knots_[0]) || (i_ == m - order_ - 1 && p == knots_[m])) return 1.0;
         // local property: return 0 if p is outside the range of this basis function
-        if (p < knots_[i_] || p >= knots_[i_ + order_ + 1]) return 0.0;
+	if (p < knots_[i_] || p >= knots_[i_ + order_ + 1]) return 0.0;
         // initialize 0th degree basis functions
         for (int j = 0; j <= order_; ++j) {
             if (p >= knots_[i_ + j] && p < knots_[i_ + j + 1]) { N[j] = 1.0; }
@@ -152,10 +152,11 @@ class Spline : public ScalarBase<1, Spline> {
         }
         return N[0];
     }
-    constexpr Derivative gradient(int n) const { return Derivative(knots_, i_, order_, n); }
+    constexpr Derivative gradient(int n = 1) const { return Derivative(knots_, i_, order_, n); }
     const std::vector<double>& knot_vector() const { return knots_; }
     int order() const { return order_; }
-    int id() const { return i_; }
+    int knot_id() const { return i_ + order_ - 1; }
+    double knot() const { return knots_[i_ + order_ - 1]; }
     constexpr int input_size() const { return StaticInputSize; }
    private:
     std::vector<double> knots_ {};
@@ -165,7 +166,7 @@ class Spline : public ScalarBase<1, Spline> {
 
 constexpr auto dx (const Spline& spline) { return spline.gradient(1); }
 constexpr auto ddx(const Spline& spline) { return spline.gradient(2); }
-  
-} // namespace fdapde
+
+}   // namespace fdapde
 
 #endif // __SPLINE_H__

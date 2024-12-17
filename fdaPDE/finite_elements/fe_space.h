@@ -22,14 +22,23 @@
 
 namespace fdapde {
 
+// forward declarations
 template <typename FeSpace_> class FeFunction;
+namespace internals {
 
+template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
+class fe_bilinear_form_assembly_loop;
+template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
+class fe_linear_form_assembly_loop;
+
+}   // namespace internals
+
+// definition of finite element space
 template <typename Triangulation_, typename FeType_> class FeSpace {
-    // internals
-    template <typename T> struct subscript_type_of_impl {
+    template <typename T> struct subscript_t_impl {
         using type = std::decay_t<decltype(std::declval<T>().operator[](std::declval<int>()))>;
     };
-    template <typename T> using subscript_type_of = typename subscript_type_of_impl<T>::type;
+    template <typename T> using subscript_t = typename subscript_t_impl<T>::type;
    public:
     using Triangulation = std::decay_t<Triangulation_>;
     using FeType = std::decay_t<FeType_>;
@@ -39,28 +48,29 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
     using face_dof_descriptor = FeType::template face_dof_descriptor<local_dim>;
     using ReferenceCell = typename cell_dof_descriptor::ReferenceCell;
     using BasisType = typename cell_dof_descriptor::BasisType;
-    using ShapeFunctionType = subscript_type_of<BasisType>;
+    using ShapeFunctionType = subscript_t<BasisType>;
     using FaceBasisType = typename face_dof_descriptor::BasisType;
-    using FaceShapeFunctionType = subscript_type_of<FaceBasisType>;
-    using DofHandlerType = DofHandler<local_dim, embed_dim>;
+    using FaceShapeFunctionType = subscript_t<FaceBasisType>;
+    using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::finite_element>;
     // vector finite element descriptors
     static constexpr int n_components  = FeType::n_components;
     static constexpr bool is_vector_fe = (n_components > 1);
-  
+    // definition of assembly loops
+    using space_category = fdapde::finite_element;
+    template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
+    using bilinear_form_assembly_loop =
+      internals::fe_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
+    template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
+    using linear_form_assembler_loop =
+      internals::fe_linear_form_assembly_loop  <Triangulation__, Form__, Options__, Quadrature__...>;
+
     FeSpace() = default;
     FeSpace(const Triangulation_& triangulation, FeType_ fe) :
-        triangulation_(&triangulation), dof_handler_(triangulation) {
+        triangulation_(std::addressof(triangulation)), dof_handler_(triangulation) {
         dof_handler_.enumerate(fe);
-        if constexpr (requires(cell_dof_descriptor c) { c.dofs_phys_coords(); }) {
-            cell_basis_ = BasisType(unit_cell_dofs_.dofs_phys_coords());
-        } else {
-            cell_basis_ = BasisType();
-        }
-        if constexpr (requires(face_dof_descriptor c) { c.dofs_phys_coords(); }) {
-            face_basis_ = FaceBasisType(unit_face_dofs_.dofs_phys_coords());
-        } else {
-            face_basis_ = FaceBasisType();
-        }
+        cell_basis_ = BasisType(unit_cell_dofs_.dofs_phys_coords());
+        // degenerate case for 1D boundary integration uses default initialization
+        if constexpr (local_dim - 1 != 0) { face_basis_ = FaceBasisType(unit_face_dofs_.dofs_phys_coords()); }
     }
     // observers
     const Triangulation& triangulation() const { return *triangulation_; }
@@ -104,6 +114,14 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
         fdapde_static_assert(n_components > 1, THIS_METHOD_IS_FOR_VECTOR_FINITE_ELEMENTS_ONLY);
         return face_basis_[i].divergence()(p);
     }
+    // evaluation on physical domain
+    // shape function evaluation, skip point location step (cell_id provided as input)
+    template <typename InputType> auto eval_cell_value(int i, int cell_id, const InputType& p) const {
+        // map p to reference cell and evaluate
+        typename DofHandlerType::CellType cell = dof_handler_.cell(cell_id);
+        InputType ref_p = cell.invJ() * (p - cell.node(0));
+        return eval_shape_value(i, ref_p);
+    }
     // evaluate value of the i-th shape function defined on the physical cell containing point p
     template <typename InputType> auto eval_cell_value(int i, const InputType& p) const {
         // localize p in physical domain
@@ -111,24 +129,20 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
         if (cell_id == -1) return std::numeric_limits<double>::quiet_NaN();
 	return eval_cell_value(i, cell_id, p);
     }
-    // shape function evaluation, skip point location step
-    template <typename InputType> auto eval_cell_value(int i, int cell_id, const InputType& p) const {
-        // map p to reference cell and evaluate
-        typename DofHandler<local_dim, embed_dim>::CellType cell = dof_handler_.cell(cell_id);
-        InputType ref_p = cell.invJ() * (p - cell.node(0));
-        return eval_shape_value(i, ref_p);
-    }
-    // generate fe_function bounded to this finite element space
-    FeFunction<FeSpace<Triangulation_, FeType_>> make_fe_function(const Eigen::Matrix<double, Dynamic, 1>& coeff_vec) {
-        return FeFunction<FeSpace<Triangulation_, FeType_>>(*this, coeff_vec);
+    // return i-th basis function on physical domain
+    FeFunction<FeSpace<Triangulation_, FeType_>> operator[](int i) {
+        fdapde_assert(i < dof_handler_.n_dofs());
+	Eigen::Matrix<double, Dynamic, 1> coeff = Eigen::Matrix<double, Dynamic, 1>::Zero(dof_handler_.n_dofs());
+	coeff[i] = 1;
+        return FeFunction<FeSpace<Triangulation_, FeType_>>(*this, coeff);
     }
    private:
     const Triangulation* triangulation_;
     DofHandlerType dof_handler_;
     cell_dof_descriptor unit_cell_dofs_;
     face_dof_descriptor unit_face_dofs_;
-    BasisType cell_basis_;
-    typename face_dof_descriptor::BasisType face_basis_;
+    BasisType cell_basis_ {};
+    FaceBasisType face_basis_ {};
 };
 
 }   // namespace fdapde

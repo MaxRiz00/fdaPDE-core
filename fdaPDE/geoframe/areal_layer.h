@@ -74,12 +74,12 @@ template <typename GeoFrame_> struct areal_layer {
     }
     // computes matrix [M]_{ij} : [M]_{ij} == 1 \iff cell j is inside region i, 0 otherwise
     BinaryMatrix<Dynamic, Dynamic> incidence_matrix() const {
-        BinaryMatrix<Dynamic, Dynamic> m(regions_.size(), triangulation().n_cells());
+        BinaryMatrix<Dynamic, Dynamic> m(regions_->size(), triangulation().n_cells());
         // for each cell, check in which region its barycenter lies
         for (auto it = triangulation().cells_begin(); it != triangulation().cells_end(); ++it) {
             Eigen::Matrix<double, embed_dim, 1> barycenter = it->barycenter();
-            for (int i = 0, n = regions_.size(); i < n; ++i) {
-                if (regions_[i].contains(barycenter)) { m(i, it->id()).set(); }
+            for (int i = 0, n = regions_->size(); i < n; ++i) {
+                if (regions_->operator[](i).contains(barycenter)) { m.set(i, it->id()); }
             }
         }
         return m;
