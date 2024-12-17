@@ -161,8 +161,8 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             double num0_ = 0.0;
 
             // gradient and hessian$
-            //VectorField<M, M, NurbsDerivative<M>> gradient_; //gradient
-            //MatrixField<M,M,M,NurbsSecondDerivative<M,R>> hessian_; //hessian
+            VectorField<M, M, NurbsDerivative<M>> gradient_; //gradient
+            MatrixField<M,M,M,NurbsSecondDerivative<M,R>> hessian_; //hessian
 
         public:
             Nurbs() = default;
