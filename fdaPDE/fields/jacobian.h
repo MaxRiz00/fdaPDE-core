@@ -42,7 +42,7 @@ template <typename Derived_> class Jacobian : public fdapde::MatrixBase<Derived_
         constexpr jacobian_helper(const XprType& xpr, const Jacobian* jacobian) :
             Base(), xpr_(xpr), jacobian_(jacobian) { }
         constexpr Scalar operator()(InputType x) const { return xpr_(x); }
-        constexpr int input_size() const { return jacobian_.input_size(); }
+        constexpr int input_size() const { return jacobian_->input_size(); }
         constexpr const Jacobian& derived() const { return *jacobian_; }
     };
    public:

@@ -35,7 +35,7 @@ namespace fdapde {
       std::is_same_v<typename Lhs::InputType FDAPDE_COMMA typename Rhs::InputType>,                                    \
       YOU_MIXED_MATRIX_FIELDS_WITH_DIFFERENT_INPUT_VECTOR_TYPES);
 
-template <int Size, typename Derived> class MatrixBase;
+template <int Size, typename Derived> struct MatrixBase;
 
 template <typename Lhs, typename Rhs>
 class MatrixProduct : public fdapde::MatrixBase<Lhs::StaticInputSize, MatrixProduct<Lhs, Rhs>> {

@@ -92,7 +92,7 @@ namespace fdapde {
                     }
                 }
             }
-            NurbsBasis(const Triangulation<M, 1>& interval, MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : NurbsBasis(interval.nodes(), weights, order) { }
+            //NurbsBasis(const Triangulation<M, 1>& interval, MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : NurbsBasis(interval.nodes(), weights, order) { }
             // getters
             constexpr const Nurbs<M>& operator[](int i) const { return basis_[i]; }
             constexpr int size() const { return basis_.size(); }
