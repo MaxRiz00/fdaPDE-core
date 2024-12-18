@@ -51,6 +51,8 @@ class Spline : public ScalarBase<1, Spline> {
 
         // non-recursive implementation of order k-th spline derivative evaluation at point, as detailed in "Piegl, L.,
         // & Tiller, W. (2012). The NURBS book. Springer Science & Business Media. Algorithm A2.5 pag 77"
+
+        // fai un metodo double  da riga 61 in poi e questo di adesso che lo chiama
         template <typename InputType_>
             requires(fdapde::is_subscriptable<InputType_, int>)
         constexpr Scalar operator()(const InputType_& p_) const {

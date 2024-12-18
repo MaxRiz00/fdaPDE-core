@@ -10,28 +10,38 @@
 
 namespace fdapde{
 
-// Funziona ma è migliorabile, magari una versione iterativa? Comunque la ricorsione non fa più di 3 passaggi
-template <int N, int J = 0>
-inline double multicontract(const MdArray<double, full_dynamic_extent_t<N - J>>& weights,
-                            const std::array<std::vector<double>, N>& parts) {
-    if constexpr (N == J + 1) {
-        // Base case: contract the last dimension
-        double contracted_value = 0.0;
-        for (int i = 0; i < weights.extent(0); ++i) {
-            contracted_value += weights(i) * parts[J][i];
-        }
-        return contracted_value;
-    } else {
-        // Recursive contraction along dimension J
-        double contracted_value = 0.0;
-        for (int idx = 0; idx < weights.extent(0); ++idx) {
-            auto sub_block = weights.template slice<0>(idx);
-            contracted_value += parts[J][idx] * multicontract<N, J + 1>(sub_block, parts);
-        }
-        return contracted_value;
-    }
-}
+    // Fai un check computazionale confrontando le nurbs evaluation con quelle di DeGaspari
 
+// multi-contract function (iterative version)    
+template<int M>
+inline double multicontract(const MdArray<double, full_dynamic_extent_t<M>>& weights,
+                     const std::array<std::vector<double>, M>& parts) {
+
+    double contracted_value = 0.0;
+    std::array<int, M> sizes = {0};
+    std::size_t total_size = 1;
+
+    for (int i = 0; i < M; ++i) {
+        sizes[i] = parts[i].size();
+        total_size *= sizes[i];
+    }
+
+    for(int flat_idx = 0; flat_idx < total_size; ++flat_idx) {
+        std::array<int, M> multi_idx = {0};
+        int temp = flat_idx;
+        for (int i = M - 1; i >= 0; --i) {
+            multi_idx[i] = temp % sizes[i];
+            temp /= sizes[i];
+        }
+        double sub_value = weights(multi_idx);
+        for (int i = 0; i < M; ++i) {
+            sub_value *= parts[i][multi_idx[i]];
+        }
+        contracted_value += sub_value;
+    }
+
+    return contracted_value;
+}
 
 
 
@@ -54,7 +64,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             int order_;
 
             std::array<std::size_t, M> minIdx_;
-            std::array<Eigen::Index, M> extents_; // fare il min_idx e max idx ??? al posto di minIdx e extents
+            std::array<int, M> extents_; // fare il min_idx e max idx ??? al posto di minIdx e extents
             double num0_ = 0.0;
 
 
@@ -65,8 +75,6 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             Nurbs(std::array<std::vector<double>,M>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>& index, int order): 
                 knots_(knots), index_(index), order_(order){
 
-                std::vector<NurbsDerivative> gradient;
-
                 std::array<std::size_t, M> maxIdx;
 
                 for (std::size_t i = 0; i < M; ++i) {
@@ -74,7 +82,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                     extents_[i] = (index_[i] + order < weights.extent(i))? (index_[i]+order+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]); 
                     maxIdx[i] = (minIdx_[i] + extents_[i]-1);
 
-                    gradient.emplace_back(knots,weights,index,order,i);
+                    gradient_[i] = FirstDerivative(knots, weights, index, order, i);
 
                     // hessian da fare
 
@@ -88,15 +96,28 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 num0_ = weights(index_); 
 
                 // wrap the gradient components into a vectorfield
-                gradient_ = VectorField<M, M, NurbsDerivative>(gradient);  
+
+
+                // Costruisci una base spline per ogni dimensione
+                // la puoi usare la funzione di valutazione rapida
+
+
+                // Parte da un vettore di shared pointers di basi spline che costruira la nurbs basis
+                // vettore di shared pointer per salvare le basi spline
+                // se gli sharedpointer non attivi crei la base spline
+
+                
 
                 std::cout << "NURBS correctly initialized! " << std::endl; 
 
             };
 
             // add a constructor for the 1d knot passed as std::vector<double>, using the previous constructor
+            // mettere uno static assert che fa un check che M=1 , 
             Nurbs(std::vector<double>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>& index, int order): 
-            Nurbs(std::array<std::vector<double>,M>{knots}, weights, index, order) {};
+            Nurbs(std::array<std::vector<double>,M>{knots}, weights, index, order) {
+                fdapde_static_assert(M == 1, THIS_METHOD_IS_ONLY_FOR_1D_NURBS);
+            };
 
             
             //evaluates the NURBS at a given point, funziona
@@ -134,10 +155,10 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             }; 
 
         private:
-            class NurbsDerivative: public MatrixBase<M,NurbsDerivative> {
+            class FirstDerivative: public MatrixBase<M,FirstDerivative> {
             public:
             
-                using Base = MatrixBase<M,NurbsDerivative>;
+                using Base = MatrixBase<M,FirstDerivative>;
                 static constexpr int StaticInputSize = M;
                 static constexpr int NestAsRef = 0;   // avoid nesting as reference, .derive() generates temporaries
                 static constexpr int XprBits = 0;
@@ -152,15 +173,15 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 int order_;
 
                 std::array<std::size_t, M> minIdx_;
-                std::array<Eigen::Index, M> extents_; // fare il min_idx e max idx ??? al posto di minIdx e extents
+                std::array<int, M> extents_; // fare il min_idx e max idx ??? al posto di minIdx e extents, usa un int al posto di eigen::index
                 double num0_ = 0.0;
 
                 size_t i_ = 0; // index of the derivative, questa i è necessaria ? se mi interessa il gradiente in una direzione si
 
             public:
-                NurbsDerivative() = default;
+                FirstDerivative() = default;
 
-                NurbsDerivative(std::array<std::vector<double>,M>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>& index, int order, std::size_t i): 
+                FirstDerivative(std::array<std::vector<double>,M>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>& index, int order, std::size_t i): 
                     knots_(knots), index_(index), order_(order), i_(i){
 
                     std::array<std::size_t, M> maxIdx;
@@ -201,7 +222,9 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                         // spline evaluation for i-th dimension
                         for(std::size_t j = 0; j<extents_[i]; j++ ){
                             auto spline = Spline(knots_[i], minIdx_[i]+j, order_);
-                            spline_evaluation[i][j] = spline(std::vector<double>{p[i]}); 
+                            spline_evaluation[i][j] = spline(std::vector<double>{p[i]}); // rivedi 
+                            // metti in spline un overload del call operator che accetta un double
+                            //metti il metodo rapido per calcolare la spline_basis (A2.2) in spline_basis
                         }
                         if (i!=i_)
                             num*=spline_evaluation[i][index_[i] - minIdx_[i]];
@@ -210,7 +233,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
 
                     //compute the derivative of the i_th spline
                     auto spline = Spline(knots_[i_], minIdx_[i_]+index_[i_], order_);
-                    num_derived = num *dx(spline)(std::vector<double>{p[i_]});
+                    num_derived = num *dx(spline)(std::vector<double>{p[i_]}); // anche qua
 
                     if (num== 0 & num_derived == 0)
                         return 0;
@@ -238,8 +261,8 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             private:
 
                 // gradient and hessian$
-                VectorField<M, M, NurbsDerivative> gradient_; //gradient
-                //MatrixField<M,M,M,NurbsSecondDerivative<M,R>> hessian_; //hessian
+                VectorField<M, M, FirstDerivative> gradient_; //gradient
+                //MatrixField<M,M,M,NurbsSecondDerivative>> hessian_; //hessian accedi con hessian_(i,j)
 
     
     
