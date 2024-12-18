@@ -466,6 +466,41 @@ template <int N> class Triangulation<2, N> : public TriangulationBase<2, N, Tria
     mutable typename Base::CellType cell_;   // used in case cell caching is off
 };
 
+// square mesh factory methods
+inline Triangulation<2, 2>
+make_rectangle(double a_x, double b_x, double a_y, double b_y, int nx, int ny) {
+    // allocate memory
+    Eigen::Matrix<double, Dynamic, Dynamic> nodes(nx * ny, 2);
+    Eigen::Matrix<int, Dynamic, Dynamic> cells((nx - 1) * (ny - 1) * 2, 3);   // each subrectangle splitted in 2
+    Eigen::Matrix<int, Dynamic, Dynamic> boundary(nx * ny, 1);
+    // compute steps along axis
+    double h_x = (b_x - a_x) / (nx - 1);
+    double h_y = (b_y - a_y) / (ny - 1);
+    int cell_id = 0;
+    std::array<int, 4> v;
+    for (int j = 0; j < ny; ++j) {
+        for (int i = 0; i < nx; ++i) {
+            int node_id = j * nx + i;
+            nodes.row(node_id) << (a_x + i * h_x), (a_y + j * h_y);   // node coordinates
+            if (i < nx - 1 && j < ny - 1) {
+                // compute vector of vertices of subrectangle
+                int p = j * nx + i;
+                v = {p, p + 1, p + nx, p + nx + 1};
+                // compute vertices of each triangle in the subrectangle
+                cells.row(cell_id + 0) << v[0], v[1], v[2];
+                cells.row(cell_id + 1) << v[1], v[2], v[3];
+		cell_id = cell_id + 2;
+            }
+            boundary(node_id, 0) = (i == 0 || i == nx - 1 || j == 0 || j == ny - 1) ? 1 : 0;
+        }
+    }
+    return Triangulation<2, 2>(nodes, cells, boundary);
+}
+inline Triangulation<2, 2> make_square(double a, double b, int n_nodes) {
+    return make_rectangle(a, b, a, b, n_nodes, n_nodes);
+}
+inline Triangulation<2, 2> make_unit_square(int n_nodes) { return make_square(0.0, 1.0, n_nodes); }
+
 // face-based storage
 template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangulation<3, 3>> {
    public:
@@ -775,6 +810,50 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
     std::vector<typename Base::CellType> cell_cache_;
     mutable typename Base::CellType cell_;   // used in case cell caching is off
 };
+
+// cubic mesh factory methods (nx, ny, nz: number of nodes along x,y,z axis respectively)
+inline Triangulation<3, 3>
+make_parallelepiped(double a_x, double b_x, double a_y, double b_y, double a_z, double b_z, int nx, int ny, int nz) {
+    // allocate memory
+    Eigen::Matrix<double, Dynamic, Dynamic> nodes(nx * ny * nz, 3);
+    Eigen::Matrix<int, Dynamic, Dynamic> cells((nx - 1) * (ny - 1) * (nz - 1) * 6, 4);   // each subcube spliited in 6
+    Eigen::Matrix<int, Dynamic, Dynamic> boundary(nx * ny * nz, 1);
+    // compute steps along axis
+    double h_x = (b_x - a_x) / (nx - 1);
+    double h_y = (b_y - a_y) / (ny - 1);
+    double h_z = (b_z - a_z) / (nz - 1);
+    int cell_id = 0;
+    std::array<int, 8> v;
+    for (int k = 0; k < nz; ++k) {
+        for (int j = 0; j < ny; ++j) {
+            for (int i = 0; i < nx; ++i) {
+                int node_id = k * nx * ny + j * nx + i;
+                nodes.row(node_id) << (a_x + i * h_x), (a_y + j * h_y), (a_z + k * h_z);
+                if (i < nx - 1 && j < ny - 1 && k < nz - 1) {
+                    // build vector of vertices of sub-cube
+                    int p = k * nx * ny + j * nx + i;
+                    v = {p,           p + 1,           p + nx,           p + nx + 1,
+                         p + nx * ny, p + nx * ny + 1, p + nx * ny + nx, p + nx * ny + nx + 1};
+		    // split sub-cube in 6 tetrahedra (this guarantees a conforming triangulation)
+                    cells.row(cell_id + 0) << v[6], v[2], v[1], v[0];
+                    cells.row(cell_id + 1) << v[6], v[4], v[1], v[0];
+                    cells.row(cell_id + 2) << v[6], v[5], v[7], v[1];
+                    cells.row(cell_id + 3) << v[6], v[3], v[7], v[1];
+                    cells.row(cell_id + 4) << v[6], v[3], v[2], v[1];
+                    cells.row(cell_id + 5) << v[6], v[5], v[4], v[1];
+                    cell_id = cell_id + 6;
+                }
+                boundary(node_id, 0) =
+                  (i == 0 || i == nx - 1 || j == 0 || j == ny - 1 || k == 0 || k == nz - 1) ? 1 : 0;
+            }
+        }
+    }
+    return Triangulation<3, 3>(nodes, cells, boundary);
+}
+inline Triangulation<3, 3> make_cube(double a, double b, int n_nodes) {
+    return make_parallelepiped(a, b, a, b, a, b, n_nodes, n_nodes, n_nodes);
+}
+inline Triangulation<3, 3> make_unit_cube(int n_nodes) { return make_cube(0.0, 1.0, n_nodes); }
 
 }   // namespace fdapde
 
