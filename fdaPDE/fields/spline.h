@@ -105,6 +105,8 @@ class Spline : public ScalarBase<1, Spline> {
             }
             return ND[0];
         }
+        // overload of the call operator for a single double
+        constexpr Scalar operator()(double p) const { return operator()(std::vector<double>{p}); }
     };
    public:
     // constructor
@@ -154,6 +156,9 @@ class Spline : public ScalarBase<1, Spline> {
         }
         return N[0];
     }
+
+    // overload of the call operator for a single double
+    constexpr Scalar operator()(double p) const { return operator()(std::vector<double>{p}); }
     constexpr Derivative gradient(int n = 1) const { return Derivative(knots_, i_, order_, n); }
     const std::vector<double>& knot_vector() const { return knots_; }
     int order() const { return order_; }

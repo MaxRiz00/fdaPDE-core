@@ -242,8 +242,9 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                     }
 
                     //compute the derivative of the i_th spline
-                    auto spline = Spline(knots_[i_], index_[i_], order_);
-                    num_derived = num * dx(spline)(std::vector<double>{p[i_]}); // anche qua
+                    num_derived = num * Spline(knots_[i_], index_[i_], order_).gradient(1)(p[i_]);
+
+                    // compute the non derived numerator
                     num*=spline_evaluation[i_][index_[i_] - minIdx_[i_]];
 
                     if (num== 0 && num_derived == 0)
@@ -256,7 +257,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                     // by replacing the i-th evaluations with their derivatives we get the derivative of the NURBS denominator
                     for (std::size_t j = 0; j<extents_[i_]; j++ ){
                         auto spline = Spline(knots_[i_], minIdx_[i_]+j, order_);
-                        spline_evaluation[i_][j] = dx(spline)(std::vector<double>{p[i_]}); 
+                        spline_evaluation[i_][j] = dx(spline)(p[i_]); 
                     }
 
                     den_derived = multicontract<M>(weights_, spline_evaluation);
