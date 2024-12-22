@@ -74,10 +74,7 @@ namespace fdapde {
                 std::array<int, M> index {};
 
                 for(int i=0;i<basis_size;++i){
-                    // print the index
-                    std::cout<<"index: ";
-                    for(int j=0;j<M;++j)std::cout<<index[j]<<" ";
-                    std::cout<<std::endl;
+                    
                     basis_.emplace_back(knots_, weights, index, order_);
 
                     // Update the index with carry-over logic

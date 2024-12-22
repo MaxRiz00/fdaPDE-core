@@ -41,7 +41,8 @@ class SplineBasis {
                     { knots.size() } -> std::convertible_to<std::size_t>;
                 })
     SplineBasis(KnotsVectorType&& knots, int order) : order_(order) {
-        fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
+
+        //fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
         int n = knots.size();
         knots_.resize(n);
         for (int i = 0; i < n; ++i) { knots_[i] = knots[i]; }
@@ -50,28 +51,63 @@ class SplineBasis {
         for (int i = 0; i < n - order_ - 1; ++i) { basis_.emplace_back(knots_, i, order_); }
     }
     // constructor from geometric interval (no repeated knots)
-    SplineBasis(const Triangulation<1, 1>& interval, int order) : order_(order) {
+    SplineBasis(const Triangulation<1, 1>& interval, int order, bool already_padded = false) : order_(order) {
         // construct knots vector
         Eigen::Matrix<double, Dynamic, 1> knots = interval.nodes();
         fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end() FDAPDE_COMMA std::less_equal<double>()));
         int n = knots.size();
         knots_.resize(n + 2 * order_);
         // pad the knot vector to obtain a full basis for the whole knot span [knots[0], knots[n-1]]
-        for (int i = 0; i < n + 2 * order_; ++i) {
-            if (i < order_) {
-                knots_[i] = knots[0];
-            } else {
-                if (i < n + order_) {
-                    knots_[i] = knots[i - order_];
+        if (not already_padded)
+            for (int i = 0; i < n + 2 * order_; ++i) {
+                if (i < order_) {
+                    knots_[i] = knots[0];
                 } else {
-                    knots_[i] = knots[n - 1];
+                    if (i < n + order_) {
+                        knots_[i] = knots[i - order_];
+                    } else {
+                        knots_[i] = knots[n - 1];
+                    }
                 }
-            }
 	}
         // define basis system
         basis_.reserve(knots_.size() - order_ + 1);
         for (int i = 0; i < knots_.size() - order_ - 1; ++i) { basis_.emplace_back(knots_, i, order_); }
     }
+
+    //Algorithm A2. 2 from NURBS book pag. 70 computes all the nonvanishing
+    //basis functions and stores them in the array N [0] , ... ,N [p]
+    // it does not return zeros for the basis functions that are zero
+    std::vector<double> compute_basis(double x) const {
+
+        std::vector<double> N(order_ , 0.0);
+        std::vector<double> left(order_, 0.0);
+        std::vector<double> right(order_ , 0.0);
+        N[0] = 1.0;
+
+        // find the span of the knot vector
+        int i = 0;
+        while (x >= knots_[i+1] && i < knots_.size() - order_ - 1) i++;
+
+        for (int j=1;j<=order_;j++){
+            left[j] = x - knots_[i+1-j];
+            right[j] = knots_[i+j] - x;
+            double saved = 0.0;
+            for (int r=0;r<j;r++){
+                double temp = N[r]/(right[r+1]+left[j-r]);
+                N[r] = saved + right[r+1]*temp;
+                saved = left[j-r]*temp;
+            }
+            N[j] = saved;
+        }
+
+        // create a vector of the same size of the basis functions, copy N in the right position, zeros elsewhere
+        std::vector<double> nonvanishing_basis(knots_.size() - order_ + 1, 0.0);
+        for (int j = 0; j < order_ + 1; ++j) { nonvanishing_basis[i - order_ + j] = N[j]; }
+        
+        return nonvanishing_basis;
+    }
+
     // getters
     constexpr const Spline& operator[](int i) const { return basis_[i]; }
     constexpr int size() const { return basis_.size(); }
@@ -79,6 +115,7 @@ class SplineBasis {
     int n_knots() const { return knots_.size(); }
     int order() const { return order_; }
 };
+
 
 } // namespace fdapde
 

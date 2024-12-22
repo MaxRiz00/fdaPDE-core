@@ -2,15 +2,33 @@
 #include "linear_algebra/mdarray.h"
 #include "fields/nurbs.h"
 #include "nurbs/nurbs_basis.h"
+#include "splines/spline_basis.h"
 
 using namespace fdapde;
 
 int main() {
 
     // create a Nurbs object
-    std::array<std::vector<double>, 2> knots;
-    knots[0] = {0.0, 0.25, 0.5, 0.75, 1.0};
-    knots[1] = {0.0, 0.25, 0.5, 0.75};
+    //std::array<std::vector<double>, 2> knots;
+    //knots[0] = {0.0, 0.25, 0.5, 0.75, 1.0};
+    //knots[1] = {0.0, 0.25, 0.5, 0.75};
+
+    std::vector<double> knots;
+    knots = {0.0, 0.25, 0.5, 0.75, 1.0};
+
+    // Instantiate a spline basis
+    SplineBasis spline_basis(knots, 3);
+
+    // evaluate the spline basis at a point
+    cexpr::Vector<double, 1> p{0.125};
+
+    std::vector<double> basis = spline_basis.compute_nonvanishing_basis(p[0]);
+
+    for (int i = 0; i < basis.size(); ++i) {
+        std::cout << "Basis function " << i << " evaluated at point p: " << basis[i] << std::endl;
+    }
+
+    /*
 
     MdArray<double, full_dynamic_extent_t<2>> weights(7,6);
     // initialize the weights
@@ -33,8 +51,6 @@ int main() {
 
     // create a NurbsBasis object
     NurbsBasis<2> nurbs_basis(knots, weights, order);
-
-/*
 
     // Declare a 5x4x3 MdArray of doubles
     MdArray<double, MdExtents<Dynamic, Dynamic>> md;
