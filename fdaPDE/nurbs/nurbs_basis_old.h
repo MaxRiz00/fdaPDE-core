@@ -18,7 +18,7 @@
 #define __NURBS_BASIS_H__
 
 #include "../geometry/interval.h"
-#include "../fields/nurbs.h"
+#include "../fields/nurbs_old.h"
 
 namespace fdapde {
 
@@ -69,22 +69,13 @@ namespace fdapde {
                 }
                 basis_.reserve(basis_size);
 
-                // loop over all the possible combinations of the knots, full with zeros
-                std::array<int, M> index = {0};
 
-                // instantialize the shared pointers of spline basis functions for each dimension
-                std::array<std::shared_ptr<SplineBasis>, M> M_spline_basis;
-
-                for(int k=0;k<M;++k){
-                    M_spline_basis[k] = std::make_shared<SplineBasis>(knots_[k], order_);
-                }
-
+                // loop over all the possible combinations of the knots
+                std::array<int, M> index {};
 
                 for(int i=0;i<basis_size;++i){
-
-                    //std::cout<<"index in nurbs_basis: "<<index[0]<<std::endl;
-
-                    basis_.emplace_back(M_spline_basis, weights, index);
+                    
+                    basis_.emplace_back(knots_, weights, index, order_);
 
                     // Update the index with carry-over logic
                     std::size_t j = M - 1;

@@ -46,8 +46,8 @@ TEST(nurbs_test, nurbs_basis_1D) {
 
     NurbsBasis<1> basis(nodes, weights, order);
 
-    for(size_t i = 0; i < 1 ; ++i){ //basis.size()
-        for(size_t j = 0; j < 5; ++j){ //expected.cols()
+    for(size_t i = 0; i < basis.size() ; ++i){ 
+        for(size_t j = 0; j < expected.cols(); ++j){ 
             std::array<double, 1> input = {expected.coeff(0, j)};
             EXPECT_TRUE(fdapde::testing::almost_equal(expected.coeff(i+1,j),basis[i](input)));
         }
@@ -109,14 +109,13 @@ TEST(nurbs_test, nurbs_basis_derivative_1D){
     
     for(size_t i = 0; i < basis.size(); ++i){
         for(size_t j = 0; j < expected.cols() ; ++j){
-            // compare values with data from file
             EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].first_derive()(InputType(expected.coeff(0,j)))));
         }
     }
 }
 
 // test 2D nurbs basis derivative (functions are accessibile and callable)
-TEST(isogeometric_analysis_test, nurbs_basis_derivative_2D) {
+TEST(nurbs_test, nurbs_basis_derivative_2D) {
     std::array<std::vector<double>, 2> nodes;
     MdArray<double, full_dynamic_extent_t<2>>weights(4,5);
     nodes[0].resize(2);
