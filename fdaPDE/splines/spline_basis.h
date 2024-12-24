@@ -111,25 +111,23 @@ class SplineBasis {
     // A2.3 Evaluate the nth derivative of B-spline basis functions at x, padded with zeros
     std::vector<double> evaluate_der_basis(double x, int n) {
         // Degree (p) and knot vector (U) from the class
-        int p = order_;
-        const auto& U = knots_;
 
         int i = 0;
         while (x >= knots_[i+1] && i < knots_.size() - order_ - 1) i++;
 
         // Output for derivatives
-        std::vector<std::vector<double>> ders(n + 1, std::vector<double>(p + 1, 0.0));
+        std::vector<std::vector<double>> ders(n + 1, std::vector<double>(order_ + 1, 0.0));
 
         // Temporary arrays
-        std::vector<std::vector<double>> ndu(p + 1, std::vector<double>(p + 1, 0.0));
-        std::vector<double> left(p + 1, 0.0);
-        std::vector<double> right(p + 1, 0.0);
+        std::vector<std::vector<double>> ndu(order_ + 1, std::vector<double>(order_ + 1, 0.0));
+        std::vector<double> left(order_ + 1, 0.0);
+        std::vector<double> right(order_ + 1, 0.0);
 
         // Compute basis functions and differences
         ndu[0][0] = 1.0;
-        for (int j = 1; j <= p; ++j) {
-            left[j] = x - U[i + 1 - j];
-            right[j] = U[i + j] - x;
+        for (int j = 1; j <= order_; ++j) {
+            left[j] = x - knots_[i + 1 - j];
+            right[j] = knots_[i + j] - x;
 
             double saved = 0.0;
             for (int r = 0; r < j; ++r) {
@@ -145,19 +143,19 @@ class SplineBasis {
         }
 
         // Load the basis functions
-        for (int j = 0; j <= p; ++j) {
-            ders[0][j] = ndu[j][p];
+        for (int j = 0; j <= order_; ++j) {
+            ders[0][j] = ndu[j][order_];
         }
 
         // Compute derivatives
-        std::vector<std::vector<double>> a(2, std::vector<double>(p + 1, 0.0));
-        for (int r = 0; r <= p; ++r) {
+        std::vector<std::vector<double>> a(2, std::vector<double>(order_ + 1, 0.0));
+        for (int r = 0; r <= order_; ++r) {
             int s1 = 0, s2 = 1; // Alternate rows in array a
             a[0][0] = 1.0;
 
             for (int k = 1; k <= n; ++k) {
                 double d = 0.0;
-                int rk = r - k, pk = p - k;
+                int rk = r - k, pk = order_ - k;
 
                 if (r >= k) {
                     a[s2][0] = a[s1][0] / ndu[pk + 1][rk];
@@ -165,7 +163,7 @@ class SplineBasis {
                 }
 
                 int j1 = (rk >= -1) ? 1 : -rk;
-                int j2 = (r - 1 <= pk) ? k - 1 : p - r;
+                int j2 = (r - 1 <= pk) ? k - 1 : order_ - r;
 
                 for (int j = j1; j <= j2; ++j) {
                     a[s2][j] = (a[s1][j] - a[s1][j - 1]) / ndu[pk + 1][rk + j];
@@ -183,14 +181,16 @@ class SplineBasis {
                 std::swap(s1, s2);
             }
         }
-
+        
         // Multiply by the correct factors
+        auto r = order_;
         for (int k = 1; k <= n; ++k) {
-            for (int j = 0; j <= p; ++j) {
-                ders[k][j] *= p;
+            for (int j = 0; j <= order_; ++j) {
+                ders[k][j] *= r;
             }
-            p *= (order_ - k);
+            r *= (order_ - k);
         }
+        
 
         // create a vector of the same size of the basis functions, copy N in the right position, zeros elsewhere
         std::vector<double> der_eval(knots_.size() - order_ + 1, 0.0);

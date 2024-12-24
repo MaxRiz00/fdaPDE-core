@@ -94,7 +94,12 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                     gradient_[i] = FirstDerivative(spline_basis_, weights, index, i);
                     }
 
-                // todo: initialize the hessian
+                // initialize the hessian
+                for (std::size_t i = 0; i < M; ++i){
+                    for (std::size_t j = 0; j < M; ++j){
+                        hessian_(i,j) = SecondDerivative(spline_basis_, weights, index, i, j);
+                    }
+                }
 
                 // allocate space for the weights
                 weights_.resize(extents_);
@@ -135,6 +140,13 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 for (std::size_t i = 0; i < M; ++i){
                     gradient_[i] = FirstDerivative(spline_basis_, weights, index, i);
                     }
+
+                // initialize the hessian
+                for (std::size_t i = 0; i < M; ++i){
+                    for (std::size_t j = 0; j < M; ++j){
+                        hessian_(i,j) = SecondDerivative(spline_basis_, weights, index, i, j);
+                    }
+                }
 
                 // allocate space for the weights
                 weights_.resize(extents_);
@@ -288,8 +300,6 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
 
                     for (std::size_t j = 0; j<extents_[i_]; j++ ){
                         // extract the knots
-                        //auto knots = spline_basis_[i_]->knots_vector();
-                        //auto spline = Spline(knots, minIdx_[i_]+j, order_);
                         spline_evaluation[i_][j] = der_eval[ minIdx_[i_]+j];
                     }
 
@@ -303,15 +313,198 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 };
             };
 
+
+            class SecondDerivative: public MatrixBase<M,SecondDerivative> {
+            public:
+            
+                using Base = MatrixBase<M,SecondDerivative>;
+                static constexpr int StaticInputSize = M;
+                static constexpr int NestAsRef = 0;   // avoid nesting as reference, .derive() generates temporaries
+                static constexpr int XprBits = 0;
+                static constexpr int Order = Dynamic;
+                using Scalar = double;
+                using InputType = cexpr::Vector<Scalar, StaticInputSize>;
+
+            private:
+                std::array<std::shared_ptr<SplineBasis>, M> spline_basis_;
+                MdArray<double,full_dynamic_extent_t<M>> weights_;
+                std::array<int,M> index_ ;
+                int order_ = 0;
+
+                std::array<std::size_t, M> minIdx_;
+                double num0_ = 0.0;
+                std::array<int, M> extents_;
+
+                size_t i_ = 0; // first index of the 2nd derivative
+                size_t j_ = 0; // second index of the 2nd derivative
+
+            public:
+                SecondDerivative() = default;
+
+                SecondDerivative(std::array<std::shared_ptr<SplineBasis>, M> spline_basis, const MdArray<double,full_dynamic_extent_t<M>>& weights, const std::array<int,M>& index, std::size_t i, std::size_t j): 
+                     spline_basis_(spline_basis), index_(index), i_(i), j_(j){
+
+                    // build a spline basis for each dimension
+
+                    order_ = spline_basis[0]->order();
+
+                    //std::cout<<"Ecco l'ordine: "<<order_<<std::endl;
+
+                    std::array<std::size_t, M> maxIdx;
+                    for (std::size_t i = 0; i < M; ++i) {
+
+                        // compute the minIdx and extents for each dimension
+                        minIdx_[i] = (index_[i] >= order_)? (index_[i]-order_) : 0;
+                        extents_[i] = (index_[i] + order_ < weights.extent(i))? (index_[i]+order_+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
+                        maxIdx[i] = (minIdx_[i] + extents_[i]-1);
+                    }
+
+                    // allocate space for the weights
+                    weights_.resize(extents_);
+                    // fill the block of weights with only the necessary values;
+                    weights_ = weights.block(minIdx_, maxIdx);
+                    // compute the starting numerator  
+                    num0_ = weights(index_);  
+
+                    //std::cout << "NURBS  2nd derivative correctly initialized! " << std::endl;
+
+                };
+
+
+                // evalutes the hessian(i,j) of the NURBS at a given point
+                constexpr Scalar operator()(const InputType& p) const {
+
+                    double num = num0_; // numerator of the NURBS formula
+                    double num_der_i; // partial derivative of num w.r.t. i-th coordinate
+                    double num_der_j; // partial derivative of num w.r.t. j-th coordinate
+                    double num_der_ij; // mixed partial derivative of num
+                    std::array<std::vector<double>,M> spline_evaluation {}; // pointwise evaluation of all splines along each coordinate
+                    double den; // denominator of the NURBS formula
+                    double den_der_i; // partial derivative of den w.r.t. i-th coordinate
+                    double den_der_j; // partial derivative of den w.r.t. j-th coordinate
+                    double den_der_ij; // mixed partial derivative of den
+
+                    for(std::size_t i=0;i<M;i++){
+                        // spline evaluation for i-th dimension
+                        auto basis_eval = spline_basis_[i]->evaluate_basis(p[i]);
+                        spline_evaluation[i].resize(extents_[i]);
+                        
+                        for(std::size_t j = 0; j<extents_[i]; j++ ){
+                        // compute a spline basis function
+                        spline_evaluation[i][j] = basis_eval[minIdx_[i]+j]; // rivedi 
+                        }
+                        if (i!=i_ && i!=j_)
+                            num*=spline_evaluation[i][index_[i] - minIdx_[i]];
+                    }
+
+                    if (i_!=j_){
+                        num_der_i = num * (*spline_basis_[i_])[index_[i_]].gradient(1)(p[i_]) * spline_evaluation[j_][index_[j_] - minIdx_[j_]];
+                        num_der_j = num * (*spline_basis_[j_])[index_[j_]].gradient(1)(p[j_]) * spline_evaluation[i_][index_[i_] - minIdx_[i_]];
+                        num_der_ij = num * (*spline_basis_[i_])[index_[i_]].gradient(1)(p[i_]) * (*spline_basis_[j_])[index_[j_]].gradient(1)(p[j_]);
+
+                        num*=spline_evaluation[i_][index_[i_] - minIdx_[i_]]*spline_evaluation[j_][index_[j_] - minIdx_[j_]];
+
+                        if (num== 0 && num_der_i == 0 && num_der_j == 0 && num_der_ij == 0)
+                            return 0;
+                        
+                        // denominator evaluation
+                        den = multicontract<M>(weights_, spline_evaluation);
+
+                        // by replacing the i-th evaluations with their derivatives we get the derivative of the NURBS denominator
+                        auto der_eval_i = spline_basis_[i_]->evaluate_der_basis(p[i_],1);
+                        auto der_eval_j = spline_basis_[j_]->evaluate_der_basis(p[j_],1);
+
+                        auto spline_eval_temp = spline_evaluation;
+
+                        for (std::size_t j = 0; j<extents_[i_]; j++ ){
+                            // extract the knots
+                            spline_eval_temp[i_][j] = der_eval_i[ minIdx_[i_]+j];
+                        }
+
+                        den_der_i = multicontract<M>(weights_, spline_eval_temp);
+
+                        spline_eval_temp = spline_evaluation;
+
+                        for (std::size_t j = 0; j<extents_[j_]; j++ ){
+                            // extract the knots
+                            spline_eval_temp[j_][j] = der_eval_j[ minIdx_[j_]+j];
+                        }
+
+                        den_der_j = multicontract<M>(weights_, spline_eval_temp);
+
+                        // mixed derivative
+                        spline_eval_temp = spline_evaluation;
+
+                        for (std::size_t j = 0; j<extents_[i_]; j++ ){
+                            // extract the knots
+                            spline_eval_temp[i_][j] = der_eval_i[ minIdx_[i_]+j];
+                        }
+                        for (std::size_t j = 0; j<extents_[j_]; j++ ){
+                            // extract the knots
+                            spline_eval_temp[j_][j] = der_eval_j[ minIdx_[j_]+j];
+                        }
+
+                        den_der_ij = multicontract<M>(weights_, spline_eval_temp);
+                    }
+
+
+                    else{
+                        num_der_i = num_der_j = num * (*spline_basis_[i_])[index_[i_]].gradient(1)(p[i_]);
+
+                        num_der_ij = num * (*spline_basis_[i_])[index_[i_]].gradient(2)(p[i_]);
+
+                        num*=spline_evaluation[i_][index_[i_] - minIdx_[i_]];
+                        if (num== 0 && num_der_i == 0  && num_der_ij == 0)
+                            return 0;
+
+                        den = multicontract<M>(weights_, spline_evaluation);
+
+                        auto der_eval_i = spline_basis_[i_]->evaluate_der_basis(p[i_],1);
+
+                        auto spline_eval_temp = spline_evaluation;
+
+                        for (std::size_t j = 0; j<extents_[i_]; j++ ){
+                            // extract the knots
+                            spline_eval_temp[i_][j] = der_eval_i[ minIdx_[i_]+j];
+                
+                        }
+                        
+
+                        den_der_i = den_der_j = multicontract<M>(weights_, spline_eval_temp);
+
+                        auto der_eval_ij = spline_basis_[i_]->evaluate_der_basis(p[i_],2);
+
+                        spline_eval_temp = spline_evaluation;
+
+                        
+
+                        for (std::size_t j = 0; j<extents_[i_]; j++ ){
+                            // extract the knots
+                            spline_eval_temp[i_][j] = der_eval_ij[ minIdx_[i_]+j];
+                        }
+                        den_der_ij = multicontract<M>(weights_, spline_eval_temp);
+
+                    }
+
+                    //  ( N )'°     D(N'°D - N'D° - N°D' -ND'°) + 2D'D°N
+                    //  (---)   =   ------------------------------------
+                    //  ( D )                       D^3
+                    // where f' = df/dx_i and f° = df/dx_j
+
+                    return (den*(num_der_ij*den - num_der_i*den_der_j - num_der_j*den_der_i - num*den_der_ij) + 2*den_der_i*den_der_j*num)/(den*den*den);
+
+                }
+
+            };
             private:
 
                 // gradient and hessian$
                 VectorField<M, M, FirstDerivative> gradient_; //gradient
-                //MatrixField<M,M,M,NurbsSecondDerivative>> hessian_; //hessian accedi con hessian_(i,j)
+                MatrixField<M,M,M, SecondDerivative> hessian_; //hessian accedi con hessian_(i,j)
 
             public:
                 constexpr FirstDerivative first_derive(int i=0) const { return gradient_[i]; }
-                //constexpr SecondDerivarive second_derive(int i, int j) const { return SecondDerivative(knots_, weights_, index_, order_, i, j); }
+                constexpr SecondDerivative second_derive(int i=0, int j=0) const { return hessian_(i,j); }
 
                 // getters
                 constexpr int order() const { return order_; }
@@ -319,7 +512,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 constexpr const MdArray<double,full_dynamic_extent_t<M>>& weights() const { return weights_; }
                 constexpr const std::array<int,M>& index() const { return index_; }
                 constexpr const std::array<std::shared_ptr<SplineBasis>, M>& spline_basis() const { return spline_basis_; }
-                
+
     
     };
 

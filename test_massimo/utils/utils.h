@@ -40,6 +40,7 @@ template <typename T> typename std::enable_if<!std::numeric_limits<T>::is_intege
     return almost_equal(a, b, DOUBLE_TOLERANCE);
 }
 
+/*
 // test if two matrices are equal testing the relative error of the infinte norm of their difference
 inline bool almost_equal(const DMatrix<double>& op1, const DMatrix<double>& op2, double epsilon) {
     return (op1 - op2).lpNorm<Eigen::Infinity>() < epsilon ||
@@ -90,13 +91,13 @@ inline bool almost_equal(const SpMatrix<double>& op1, const SpMatrix<double>& op
     return buff;
   }
   // utility to import .csv files
-  /*
+  
   template <typename T>
   DMatrix<T> read_csv(const std::string& file_name) {
     CSVReader<T> reader {};
     return reader.template parse_file<Eigen::Dense>(file_name);
   }
-  */
+  */ 
   
 }}
 

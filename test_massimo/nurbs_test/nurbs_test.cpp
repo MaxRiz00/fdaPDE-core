@@ -23,9 +23,8 @@
 #include "nurbs/nurbs_basis.h"
 #include "../utils/utils.h" 
 
-using namespace fdapde;
 
-
+namespace fdapde::testing{
 // test 1D nurbs basis (functions compute the correct value)
 TEST(nurbs_test, nurbs_basis_1D) {
 
@@ -49,7 +48,7 @@ TEST(nurbs_test, nurbs_basis_1D) {
     for(size_t i = 0; i < basis.size() ; ++i){ 
         for(size_t j = 0; j < expected.cols(); ++j){ 
             std::array<double, 1> input = {expected.coeff(0, j)};
-            EXPECT_TRUE(fdapde::testing::almost_equal(expected.coeff(i+1,j),basis[i](input)));
+            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i](input)));
         }
     } 
 
@@ -146,3 +145,69 @@ TEST(nurbs_test, nurbs_basis_derivative_2D) {
         }
     }
 }
+
+// test 1D nurbs basis second derivative (functions compute the correct value)
+TEST(nurbs_test, nurbs_basis_second_derivative_1D){
+
+    using InputType = cexpr::Vector<double, 1>;
+    
+    std::array<std::vector<double>,1> nodes;
+    MdArray<double,MdExtents<Dynamic>> weights(7);
+    nodes[0].resize(5);
+
+    int order = 3;
+    
+    // open uniform knot vector
+    for(size_t i = 0; i < 5; i++)nodes[0][i]=1.*i;
+    // easily replicable, non trivial weights
+    for(size_t i = 0; i < 7; i++)weights(i)=std::abs(std::sin(i+1));
+
+    SpMatrix<double> expected;
+    // expected results from nurbs derivative pointwise evaluations
+    Eigen::loadMarket(expected, "../data/mtx/nurbs_test_5.mtx");
+
+    NurbsBasis<1> basis(nodes, weights, order);
+    
+    for(size_t i = 0; i < basis.size(); ++i){
+        for(size_t j = 0; j < expected.cols(); ++j){
+            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].second_derive()((InputType(expected.coeff(0,j))))));
+        }
+    }
+}
+
+// test 2D nurbs basis second derivative (functions are accessibile and callable)
+TEST(nurbs_test, nurbs_basis_second_derivative_2D) {
+
+    std::array<std::vector<double>,2> nodes;
+    MdArray<double,MdExtents<Dynamic,Dynamic>>weights(4,5);
+    nodes[0].resize(2);
+    nodes[1].resize(3);
+
+    using InputType = cexpr::Vector<double, 2>;
+
+    int order=3;
+
+    // open uniform knot vector
+    for(size_t i = 0; i < 2; i++)nodes[0][i]=1.*i;
+    for(size_t i = 0; i < 3; i++)nodes[1][i]=1.*i;
+    // easily replicable, non trivial weights
+    for(size_t i = 0; i < 4; i++)for(size_t j = 0; j < 5; j++)weights(i,j)=std::abs(std::sin(i+1))*std::abs(std::cos(j+1));
+    
+
+    SpMatrix<double> expected;
+    // expected results from nurbs derivative pointwise evaluations
+    Eigen::loadMarket(expected, "../data/mtx/nurbs_test_6.mtx");
+
+    NurbsBasis<2> basis(nodes, weights, order);
+    
+    for(size_t i = 0; i < basis.size(); ++i){
+        for(size_t j = 0; j < expected.cols(); ++j){
+            // compare values with data from file
+            EXPECT_TRUE(almost_equal(expected.coeff(4*i+2,j),basis[i].second_derive(0,0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(4*i+3,j),basis[i].second_derive(1,0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(4*i+4,j),basis[i].second_derive(0,1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(4*i+5,j),basis[i].second_derive(1,1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+        }
+    }
+}
+} // namespace fdapde::testing
