@@ -144,6 +144,10 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
     mutable typename Base::CellType cell_;   // used in case cell caching is off
 };
 
+// interval mesh factory methods
+inline Triangulation<1, 1> make_interval(double a, double b, int n_nodes) { return Triangulation<1, 1>(a, b, n_nodes); }
+inline Triangulation<1, 1> make_unit_interval(int n_nodes) { return make_interval(0.0, 1.0, n_nodes); }
+
 }   // namespace fdapde
 
 #endif   // __INTERVAL_H__
