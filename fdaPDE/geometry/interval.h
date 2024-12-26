@@ -64,6 +64,10 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
     };
     // construct from interval's bounds [a, b] and the number of equidistant nodes n used to split [a, b]
     Triangulation(double a, double b, int n) : Triangulation(DVector<double>::LinSpaced(n, a, b)) { }
+    // static constructors
+    static Triangulation<1, 1> Interval(double a, double b, int n_nodes) { return Triangulation<1, 1>(a, b, n_nodes); }
+    static Triangulation<1, 1> UnitInterval(int n_nodes) { return Triangulation<1, 1>::Interval(0.0, 1.0, n_nodes); }
+
     // getters
     const typename Base::CellType& cell(int id) const {
         if (Base::flags_ & cache_cells) {   // cell caching enabled
@@ -143,10 +147,6 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
     std::vector<typename Base::CellType> cell_cache_;
     mutable typename Base::CellType cell_;   // used in case cell caching is off
 };
-
-// interval mesh factory methods
-inline Triangulation<1, 1> make_interval(double a, double b, int n_nodes) { return Triangulation<1, 1>(a, b, n_nodes); }
-inline Triangulation<1, 1> make_unit_interval(int n_nodes) { return make_interval(0.0, 1.0, n_nodes); }
 
 }   // namespace fdapde
 

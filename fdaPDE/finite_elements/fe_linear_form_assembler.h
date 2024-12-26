@@ -39,6 +39,7 @@ class fe_linear_form_assembly_loop :
     using Base::dof_handler_;
     using Base::form_;
    public:
+    using space_category = finite_element;
     fe_linear_form_assembly_loop() = default;
     fe_linear_form_assembly_loop(
       const Form_& form, typename Base::fe_traits::geo_iterator begin, typename Base::fe_traits::geo_iterator end,
@@ -56,24 +57,33 @@ class fe_linear_form_assembly_loop :
         iterator begin(Base::begin_.index(), dof_handler_, Base::begin_.marker());
         iterator end  (Base::end_.index(),   dof_handler_, Base::end_.marker()  );
         // prepare assembly loop
-        DVector<int> active_dofs;
-        std::unordered_map<const void*, DMatrix<double>> fe_map_buff;   // evaluation of FeMap nodes at quadrature nodes
-        if constexpr (Form::XprBits & fe_assembler_flags::compute_physical_quad_nodes) {
-            Base::distribute_quadrature_nodes(
-              fe_map_buff, begin, end);   // distribute quadrature nodes on physical mesh (if required)
-        }	
+        Eigen::Matrix<int, Dynamic, 1> active_dofs;
+        MdArray<double, MdExtents<n_basis, n_quadrature_nodes, local_dim, n_components>> test_grads;
+
+        if constexpr (Form::XprBits & int(fe_assembler_flags::compute_physical_quad_nodes)) {
+            Base::distribute_quadrature_nodes(begin, end);
+        }
         // start assembly loop
         internals::fe_assembler_packet<local_dim> fe_packet(Base::n_components);
 	int local_cell_id = 0;
         for (iterator it = begin; it != end; ++it) {
             fe_packet.cell_measure = it->measure();
+            if constexpr (Form::XprBits & int(fe_assembler_flags::compute_cell_id)) { fe_packet.cell_id = it->id(); }
+            if constexpr (Form::XprBits & int(fe_assembler_flags::compute_shape_grad)) {
+                Base::eval_shape_grads_on_cell(it, Base::test_shape_grads_, test_grads);
+            }
+	    
+	    // perform integration of linear form for i-th basis
             active_dofs = it->dofs();
             for (int i = 0; i < n_basis; ++i) {   // test function loop
                 double value = 0;
                 for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
                     // update fe_packet
                     fe_packet.test_value.assign_inplace_from(Base::test_shape_values_.template slice<0, 1>(i, q_k));
-                    if constexpr (Form::XprBits & fe_assembler_flags::compute_physical_quad_nodes) {
+                    if constexpr (Form::XprBits & int(fe_assembler_flags::compute_shape_grad)) {
+                        fe_packet.test_grad.assign_inplace_from(test_grads.template slice<0, 1>(i, q_k));
+                    }
+                    if constexpr (Form::XprBits & int(fe_assembler_flags::compute_physical_quad_nodes)) {
                         fe_packet.quad_node_id = local_cell_id * n_quadrature_nodes + q_k;
                     }
                     value += Base::Quadrature::weights[q_k] * form_(fe_packet);

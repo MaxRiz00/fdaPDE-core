@@ -161,8 +161,8 @@ class dot_product_eigen_impl : public ScalarBase<FieldType_::StaticInputSize, do
     constexpr const LhsDerived& lhs() const { return lhs_; }
     constexpr const RhsDerived& rhs() const { return rhs_; }
    protected:
-    std::conditional_t<is_eigen_dense_v<Lhs>, const Lhs&, typename internals::ref_select<const Lhs>::type> lhs_;
-    std::conditional_t<is_eigen_dense_v<Rhs>, const Rhs&, typename internals::ref_select<const Rhs>::type> rhs_;
+    std::conditional_t<is_eigen_dense_v<Lhs>, const Lhs, typename internals::ref_select<const Lhs>::type> lhs_;
+    std::conditional_t<is_eigen_dense_v<Rhs>, const Rhs, typename internals::ref_select<const Rhs>::type> rhs_;
 };
 
 }   // namespace internals

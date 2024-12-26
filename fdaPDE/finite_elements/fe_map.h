@@ -41,50 +41,47 @@ struct FeMap :
     using Base = std::conditional_t<
       is_scalar, ScalarBase<StaticInputSize, FeMap<Derived>>, MatrixBase<StaticInputSize, FeMap<Derived>>>;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = Derived::XprBits | fe_assembler_flags::compute_physical_quad_nodes;
+    static constexpr int XprBits = Derived::XprBits | int(fe_assembler_flags::compute_physical_quad_nodes);
     static constexpr int ReadOnly = 1;
     static constexpr int Rows = []() { if constexpr(is_scalar) return 1; else return Derived::Rows; }();
     static constexpr int Cols = []() { if constexpr(is_scalar) return 1; else return Derived::Cols; }();
 
     constexpr FeMap() = default;
-    constexpr FeMap(const Derived_& xpr) : xpr_(&xpr) { }
+    constexpr FeMap(const Derived_& xpr) : xpr_(xpr) { }
     template <typename CellIterator>
     void init(
-      std::unordered_map<const void*, DMatrix<double>>& buff, const DMatrix<double>& nodes,
-      [[maybe_unused]] CellIterator begin, [[maybe_unused]] CellIterator end) const {
-        const void* ptr = reinterpret_cast<const void*>(xpr_);
-        if (buff.find(ptr) == buff.end()) {
-            DMatrix<double> mapped(nodes.rows(), Rows * Cols);
-            if constexpr (is_scalar) {
-                for (int i = 0, n = nodes.rows(); i < n; ++i) { mapped(i, 0)  = xpr_->operator()(nodes.row(i)); }
-            } else {
-                for (int i = 0, n = nodes.rows(); i < n; ++i) {
-                    auto tmp = xpr_->operator()(nodes.row(i));
-                    for (int j = 0; j < tmp.size(); ++j) { mapped(i, j) = tmp[j]; }
-                }
-            }
-            buff[ptr] = mapped;
-            map_ = &buff[ptr];
+      const Eigen::Matrix<double, Dynamic, Dynamic>& nodes, [[maybe_unused]] CellIterator begin,
+      [[maybe_unused]] CellIterator end) const {
+        map_.resize(nodes.rows(), Rows * Cols);
+        if constexpr (is_scalar) {
+            for (int i = 0, n = nodes.rows(); i < n; ++i) { map_(i, 0) = xpr_(nodes.row(i)); }
         } else {
-            map_ = &buff[ptr];
+            for (int i = 0, n = nodes.rows(); i < n; ++i) {
+                OutputType tmp = xpr_(nodes.row(i));
+                for (int j = 0; j < tmp.size(); ++j) { map_(i, j) = tmp[j]; }
+            }
         }
     }
+    // this should handle also matrix fields, and currently does not. also, below we cannot return just a map_row,
+    // because in case of matrix fields this is not ok, we must reshape the array in some way
+  // put some static assert of the type THIS_METHOD_IS_ONLY_FOR_SCALAR/VECTOR/MATRIX fields
+
     // fe assembler evaluation
     constexpr OutputType operator()(const InputType& fe_packet) const {
         if constexpr (is_scalar) {
-            return map_->operator()(fe_packet.quad_node_id, 0);
+            return map_(fe_packet.quad_node_id, 0);
         } else {
-            return map_->row(fe_packet.quad_node_id);
+            return map_.row(fe_packet.quad_node_id);
         }
     }
-    constexpr auto eval(int i, const InputType& fe_packet) const { return map_->operator()(fe_packet.quad_node_id, i); }
+    constexpr auto eval(int i, const InputType& fe_packet) const { return map_(fe_packet.quad_node_id, i); }
     constexpr const Derived& derived() const { return xpr_; }
     constexpr int input_size() const { return StaticInputSize; }
     constexpr int rows() const { return Rows; }
     constexpr int cols() const { return Cols; }
    private:
-    const Derived* xpr_;
-    mutable const DMatrix<Scalar>* map_;
+    Derived xpr_;
+    mutable Eigen::Matrix<Scalar, Dynamic, Dynamic> map_;
 };
 
 // FeMap specialization for FeFunction types
@@ -99,18 +96,18 @@ struct FeMap<FeFunction<FeSpace>> :
     using Scalar = double;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = Derived::XprBits | fe_assembler_flags::compute_physical_quad_nodes;
+    static constexpr int XprBits = Derived::XprBits | int(fe_assembler_flags::compute_physical_quad_nodes);
 
     FeMap() = default;
     FeMap(const Derived& xpr) : xpr_(&xpr) { }
     // fast subscribe routine which bypasses the point location step (quadrature nodes are not arbitrary points)
     template <typename CellIterator>
     void init(
-      std::unordered_map<const void*, DMatrix<double>>& buff, const DMatrix<double>& nodes, CellIterator begin,
-      CellIterator end) const {
+      std::unordered_map<const void*, Eigen::Matrix<Scalar, Dynamic, Dynamic>>& buff,
+      const Eigen::Matrix<double, Dynamic, Dynamic>& nodes, CellIterator begin, CellIterator end) const {
         const void* ptr = reinterpret_cast<const void*>(xpr_);
         if (buff.find(ptr) == buff.end()) {
-            DMatrix<double> mapped(nodes.rows(), 1);
+            Eigen::Matrix<double, Dynamic, Dynamic> mapped(nodes.rows(), 1);
 	    int n_cells = end.index() - begin.index();
             int n_quad_nodes = nodes.rows() / n_cells;
 	    int cell_id = begin.index();
@@ -139,7 +136,7 @@ struct FeMap<FeFunction<FeSpace>> :
     constexpr int input_size() const { return StaticInputSize; }
    private:
     const Derived* xpr_;
-    mutable const DMatrix<Scalar>* map_;
+    mutable const Eigen::Matrix<Scalar, Dynamic, Dynamic>* map_;
 };
 
 }   // namespace fdapde

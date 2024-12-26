@@ -646,10 +646,11 @@ class DofHandler<1, EmbedDim, fdapde::finite_element> :
             for (typename TriangulationType::cell_iterator it = triangulation_->cells_begin();
                  it != triangulation_->cells_end(); ++it) {
                 for (int j = 0; j < dof_descriptor::n_dofs_internal; ++j) {
-                    dofs_(it->id(), n_dofs_per_node_ + j) = n_dofs_++;
+                    dofs_(it->id(), n_dofs_per_node_ * TriangulationType::n_nodes_per_cell + j) = n_dofs_++;
                 }
             }
         }
+	std::cout << dofs_ << std::endl;
 	Base::n_unique_dofs_ = n_dofs_;
         // update boundary
         Base::boundary_dofs_.resize(n_dofs_ * dof_descriptor::dof_multiplicity);

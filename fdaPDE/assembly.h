@@ -18,6 +18,7 @@
 #define __ASSEMBLY_H__
 
 #include "fields/meta.h"
+#include "finite_elements/fe_integration.h"
 
 namespace fdapde {
 
@@ -101,7 +102,7 @@ struct assembly_add_op : public assembly_xpr_base<assembly_add_op<Lhs, Rhs>> {
             assembled_mat.makeCompressed();
             return assembled_mat;
         } else {
-            DVector<double> assembled_vec(lhs_.rows());
+            Eigen::Matrix<double, Dynamic, 1> assembled_vec(lhs_.rows());
             assembled_vec.setZero();
             assemble(assembled_vec);
             return assembled_vec;
@@ -125,24 +126,80 @@ assembly_add_op<Lhs, Rhs> operator+(const assembly_xpr_base<Lhs>& lhs, const ass
     return assembly_add_op<Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 
+// generic integration loop to integrate scalar expressions over physical domains
+template <typename Triangulation_, typename Xpr_, int Options_, typename... Quadrature_> class std_integration_loop {
+    fdapde_static_assert(meta::is_scalar_field_v<Xpr_>, THIS_CLASS_IS_FOR_SCALAR_FIELDS_ONLY);
+    using Triangulation = std::decay_t<Triangulation_>;
+    static constexpr int local_dim = Triangulation::local_dim;
+    static constexpr int embed_dim = Triangulation::embed_dim;
+    static constexpr int Options = Options_;
+    using iterator = std::conditional_t<
+      Options == CellMajor, typename Triangulation::cell_iterator, typename Triangulation::boundary_iterator>;
+
+    template <typename... Quad_> struct empty_quadrature {
+        static constexpr int order = 0;
+    };
+    template <typename... Quad_>
+    using maybe_empty_quadrature = decltype([]() {
+        if constexpr (sizeof...(Quadrature_) == 0) {
+            return empty_quadrature<Quadrature_...> {};
+        } else {
+            return std::tuple_element_t<0, std::tuple<Quadrature_...>> {};
+        }
+    }());
+    using Quadrature = maybe_empty_quadrature<Quadrature_...>;
+  
+    Xpr_ xpr_;
+    iterator begin_, end_;
+    Quadrature quadrature_;
+   public:
+    std_integration_loop() = default;
+    std_integration_loop(const Xpr_& xpr, iterator begin, iterator end, const Quadrature_&... quadrature) :
+        xpr_(xpr), begin_(begin), end_(end), quadrature_(quadrature...) { }
+
+    double operator()() const {
+        double integral_ = 0;
+        if constexpr (Quadrature::order == 0) {
+            fdapde_static_assert(false, THIS_METHOD_REQUIRES_A_QUADRATURE_RULE);
+        } else {
+            fdapde_static_assert(
+              Triangulation::local_dim == Quadrature::local_dim &&
+                (Triangulation::embed_dim == 1 ||
+                 internals::is_fe_quadrature_simplex_v<std::tuple_element_t<0, std::tuple<Quadrature_...>>>),
+              INVALID_QUADRATURE_RULE);
+            constexpr int n_quadrature_nodes = Quadrature::order;
+            Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, Triangulation::local_dim, Eigen::RowMajor>>
+              ref_quad_nodes(quadrature_.nodes.data());
+            for (iterator it = begin_; it != end_; ++it) {
+                double partial = 0;
+                for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
+                    partial +=
+                      xpr_(it->J() * ref_quad_nodes.row(q_k).transpose() + it->node(0)) * quadrature_.weights[q_k];
+                }
+                integral_ += partial * it->measure();
+            }
+        }
+        return integral_;
+    }
+};
+
 // main assembly loop dispatching type. This class instantiates the correctly assembly loop for the form to integrate
-template <typename Triangulation, int Options, typename... Quadrature> class assembler_loop {
-    fdapde_static_assert(
-      sizeof...(Quadrature) < 2, YOU_CAN_PROVIDE_AT_MOST_ONE_QUADRATURE_FORMULA_TO_A_WEAK_FORM_ASSEMBLER);
+template <typename Triangulation, int Options, typename... Quadrature> class integrator_dispatch {
+    fdapde_static_assert(sizeof...(Quadrature) < 2, THIS_CLASS_ACCEPTS_AT_MOST_ONE_QUADRATURE_RULE);
     std::tuple<Quadrature...> quadrature_;
     std::conditional_t<
       Options == CellMajor, typename Triangulation::cell_iterator, typename Triangulation::boundary_iterator>
       begin_, end_;
    public:
-    assembler_loop() = default;
+    integrator_dispatch() = default;
     template <typename Iterator>
-    assembler_loop(const Iterator& begin, const Iterator& end, const Quadrature&... quadrature) :
+    integrator_dispatch(const Iterator& begin, const Iterator& end, const Quadrature&... quadrature) :
         begin_(begin), end_(end), quadrature_(std::make_tuple(quadrature...)) { }
 
     template <typename Form> auto operator()(const Form& form) const {
         static constexpr bool trial_space_detected = meta::xpr_find<
           decltype([]<typename Xpr_>() { return requires { typename Xpr_::TrialSpace; }; }), std::decay_t<Form>>();
-        static constexpr bool test_space_detected = meta::xpr_find<
+        static constexpr bool test_space_detected  = meta::xpr_find<
           decltype([]<typename Xpr_>() { return requires { typename Xpr_::TestSpace;  }; }), std::decay_t<Form>>();
 
         if constexpr (trial_space_detected && test_space_detected) {   // discretizing bilinear form
@@ -159,44 +216,50 @@ template <typename Triangulation, int Options, typename... Quadrature> class ass
                   Triangulation, Form, Options, std::tuple_element_t<0, std::tuple<Quadrature...>>> {
                   form, begin_, end_, std::get<0>(quadrature_)};
             }
-        } else {   // discretizing linear form
-            fdapde_static_assert(test_space_detected, NO_TEST_SPACE_DETECTED_IN_LINEAR_FORM);
-            using TestSpace = std::decay_t<decltype(test_space(form))>;
-            if constexpr (sizeof...(Quadrature) == 0) {
-                return typename TestSpace::template linear_form_assembly_loop<Triangulation, Form, Options> {
-                  form, begin_, end_};
+        } else {
+            if constexpr (test_space_detected) {   // discretizing linear form
+                using TestSpace = std::decay_t<decltype(test_space(form))>;
+                if constexpr (sizeof...(Quadrature) == 0) {
+                    return typename TestSpace::template linear_form_assembly_loop<Triangulation, Form, Options> {
+                      form, begin_, end_};
+                } else {
+                    return typename TestSpace::template linear_form_assembly_loop<
+                      Triangulation, Form, Options, std::tuple_element_t<0, std::tuple<Quadrature...>>> {
+                      form, begin_, end_, std::get<0>(quadrature_)};
+                }
             } else {
-                return typename TestSpace::template linear_form_assembly_loop<
-                  Triangulation, Form, Options, std::tuple_element_t<0, std::tuple<Quadrature...>>> {
-                  form, begin_, end_, std::get<0>(quadrature_)};
-            }
+                // integration of callable on domain, directly return the approximated integral
+                return internals::std_integration_loop<Triangulation, Form, Options, Quadrature...>(
+                  form, begin_, end_, Quadrature {}...)();
+            }	    
         }
     }
 };
-  
+
 }   // namespace internals
 
 // main entry points for operator discretization
 template <typename Triangulation, typename... Quadrature>
 auto integral(const Triangulation& triangulation, Quadrature... quadrature) {
-    return internals::assembler_loop<Triangulation, CellMajor, Quadrature...>(
+    return internals::integrator_dispatch<Triangulation, CellMajor, Quadrature...>(
       triangulation.cells_begin(), triangulation.cells_end(), quadrature...);
 }
 template <typename Triangulation, typename... Quadrature>
 auto integral(
   const CellIterator<Triangulation>& begin, const CellIterator<Triangulation>& end, Quadrature... quadrature) {
-    return internals::assembler_loop<Triangulation, CellMajor, Quadrature...>(begin, end, quadrature...);
+    return internals::integrator_dispatch<Triangulation, CellMajor, Quadrature...>(begin, end, quadrature...);
 }
 // boundary integration
 template <typename Triangulation, typename... Quadrature>
 auto integral(
   const BoundaryIterator<Triangulation>& begin, const BoundaryIterator<Triangulation>& end, Quadrature... quadrature) {
-    return internals::assembler_loop<Triangulation, FaceMajor, Quadrature...>(begin, end, quadrature...);
+    return internals::integrator_dispatch<Triangulation, FaceMajor, Quadrature...>(begin, end, quadrature...);
 }
 template <typename Triangulation, typename... Quadrature>
 auto integral(
   const std::pair<BoundaryIterator<Triangulation>, BoundaryIterator<Triangulation>>& range, Quadrature... quadrature) {
-    return internals::assembler_loop<Triangulation, FaceMajor, Quadrature...>(range.first, range.second, quadrature...);
+    return internals::integrator_dispatch<Triangulation, FaceMajor, Quadrature...>(
+      range.first, range.second, quadrature...);
 }
   
 }   // namespace fdapde

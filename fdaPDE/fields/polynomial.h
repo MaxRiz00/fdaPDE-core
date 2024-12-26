@@ -20,6 +20,7 @@
 #include <array>
 
 #include "../linear_algebra/constexpr_matrix.h"
+#include "../linear_algebra/mdarray.h"
 #include "../utils/constexpr.h"
 #include "scalar_field.h"
 
@@ -31,7 +32,6 @@ class Polynomial : public ScalarBase<StaticInputSize_, Polynomial<StaticInputSiz
     fdapde_static_assert(
       StaticInputSize_ != Dynamic && Order_ != Dynamic,
       POLYNOMIAL_CANNOT_HAVE_DYNAMIC_STATIC_INPUT_SIZE_NOR_DYNAMIC_ORDER);
-    static constexpr int n_monomials = cexpr::binomial_coefficient(StaticInputSize_ + Order_, Order_);
    public:
     using Base = ScalarBase<StaticInputSize_, Polynomial<StaticInputSize_, Order_>>;
     using Scalar = double;
@@ -40,12 +40,13 @@ class Polynomial : public ScalarBase<StaticInputSize_, Polynomial<StaticInputSiz
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = 0;
     static constexpr int Order = Order_;
+    static constexpr int n_monomials = cexpr::binomial_coefficient(StaticInputSize_ + Order_, Order_);
 
     // computes the table of monomial exponents (i1, i2, ..., iN)_j for a polynomial of degree Order over
     // \mathbb{R}^StaticInnerSize
-    static constexpr cexpr::Matrix<int, n_monomials, StaticInputSize> poly_exponents() {
+    static constexpr MdArray<int, MdExtents<n_monomials, StaticInputSize>> poly_exponents() {
         constexpr int n_monomials = cexpr::binomial_coefficient(StaticInputSize + Order, Order);
-        cexpr::Matrix<int, n_monomials, StaticInputSize> coeff {};
+        MdArray<int, MdExtents<n_monomials, StaticInputSize>> coeff {};
         std::array<int, StaticInputSize> tmp {};   // fixed j, table row (i1, i2, ..., iN)_j
         int j = 0;
         while (j < n_monomials) {
@@ -67,31 +68,29 @@ class Polynomial : public ScalarBase<StaticInputSize_, Polynomial<StaticInputSiz
         }
         return coeff;
     }
-    static constexpr cexpr::Matrix<int, n_monomials, StaticInputSize> poly_table_ =
+    static constexpr MdArray<int, MdExtents<n_monomials, StaticInputSize>> poly_table_ =
       Polynomial<StaticInputSize, Order>::poly_exponents();
 
     // computes the tables of monomial exponents (i1, i2, ..., iN)_j of d/dx_i p(x) for each i = 1, ...,N
-    static constexpr std::array<cexpr::Matrix<int, n_monomials, StaticInputSize>, StaticInputSize>
-    grad_poly_exponents(cexpr::Matrix<int, n_monomials, StaticInputSize> poly_table) {
+    static constexpr MdArray<int, MdExtents<StaticInputSize, n_monomials, StaticInputSize>>
+    grad_poly_exponents(MdArray<int, MdExtents<n_monomials, StaticInputSize>> poly_table) {
         constexpr int n_monomials = cexpr::binomial_coefficient(StaticInputSize + Order, Order);
-        std::array<cexpr::Matrix<int, n_monomials, StaticInputSize>, StaticInputSize> coeff {};
-        cexpr::Matrix<int, n_monomials, StaticInputSize> tmp {};   // gradient subtable {(i1, i2, ..., iN)_j}_k
+        MdArray<int, MdExtents<StaticInputSize, n_monomials, StaticInputSize>> coeff {};
         for (int k = 0; k < StaticInputSize; ++k) {
             for (int j = 0; j < n_monomials; ++j) {           // row index
                 for (int z = 0; z < StaticInputSize; ++z) {   // column index in subtable
-                    tmp(j, z) = (k == z ? (poly_table(j, z) == 0 ? 0 : poly_table(j, z) - 1) : poly_table(j, z));
+                    coeff(k, j, z) = (k == z ? (poly_table(j, z) == 0 ? 0 : poly_table(j, z) - 1) : poly_table(j, z));
                 }
             }
-            coeff[k] = tmp;
         }
         return coeff;
     }
    private:
-    // i-th derivative functor
+    // i-th derivative functor d/dx_i p
     class Derivative : public ScalarBase<StaticInputSize, Derivative> {
        private:
-        static constexpr std::array<cexpr::Matrix<int, n_monomials, StaticInputSize>, StaticInputSize>
-          poly_grad_table_ = Polynomial<StaticInputSize, Order>::grad_poly_exponents(poly_table_);
+        static constexpr MdArray<int, MdExtents<StaticInputSize, n_monomials, StaticInputSize>> poly_grad_table_ =
+          Polynomial<StaticInputSize, Order>::grad_poly_exponents(poly_table_);
         std::array<double, n_monomials> coeff_vector_;   // polynomial coefficient vector
         int i_;
        public:
@@ -101,7 +100,8 @@ class Polynomial : public ScalarBase<StaticInputSize_, Polynomial<StaticInputSiz
       
         // constructor
         constexpr Derivative() = default;
-        template <typename CoeffVectorType> constexpr Derivative(const CoeffVectorType& coeff_vector, int i) : i_(i) {
+        template <typename CoeffVectorType>
+        constexpr Derivative(const CoeffVectorType& coeff_vector, int i) : i_(i) {
             for (int j = 0; j < n_monomials; ++j) { coeff_vector_[j] = coeff_vector[j]; }
         }
         // evaluate d/dx_i p(x) at point
@@ -114,10 +114,10 @@ class Polynomial : public ScalarBase<StaticInputSize_, Polynomial<StaticInputSiz
                 // cycle over monomials
                 for (int m = 0; m < n_monomials; ++m) {
                     int exp = poly_table_(m, i_);
-                    if (exp) {   // skip powers of zero, their derivative is zero
+                    if (exp) {   // skip zero degree monomials, their derivative is zero
                         Scalar tmp = 1;
                         for (int n = 0; n < StaticInputSize; ++n) {
-                            int grad_exp = poly_grad_table_[i_](m, n);
+                            int grad_exp = poly_grad_table_(i_, m, n);
                             if (grad_exp) tmp *= std::pow(p[n], grad_exp);
                         }
                         value += coeff_vector_[m] * exp * tmp;
@@ -127,16 +127,64 @@ class Polynomial : public ScalarBase<StaticInputSize_, Polynomial<StaticInputSiz
             }
         }
     };
+
+    // (i, j)-th mixed derivative functor d^2/(dx_i * dx_j) p
+    class MixedDerivative : public ScalarBase<StaticInputSize, MixedDerivative> {
+       private:
+        static constexpr MdArray<int, MdExtents<StaticInputSize, n_monomials, StaticInputSize>> poly_grad_table_ =
+          Polynomial<StaticInputSize, Order>::grad_poly_exponents(poly_table_);
+        std::array<double, n_monomials> coeff_vector_;   // polynomial coefficient vector
+        int i_, j_;
+       public:
+        using Base = ScalarBase<StaticInputSize, MixedDerivative>;
+        using Scalar = double;
+        using InputType = cexpr::Vector<Scalar, StaticInputSize_>;
+      
+        // constructor
+        constexpr MixedDerivative() = default;
+        template <typename CoeffVectorType>
+        constexpr MixedDerivative(const CoeffVectorType& coeff_vector, int i, int j) : i_(i), j_(j) {
+            for (int k = 0; k < n_monomials; ++k) { coeff_vector_[k] = coeff_vector[k]; }
+        }
+        // evaluate d^2/(dx_i * dx_j) p(x) at point
+        constexpr Scalar operator()(const InputType& p) const {
+            if constexpr (Order == 0) return 0;   // constants
+            if constexpr (Order == 1) return 0;   // linear functions
+            else {
+                Scalar value = 0;
+                // cycle over monomials
+                for (int m = 0; m < n_monomials; ++m) {
+                    int exp = poly_grad_table_(i_, m, j_);
+                    if (exp) {   // skip zero and one degree monomials, their second derivative is zero
+                        Scalar tmp = 1;
+                        for (int n = 0; n < StaticInputSize; ++n) {
+                            int hess_exp = (n == j_ ? (exp - 1) : poly_grad_table_(i_, m, n));
+                            if (hess_exp) tmp *= std::pow(p[n], hess_exp);
+                        }
+                        value += coeff_vector_[m] * poly_table_(m, i_) * exp * tmp;
+                    }
+                }
+                return value;   // return mixed derivative
+            }
+        }
+    };
+  
     std::array<double, n_monomials> coeff_vector_;   // polynomial coefficient vector
     VectorField<StaticInputSize, StaticInputSize, Derivative> gradient_;
+    MatrixField<StaticInputSize, StaticInputSize, StaticInputSize, MixedDerivative> hessian_;
    public:
+    using GradientType = VectorField<StaticInputSize, StaticInputSize, Derivative>;
+    using HessianType  = MatrixField<StaticInputSize, StaticInputSize, StaticInputSize, MixedDerivative>;
     // constructor
     constexpr Polynomial() = default;
     template <typename CoeffVectorType>
     explicit constexpr Polynomial(const CoeffVectorType& coeff_vector) : coeff_vector_(), gradient_() {
         fdapde_constexpr_assert(int(coeff_vector.size()) == n_monomials);
         for (int i = 0; i < n_monomials; ++i) { coeff_vector_[i] = coeff_vector[i]; }
-        for (int i = 0; i < StaticInputSize; ++i) { gradient_[i] = Derivative(coeff_vector_, i); }
+        for (int i = 0; i < StaticInputSize; ++i) {
+            gradient_[i] = Derivative(coeff_vector_, i);
+            for (int j = 0; j < StaticInputSize; ++j) { hessian_(i, j) = MixedDerivative(coeff_vector_, i, j); }
+        }
     }
     // evaluate polynomial at point
     template <typename InputType_> constexpr Scalar operator()(const InputType_& p) const {
@@ -159,7 +207,8 @@ class Polynomial : public ScalarBase<StaticInputSize_, Polynomial<StaticInputSiz
     constexpr static Polynomial<StaticInputSize, Order> Zero() {
         return Polynomial<StaticInputSize, Order>(cexpr::Vector<double, n_monomials>::Zero());
     }
-    constexpr const VectorField<StaticInputSize, StaticInputSize, Derivative>& gradient() const { return gradient_; };
+    constexpr const GradientType& gradient() const { return gradient_; };
+    constexpr const HessianType& hessian() const { return hessian_; }
     constexpr const std::array<double, n_monomials>& coeff_vector() const { return coeff_vector_; }
     constexpr std::array<double, n_monomials>& coeff_vector() { return coeff_vector_; }
     constexpr int order() const { return Order; }

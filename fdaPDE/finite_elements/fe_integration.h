@@ -165,13 +165,15 @@ template <> struct fe_quadrature_simplex<2, 12> : public fe_quadrature_simplex_b
 }   // namespace internals
 
 // 1D formulas
-[[maybe_unused]] static struct QS1D2P_ : internals::fe_quadrature_simplex<1, 2> { } QS1D2P;
-[[maybe_unused]] static struct QS1D3P_ : internals::fe_quadrature_simplex<1, 3> { } QS1D3P;
+[[maybe_unused]] static struct QS1D2P_  : internals::fe_quadrature_simplex<1, 2>  { } QS1D2P;
+[[maybe_unused]] static struct QS1D3P_  : internals::fe_quadrature_simplex<1, 3>  { } QS1D3P;
 // 2D formulas
-[[maybe_unused]] static struct QS2D1P_ : internals::fe_quadrature_simplex<2, 1> { } QS2D1P;
-[[maybe_unused]] static struct QS2D3P_ : internals::fe_quadrature_simplex<2, 3> { } QS2D3P;
-[[maybe_unused]] static struct QS2D6P_ : internals::fe_quadrature_simplex<2, 6> { } QS2D6P;
-[[maybe_unused]] static struct QS2D7P_ : internals::fe_quadrature_simplex<2, 7> { } QS2D7P;
+[[maybe_unused]] static struct QS2D1P_  : internals::fe_quadrature_simplex<2, 1>  { } QS2D1P;
+[[maybe_unused]] static struct QS2D3P_  : internals::fe_quadrature_simplex<2, 3>  { } QS2D3P;
+[[maybe_unused]] static struct QS2D6P_  : internals::fe_quadrature_simplex<2, 6>  { } QS2D6P;
+[[maybe_unused]] static struct QS2D7P_  : internals::fe_quadrature_simplex<2, 7>  { } QS2D7P;
+[[maybe_unused]] static struct QS2D12P_ : internals::fe_quadrature_simplex<2, 12> { } QS2D12P;
+
   
 }   // namespace fdapde
 

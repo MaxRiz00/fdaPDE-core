@@ -17,6 +17,20 @@
 #ifndef __FDAPDE_FINITE_ELEMENTS_MODULE_H__
 #define __FDAPDE_FINITE_ELEMENTS_MODULE_H__
 
+// include required modules
+#ifndef __FDAPDE_FIELDS_MODULE_H__
+
+#    include "fields.h"
+
+#endif   // __FDAPDE_FIELDS_MODULE_H__
+
+#ifndef __FDAPDE_GEOMETRY_MODULE_H__
+
+#    include "geometry.h"
+
+#endif   // __FDAPDE_GEOMETRY_MODULE_H__
+
+#include "assembly.h"
 #include "finite_elements/dof_handler.h"
 #include "finite_elements/dof_segment.h"
 #include "finite_elements/dof_tetrahedron.h"

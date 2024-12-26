@@ -22,15 +22,14 @@
 
 #include "linear_algebra/binary_matrix.h"
 #include "linear_algebra/constexpr_matrix.h"
+#include "linear_algebra/fspai.h"
 #include "linear_algebra/kronecker.h"
 #include "linear_algebra/lumping.h"
+//#include "linear_algebra/nystrom.h"
+//#include "linear_algebra/rand_utils.h"
+//#include "linear_algebra/revd.h"
+//#include "linear_algebra/rsvd.h"
 #include "linear_algebra/smw.h"
 #include "linear_algebra/sparse_block_matrix.h"
-#include "linear_algebra/fspai.h"
-#include "linear_algebra/lumping.h"
-
-#include "fdaPDE/linear_algebra/randomized_algorithms/rsvd.h"
-#include "fdaPDE/linear_algebra/randomized_algorithms/revd.h"
-#include "fdaPDE/linear_algebra/randomized_algorithms/nystrom.h"
 
 #endif   // __FDAPDE_LINEAR_ALGEBRA_MODULE_H__

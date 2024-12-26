@@ -61,7 +61,7 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
     using bilinear_form_assembly_loop =
       internals::fe_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
     template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
-    using linear_form_assembler_loop =
+    using linear_form_assembly_loop =
       internals::fe_linear_form_assembly_loop  <Triangulation__, Form__, Options__, Quadrature__...>;
 
     FeSpace() = default;

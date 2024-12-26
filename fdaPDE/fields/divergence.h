@@ -24,13 +24,32 @@ namespace fdapde {
 template <typename Derived_> class Divergence : public ScalarBase<Derived_::StaticInputSize, Divergence<Derived_>> {
     fdapde_static_assert(
       Derived_::Cols == 1 && (Derived_::StaticInputSize == Dynamic || Derived_::StaticInputSize == Derived_::Rows),
-      DIVERGENCE_OPERATOR_IS_FOR_VECTOR_FIELDS_ONLY);
+      DIVERGENCE_OPERATOR_IS_FOR_VECTOR_FIELDS_ONLY);  
    public:
     using Derived = Derived_;
+   private:
+    class wrap_t {   // wrapper for subscripted types having just a call operator
+        using functor_t = std::decay_t<decltype(std::declval<Derived>().operator[](std::declval<int>()))>;
+        functor_t xpr_;
+       public:
+        using InputType = typename Derived::InputType;
+        using Scalar = typename Derived::Scalar;
+        static constexpr int StaticInputSize = Derived::StaticInputSize;
+        static constexpr int NestAsRef = 0;
+        static constexpr int XprBits = 0;
+
+        constexpr wrap_t() noexcept : xpr_() { }
+        constexpr wrap_t(const functor_t& xpr) noexcept : xpr_(xpr) { }
+        // call operator
+        template <typename InputType_> constexpr Scalar operator()(InputType_&& p) const { return xpr_(p); }
+    };
+   public:
     template <typename T> using Meta = Divergence<T>;
     using Base = ScalarBase<Derived::StaticInputSize, Divergence<Derived>>;
-    using FunctorType =
-      PartialDerivative<std::decay_t<decltype(std::declval<Derived>().operator[](std::declval<int>()))>, 1>;
+    // using FunctorType =
+    //   PartialDerivative<std::decay_t<decltype(std::declval<Derived>().operator[](std::declval<int>()))>, 1>;
+    using FunctorType = PartialDerivative<wrap_t, 1>;
+
     using InputType = typename Derived::InputType;
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;

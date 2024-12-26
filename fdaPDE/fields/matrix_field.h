@@ -790,7 +790,7 @@ struct MatrixSymmetricView :
     constexpr int input_size() const { return xpr_.input_size(); }
     constexpr int size() const { return xpr_.size(); }
     constexpr const Derived& derived() const { return xpr_; }
-    constexpr auto operator()(int i, int j) const {
+    constexpr decltype(auto) operator()(int i, int j) const {
         if constexpr (ViewMode == fdapde::Lower) return i < j ? xpr_(j, i) : xpr_(i, j);
         if constexpr (ViewMode == fdapde::Upper) return i > j ? xpr_(j, i) : xpr_(i, j);
     }

@@ -57,33 +57,75 @@ template <typename Xpr> struct is_matrix_field {
     }();
 };
 template <typename Xpr> static constexpr bool is_matrix_field_v = is_matrix_field<Xpr>::value;
+
+
+template <typename C, typename Xpr> static constexpr bool xpr_all_of_impl() {
+    if constexpr (!(is_scalar_field_v<Xpr> || is_matrix_field_v<Xpr>)) {
+        return true;   // nodes which are not fields always evaluate true
+    } else {
+        if constexpr (is_xpr_leaf<Xpr>) { return C {}.template operator()<Xpr>(); }
+        if constexpr (is_unary_xpr_op<Xpr>) { return xpr_all_of_impl<C, typename Xpr::Derived>(); }
+        if constexpr (is_binary_xpr_op<Xpr>) {
+            if constexpr (is_coeff_xpr_op<Xpr>) {
+                if constexpr (requires(Xpr xpr) { Xpr::is_coeff_scalar_field; }) {   // MatrixCoeffWiseOp
+                    if constexpr (Xpr::is_coeff_scalar_field) {
+                        bool lhs_partial = xpr_all_of_impl<C, typename Xpr::LhsDerived>();
+                        bool rhs_partial = xpr_all_of_impl<C, typename Xpr::RhsDerived>();
+                        return lhs_partial & rhs_partial;
+                    }
+                } else {
+                    if constexpr (Xpr::is_coeff_lhs) {
+                        return xpr_all_of_impl<C, typename Xpr::RhsDerived>();
+                    } else {
+                        return xpr_all_of_impl<C, typename Xpr::LhsDerived>();
+                    }
+                }
+            } else {
+                bool lhs_partial = xpr_all_of_impl<C, typename Xpr::LhsDerived>();
+                bool rhs_partial = xpr_all_of_impl<C, typename Xpr::RhsDerived>();
+                return lhs_partial & rhs_partial;
+            }
+        }
+    }
+};
+// finds wheter all leaf nodes in the expression subtree rooted at Xpr satisfies boolean condition C
+template <typename C, typename Xpr> static constexpr bool xpr_all_of() { return xpr_all_of_impl<C, Xpr>(); };
+template <typename C, typename Xpr> static constexpr bool xpr_all_of(Xpr xpr) {
+    return xpr_all_of_impl<C, std::decay_t<Xpr>>();
+}
   
-// wraps all leafs in Xpr which satisfies boolean condition C with template type T
+// maximally wraps all subtrees in Xpr which satisfies boolean condition C with template type T
 template <template <typename> typename T, typename C, typename Xpr> constexpr auto xpr_wrap(Xpr&& xpr) {
     using Xpr_ = std::decay_t<Xpr>;
     if constexpr (!(is_scalar_field_v<Xpr_> || is_matrix_field_v<Xpr_>)) {
         return xpr;
     } else {
-        if constexpr (is_binary_xpr_op<Xpr_>) {
-            return
-              typename Xpr_::template Meta<decltype(xpr_wrap<T, C>(xpr.lhs())), decltype(xpr_wrap<T, C>(xpr.rhs()))>(
-                xpr_wrap<T, C>(xpr.lhs()), xpr_wrap<T, C>(xpr.rhs()));
-        }
-        if constexpr (is_unary_xpr_op<Xpr_>) {
-            return typename Xpr_::template Meta<decltype(xpr_wrap<T, C>(xpr.derived()))>(xpr_wrap<T, C>(xpr.derived()));
-        }
-        if constexpr (is_xpr_leaf<Xpr_>) {
-            if constexpr (C {}.template operator()<Xpr_>()) {
-                return T<Xpr_>(xpr);
-            } else {
-                return xpr;
+        if constexpr (xpr_all_of<C, Xpr_>()) {   // maximally wrap subtrees which do not satisfy C
+            return T<Xpr_>(xpr);
+        } else {
+            // subtree cannot be maximally wrapped, visit subtree nodes rooted at Xpr
+            if constexpr (is_binary_xpr_op<Xpr_>) {
+                return typename Xpr_::template Meta<
+                  decltype(xpr_wrap<T, C>(xpr.lhs())), decltype(xpr_wrap<T, C>(xpr.rhs()))>(
+                  xpr_wrap<T, C>(xpr.lhs()), xpr_wrap<T, C>(xpr.rhs()));
+            }
+            if constexpr (is_unary_xpr_op<Xpr_>) {
+                return
+                  typename Xpr_::template Meta<decltype(xpr_wrap<T, C>(xpr.derived()))>(xpr_wrap<T, C>(xpr.derived()));
+            }
+            if constexpr (is_xpr_leaf<Xpr_>) {
+                if constexpr (C {}.template operator()<Xpr_>()) {
+                    return T<Xpr_>(xpr);
+                } else {
+                    return xpr;
+                }
             }
         }
     }
 }
 
 // finds wheter at least one node in Xpr satisfies boolean condition C
-template <typename C, typename Xpr> static constexpr bool xpr_find() {
+  template <typename C, typename Xpr> static constexpr bool xpr_find() { // rename in any_of
     if constexpr (is_binary_xpr_op<Xpr>) {
         if constexpr (is_coeff_xpr_op<Xpr>) {
             if constexpr (requires(Xpr xpr) { Xpr::is_coeff_scalar_field; }) {   // MatrixCoeffWiseOp
