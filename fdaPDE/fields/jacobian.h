@@ -25,31 +25,15 @@ namespace fdapde {
 
 template <typename Derived_> class Jacobian : public fdapde::MatrixBase<Derived_::StaticInputSize, Jacobian<Derived_>> {
     fdapde_static_assert(Derived_::Cols == 1, JACOBIAN_OPERATOR_IS_FOR_VECTOR_FIELDS_ONLY);
-
-    class jacobian_helper : public ScalarBase<Derived_::StaticInputSize, jacobian_helper> {
-        using XprType = std::decay_t<decltype(std::declval<Derived_>().operator[](std::declval<int>()))>;
-        XprType xpr_;
-        const Jacobian* jacobian_;
-       public:
-        using Base = ScalarBase<Derived_::StaticInputSize, jacobian_helper>;
-        using InputType = std::decay_t<typename Derived_::InputType>;
-        using Scalar = typename Derived_::Scalar;
-        static constexpr int StaticInputSize = Derived_::StaticInputSize;
-        static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = Derived_::XprBits;
-
-        constexpr jacobian_helper() = default;
-        constexpr jacobian_helper(const XprType& xpr, const Jacobian* jacobian) :
-            Base(), xpr_(xpr), jacobian_(jacobian) { }
-        constexpr Scalar operator()(InputType x) const { return xpr_(x); }
-        constexpr int input_size() const { return jacobian_.input_size(); }
-        constexpr const Jacobian& derived() const { return *jacobian_; }
-    };
    public:
     using Derived = Derived_;
     template <typename T> using Meta = Jacobian<T>;
     using Base = MatrixBase<Derived::StaticInputSize, Jacobian<Derived>>;
-    using FunctorType = PartialDerivative<jacobian_helper, 1>;
+    using FunctorType = PartialDerivative<
+      internals::xpr_or_scalar_wrap_t<
+        Derived, Derived::StaticInputSize,
+        std::decay_t<decltype(std::declval<Derived_>().operator[](std::declval<int>()))>>,
+      1>;
     using InputType = typename Derived::InputType;
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
@@ -61,9 +45,7 @@ template <typename Derived_> class Jacobian : public fdapde::MatrixBase<Derived_
     explicit constexpr Jacobian(const Derived_& xpr) : Base(), xpr_(xpr) {
         if constexpr (StaticInputSize == Dynamic) data_.resize(xpr_.rows() * xpr_.input_size());
         for (int i = 0; i < xpr_.input_size(); ++i) {
-            for (int j = 0; j < xpr_.rows(); ++j) {
-                data_[i * Cols + j] = FunctorType(jacobian_helper(xpr_[j], this), i);
-            }
+            for (int j = 0; j < xpr_.rows(); ++j) { data_[i * Cols + j] = FunctorType(xpr_[j], i); }
         }
     }
     // getters
@@ -84,7 +66,8 @@ template <typename Derived_> class Jacobian : public fdapde::MatrixBase<Derived_
 };
 
 template <typename XprType>
-Jacobian<XprType> constexpr grad(const XprType& xpr) requires(meta::is_matrix_field_v<XprType> && XprType::Cols == 1) {
+Jacobian<XprType> constexpr grad(const XprType& xpr)
+    requires(internals::is_matrix_field_v<XprType> && XprType::Cols == 1) {
     return Jacobian<XprType>(xpr);
 }
 

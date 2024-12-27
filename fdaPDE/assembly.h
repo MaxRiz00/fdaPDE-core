@@ -26,13 +26,13 @@ namespace fdapde {
 [[maybe_unused]] static constexpr int FaceMajor = 1;
 
 // test function forward decl
-template <typename FunctionSpace, typename SpaceCategory_> struct TestFunction;
-template <typename FunctionSpace>   // deduction guide
-TestFunction(FunctionSpace function_space) -> TestFunction<FunctionSpace, typename FunctionSpace::space_category>;
+template <typename FunctionSpace_, typename SpaceCategory_> struct TestFunction;
+template <typename FunctionSpace_>   // deduction guide
+TestFunction(FunctionSpace_ function_space) -> TestFunction<FunctionSpace_, typename FunctionSpace_::space_category>;
 // trial function forward decl
 template <typename FunctionSpace, typename SpaceCategory_> struct TrialFunction;
-template <typename FunctionSpace>   // deduction guide
-TrialFunction(FunctionSpace function_space) -> TrialFunction<FunctionSpace, typename FunctionSpace::space_category>;
+template <typename FunctionSpace_>   // deduction guide
+TrialFunction(FunctionSpace_ function_space) -> TrialFunction<FunctionSpace_, typename FunctionSpace_::space_category>;
 
 namespace internals {
 
@@ -40,20 +40,20 @@ namespace internals {
 
 // detect trial space from bilinear form
 template <typename Xpr> constexpr decltype(auto) trial_space(Xpr&& xpr) {
-    constexpr bool found = meta::xpr_find<
+    constexpr bool found = xpr_any_of<
       decltype([]<typename Xpr_>() { return requires { typename Xpr_::TrialSpace; }; }), std::decay_t<Xpr>>();
     fdapde_static_assert(found, NO_TRIAL_SPACE_FOUND_IN_EXPRESSION);
-    return meta::xpr_query<
+    return xpr_apply_if<
       decltype([]<typename Xpr_>(Xpr_&& xpr) -> auto& { return xpr.function_space(); }),
       decltype([]<typename Xpr_>() { return requires { typename Xpr_::TrialSpace; }; })>(std::forward<Xpr>(xpr));
 }
 template <typename Xpr> using trial_space_t = std::decay_t<decltype(trial_space(std::declval<Xpr>()))>;
 // detect test space from bilinear form
 template <typename Xpr> constexpr decltype(auto)  test_space(Xpr&& xpr) {
-    constexpr bool found = meta::xpr_find<
+    constexpr bool found = xpr_any_of<
       decltype([]<typename Xpr_>() { return requires { typename Xpr_::TestSpace; }; }), std::decay_t<Xpr>>();
     fdapde_static_assert(found, NO_TEST_SPACE_FOUND_IN_EXPRESSION);
-    return meta::xpr_query<
+    return xpr_apply_if<
       decltype([]<typename Xpr_>(Xpr_&& xpr) -> auto& { return xpr.function_space(); }),
       decltype([]<typename Xpr_>() { return requires { typename Xpr_::TestSpace; }; })>(std::forward<Xpr>(xpr));
 }
@@ -128,7 +128,7 @@ assembly_add_op<Lhs, Rhs> operator+(const assembly_xpr_base<Lhs>& lhs, const ass
 
 // generic integration loop to integrate scalar expressions over physical domains
 template <typename Triangulation_, typename Xpr_, int Options_, typename... Quadrature_> class std_integration_loop {
-    fdapde_static_assert(meta::is_scalar_field_v<Xpr_>, THIS_CLASS_IS_FOR_SCALAR_FIELDS_ONLY);
+    fdapde_static_assert(is_scalar_field_v<Xpr_>, THIS_CLASS_IS_FOR_SCALAR_FIELDS_ONLY);
     using Triangulation = std::decay_t<Triangulation_>;
     static constexpr int local_dim = Triangulation::local_dim;
     static constexpr int embed_dim = Triangulation::embed_dim;
@@ -197,9 +197,9 @@ template <typename Triangulation, int Options, typename... Quadrature> class int
         begin_(begin), end_(end), quadrature_(std::make_tuple(quadrature...)) { }
 
     template <typename Form> auto operator()(const Form& form) const {
-        static constexpr bool trial_space_detected = meta::xpr_find<
+        static constexpr bool trial_space_detected = xpr_any_of<
           decltype([]<typename Xpr_>() { return requires { typename Xpr_::TrialSpace; }; }), std::decay_t<Form>>();
-        static constexpr bool test_space_detected  = meta::xpr_find<
+        static constexpr bool test_space_detected  = xpr_any_of<
           decltype([]<typename Xpr_>() { return requires { typename Xpr_::TestSpace;  }; }), std::decay_t<Form>>();
 
         if constexpr (trial_space_detected && test_space_detected) {   // discretizing bilinear form

@@ -22,20 +22,7 @@ namespace fdapde {
 template <int Size, typename Derived> struct ScalarBase;
 template <int Size, typename Derived> struct MatrixBase;
   
-namespace meta {
-  
-// a set of template metaprogramming routines for manipulating fields expressions
-template <typename T>
-concept is_unary_xpr_op = requires(T t) { typename T::Derived; };
-template <typename T>
-concept is_binary_xpr_op = requires(T t) {
-    typename T::LhsDerived;
-    typename T::RhsDerived;
-};
-template <typename T>
-concept is_coeff_xpr_op = is_binary_xpr_op<T> && requires(T t) { typename T::CoeffType; };
-template <typename T>
-concept is_xpr_leaf = !is_unary_xpr_op<T> && !is_binary_xpr_op<T>;
+namespace internals {
 
 template <typename Xpr> struct is_scalar_field {
     static constexpr bool value = []() {
@@ -58,63 +45,105 @@ template <typename Xpr> struct is_matrix_field {
 };
 template <typename Xpr> static constexpr bool is_matrix_field_v = is_matrix_field<Xpr>::value;
 
+// expression nodes concept
+template <typename T>
+concept xpr_is_unary_op = requires(T t) { typename T::Derived; };
+template <typename T>
+concept xpr_is_binary_op = requires(T t) {
+    typename T::LhsDerived;
+    typename T::RhsDerived;
+};
+template <typename T>
+concept xpr_is_leaf = !xpr_is_unary_op<T> && !xpr_is_binary_op<T>;
 
-template <typename C, typename Xpr> static constexpr bool xpr_all_of_impl() {
+// checks if all leaf nodes in the expression satisfy the unary predicate UnaryPred
+template <typename UnaryPred, typename Xpr> static constexpr bool xpr_all_of_impl() {
     if constexpr (!(is_scalar_field_v<Xpr> || is_matrix_field_v<Xpr>)) {
         return true;   // nodes which are not fields always evaluate true
     } else {
-        if constexpr (is_xpr_leaf<Xpr>) { return C {}.template operator()<Xpr>(); }
-        if constexpr (is_unary_xpr_op<Xpr>) { return xpr_all_of_impl<C, typename Xpr::Derived>(); }
-        if constexpr (is_binary_xpr_op<Xpr>) {
-            if constexpr (is_coeff_xpr_op<Xpr>) {
-                if constexpr (requires(Xpr xpr) { Xpr::is_coeff_scalar_field; }) {   // MatrixCoeffWiseOp
-                    if constexpr (Xpr::is_coeff_scalar_field) {
-                        bool lhs_partial = xpr_all_of_impl<C, typename Xpr::LhsDerived>();
-                        bool rhs_partial = xpr_all_of_impl<C, typename Xpr::RhsDerived>();
-                        return lhs_partial & rhs_partial;
-                    }
-                } else {
-                    if constexpr (Xpr::is_coeff_lhs) {
-                        return xpr_all_of_impl<C, typename Xpr::RhsDerived>();
-                    } else {
-                        return xpr_all_of_impl<C, typename Xpr::LhsDerived>();
-                    }
-                }
-            } else {
-                bool lhs_partial = xpr_all_of_impl<C, typename Xpr::LhsDerived>();
-                bool rhs_partial = xpr_all_of_impl<C, typename Xpr::RhsDerived>();
-                return lhs_partial & rhs_partial;
+        if constexpr (xpr_is_leaf<Xpr>) {
+            return UnaryPred {}.template operator()<Xpr>();   // check if leaf satisfies unary predicate
+        } else if constexpr (xpr_is_unary_op<Xpr>) {
+            return xpr_all_of_impl<UnaryPred, typename Xpr::Derived>();
+        } else if constexpr (xpr_is_binary_op<Xpr>) {
+            bool lhs_partial = false;
+            bool rhs_partial = false;
+            if constexpr (is_scalar_field_v<typename Xpr::LhsDerived> || is_matrix_field_v<typename Xpr::LhsDerived>) {
+                lhs_partial = xpr_all_of_impl<UnaryPred, typename Xpr::LhsDerived>();
             }
+            if constexpr (is_scalar_field_v<typename Xpr::RhsDerived> || is_matrix_field_v<typename Xpr::RhsDerived>) {
+                rhs_partial = xpr_all_of_impl<UnaryPred, typename Xpr::RhsDerived>();
+            }
+            return lhs_partial & rhs_partial;
         }
     }
+}
+template <typename UnaryPred, typename Xpr> static constexpr bool xpr_all_of() {
+    return xpr_all_of_impl<UnaryPred, Xpr>();
+}
+template <typename UnaryPred, typename Xpr>
+static constexpr bool xpr_all_of([[maybe_unused]] Xpr xpr, [[maybe_unused]] UnaryPred p) {
+    return xpr_all_of_impl<std::decay_t<UnaryPred>, std::decay_t<Xpr>>();
+}
+// checks if at least one node in the expression satisfies the unary predicate UnaryPred
+template <typename UnaryPred, typename Xpr> static constexpr bool xpr_any_of_impl() {
+    if constexpr (!(is_scalar_field_v<Xpr> || is_matrix_field_v<Xpr>)) {
+        return true;   // nodes which are not fields always evaluate true
+    } else {
+        if constexpr (xpr_is_leaf<Xpr>) {
+            return UnaryPred {}.template operator()<Xpr>();   // check if leaf satisfies unary predicate
+        } else if constexpr (xpr_is_unary_op<Xpr>) {
+            return xpr_any_of_impl<UnaryPred, typename Xpr::Derived>();
+        } else if constexpr (xpr_is_binary_op<Xpr>) {
+            bool lhs_partial = false;
+            bool rhs_partial = false;
+            if constexpr (is_scalar_field_v<typename Xpr::LhsDerived> || is_matrix_field_v<typename Xpr::LhsDerived>) {
+                lhs_partial = xpr_any_of_impl<UnaryPred, typename Xpr::LhsDerived>();
+            }
+            if constexpr (is_scalar_field_v<typename Xpr::RhsDerived> || is_matrix_field_v<typename Xpr::RhsDerived>) {
+                rhs_partial = xpr_any_of_impl<UnaryPred, typename Xpr::RhsDerived>();
+            }
+            return lhs_partial || rhs_partial;
+        }
+    }
+}
+template <typename UnaryPred, typename Xpr> static constexpr bool xpr_any_of() {
+    return xpr_any_of_impl<UnaryPred, Xpr>();
 };
-// finds wheter all leaf nodes in the expression subtree rooted at Xpr satisfies boolean condition C
-template <typename C, typename Xpr> static constexpr bool xpr_all_of() { return xpr_all_of_impl<C, Xpr>(); };
-template <typename C, typename Xpr> static constexpr bool xpr_all_of(Xpr xpr) {
-    return xpr_all_of_impl<C, std::decay_t<Xpr>>();
+template <typename UnaryPred, typename Xpr>
+static constexpr bool xpr_any_of([[maybe_unused]] Xpr xpr, [[maybe_unused]] UnaryPred p) {
+    return xpr_any_of_impl<std::decay_t<UnaryPred>, std::decay_t<Xpr>>();
+}
+  // checks if no node in the expression satisfies the unary predicate UnaryPred
+template <typename UnaryPred, typename Xpr> static constexpr bool xpr_none_of() {
+    return !xpr_any_of<UnaryPred, Xpr>();
+};
+template <typename UnaryPred, typename Xpr>
+static constexpr bool xpr_none_of([[maybe_unused]] Xpr xpr, [[maybe_unused]] UnaryPred p) {
+    return !xpr_any_of<std::decay_t<UnaryPred>, std::decay_t<Xpr>>();
 }
   
-// maximally wraps all subtrees in Xpr which satisfies boolean condition C with template type T
-template <template <typename> typename T, typename C, typename Xpr> constexpr auto xpr_wrap(Xpr&& xpr) {
+// maximally wraps all subtrees in Xpr which not satisfies unary predicate UnaryPred with template type T
+template <template <typename> typename T, typename UnaryPred, typename Xpr> constexpr auto xpr_wrap(Xpr&& xpr) {
     using Xpr_ = std::decay_t<Xpr>;
     if constexpr (!(is_scalar_field_v<Xpr_> || is_matrix_field_v<Xpr_>)) {
         return xpr;
     } else {
-        if constexpr (xpr_all_of<C, Xpr_>()) {   // maximally wrap subtrees which do not satisfy C
+        if constexpr (xpr_all_of<UnaryPred, Xpr_>()) {   // maximally wrap subtrees which do not satisfy C
             return T<Xpr_>(xpr);
         } else {
-            // subtree cannot be maximally wrapped, visit subtree nodes rooted at Xpr
-            if constexpr (is_binary_xpr_op<Xpr_>) {
+            // subtree cannot be maximally wrapped, visit subtree rooted at Xpr
+            if constexpr (xpr_is_binary_op<Xpr_>) {
                 return typename Xpr_::template Meta<
-                  decltype(xpr_wrap<T, C>(xpr.lhs())), decltype(xpr_wrap<T, C>(xpr.rhs()))>(
-                  xpr_wrap<T, C>(xpr.lhs()), xpr_wrap<T, C>(xpr.rhs()));
+                  decltype(xpr_wrap<T, UnaryPred>(xpr.lhs())), decltype(xpr_wrap<T, UnaryPred>(xpr.rhs()))>(
+                  xpr_wrap<T, UnaryPred>(xpr.lhs()), xpr_wrap<T, UnaryPred>(xpr.rhs()));
             }
-            if constexpr (is_unary_xpr_op<Xpr_>) {
-                return
-                  typename Xpr_::template Meta<decltype(xpr_wrap<T, C>(xpr.derived()))>(xpr_wrap<T, C>(xpr.derived()));
+            if constexpr (xpr_is_unary_op<Xpr_>) {
+                return typename Xpr_::template Meta<decltype(xpr_wrap<T, UnaryPred>(xpr.derived()))>(
+                  xpr_wrap<T, UnaryPred>(xpr.derived()));
             }
-            if constexpr (is_xpr_leaf<Xpr_>) {
-                if constexpr (C {}.template operator()<Xpr_>()) {
+            if constexpr (xpr_is_leaf<Xpr_>) {
+                if constexpr (UnaryPred {}.template operator()<Xpr_>()) {
                     return T<Xpr_>(xpr);
                 } else {
                     return xpr;
@@ -123,73 +152,79 @@ template <template <typename> typename T, typename C, typename Xpr> constexpr au
         }
     }
 }
-
-// finds wheter at least one node in Xpr satisfies boolean condition C
-  template <typename C, typename Xpr> static constexpr bool xpr_find() { // rename in any_of
-    if constexpr (is_binary_xpr_op<Xpr>) {
-        if constexpr (is_coeff_xpr_op<Xpr>) {
-            if constexpr (requires(Xpr xpr) { Xpr::is_coeff_scalar_field; }) {   // MatrixCoeffWiseOp
-                if constexpr (Xpr::is_coeff_scalar_field) {
-                    return xpr_find<C, typename Xpr::LhsDerived>() || xpr_find<C, typename Xpr::RhsDerived>();
-                }
-            } else {
-                if constexpr (Xpr::is_coeff_lhs) {
-                    return xpr_find<C, typename Xpr::RhsDerived>();
-                } else {
-                    return xpr_find<C, typename Xpr::LhsDerived>();
-                }
-            }
-        } else {
-            return xpr_find<C, typename Xpr::LhsDerived>() || xpr_find<C, typename Xpr::RhsDerived>();
-        }
-    }
-    if constexpr (is_unary_xpr_op<Xpr>) { return xpr_find<C, typename Xpr::Derived>(); }
-    if constexpr (is_xpr_leaf<Xpr>) { return C {}.template operator()<Xpr>(); }
+template <template <typename> typename T, typename UnaryPred, typename Xpr>
+constexpr auto xpr_wrap(Xpr&& xpr, UnaryPred p) {
+    return xpr_wrap<T, std::decay_t<UnaryPred>>(xpr);
 }
-template <typename C, typename Xpr> static constexpr bool xpr_find(Xpr xpr) { return xpr_find<C, std::decay_t<Xpr>>(); }
 
-// query Xpr to return the result of F on the first node (following a depth first search strategy) in Xpr satisfying
-// boolean condition C
-template <typename F, typename C, typename Xpr, typename... Args>
-constexpr decltype(auto) xpr_query(Xpr&& xpr, Args&&... args) {
+// returns the result of applying UnaryFunc(xpr, args...) to the first node in Xpr satisfying UnaryPred
+template <typename UnaryFunc, typename UnaryPred, typename Xpr, typename... Args>
+constexpr decltype(auto) xpr_apply_if(Xpr&& xpr, Args&&... args) {
     using Xpr_ = std::decay_t<Xpr>;
-    if constexpr (C {}.template operator()<Xpr_>()) {
-        return F {}(xpr, std::forward<Args>(args)...);
+    if constexpr (UnaryPred {}.template operator()<Xpr_>()) {
+        return UnaryFunc {}(xpr, std::forward<Args>(args)...);
     } else {
-        if constexpr (is_binary_xpr_op<Xpr_>) {
-            if constexpr (xpr_find<C, typename Xpr_::LhsDerived>()) {
-                return xpr_query<F, C>(xpr.lhs(), std::forward<Args>(args)...);
+        if constexpr (xpr_is_binary_op<Xpr_>) {
+            using LhsDerived = typename Xpr_::LhsDerived;
+            using RhsDerived = typename Xpr_::RhsDerived;
+            if constexpr (is_scalar_field_v<LhsDerived> || is_matrix_field_v<LhsDerived>) {
+                if constexpr (xpr_any_of<UnaryPred, LhsDerived>()) {
+                    return xpr_apply_if<UnaryFunc, UnaryPred>(xpr.lhs(), std::forward<Args>(args)...);
+                }
             }
-            if constexpr (xpr_find<C, typename Xpr_::RhsDerived>()) {
-                return xpr_query<F, C>(xpr.rhs(), std::forward<Args>(args)...);
+            if constexpr (is_scalar_field_v<RhsDerived> || is_matrix_field_v<RhsDerived>) {
+                if constexpr (xpr_any_of<UnaryPred, RhsDerived>()) {
+                    return xpr_apply_if<UnaryFunc, UnaryPred>(xpr.rhs(), std::forward<Args>(args)...);
+                }
             }
-        } else if constexpr (xpr_find<C, typename Xpr_::Derived>()) {
-            return xpr_query<F, C>(xpr.derived(), std::forward<Args>(args)...);
+        } else {   // unary node
+            if constexpr (xpr_any_of<UnaryPred, typename Xpr_::Derived>()) {
+                return xpr_apply_if<UnaryFunc, UnaryPred>(xpr.derived(), std::forward<Args>(args)...);
+            }
         }
     }
 }
-// apply functor F to all nodes in Xpr satisfying condition C
-template <typename F, typename C, typename Xpr, typename... Args>
-constexpr void xpr_apply_if(Xpr&& xpr, Args&&... args) {
+template <typename UnaryFunc, typename UnaryPred, typename Xpr, typename... Args>
+constexpr decltype(auto) xpr_apply_if(Xpr&& xpr, UnaryPred p, UnaryFunc f, Args&&... args) {
+    return xpr_apply_if<std::decay_t<UnaryFunc>, std::decay_t<UnaryPred>>(
+      std::forward<Xpr>(xpr), std::forward<Args>(args)...);
+}
+
+// apply unary functor UnaryFunc to all nodes in Xpr satisfying unary predicate UnaryPred
+template <typename UnaryFunc, typename UnaryPred, typename Xpr, typename... Args>
+constexpr void xpr_for_each(Xpr&& xpr, Args&&... args) {
     using Xpr_ = std::decay_t<Xpr>;
-    if constexpr (C {}.template operator()<Xpr_>()) {
-        F {}(xpr, std::forward<Args>(args)...);
+    if constexpr (UnaryPred {}.template operator()<Xpr_>()) {
+        UnaryFunc {}(xpr, std::forward<Args>(args)...);
     } else {
-        if constexpr (is_binary_xpr_op<Xpr_>) {
-            if constexpr (xpr_find<C, typename Xpr_::LhsDerived>()) {
-                xpr_apply_if<F, C>(xpr.lhs(), std::forward<Args>(args)...);
+        if constexpr (xpr_is_binary_op<Xpr_>) {
+            using LhsDerived = typename Xpr_::LhsDerived;
+            using RhsDerived = typename Xpr_::RhsDerived;
+            if constexpr (is_scalar_field_v<LhsDerived> || is_matrix_field_v<LhsDerived>) {
+                if constexpr (xpr_any_of<UnaryPred, LhsDerived>()) {
+                    xpr_for_each<UnaryFunc, UnaryPred>(xpr.lhs(), std::forward<Args>(args)...);
+                }
             }
-            if constexpr (xpr_find<C, typename Xpr_::RhsDerived>()) {
-                xpr_apply_if<F, C>(xpr.rhs(), std::forward<Args>(args)...);
+            if constexpr (is_scalar_field_v<RhsDerived> || is_matrix_field_v<RhsDerived>) {
+                if constexpr (xpr_any_of<UnaryPred, RhsDerived>()) {
+                    xpr_for_each<UnaryFunc, UnaryPred>(xpr.rhs(), std::forward<Args>(args)...);
+                }
             }
-        } else if constexpr (xpr_find<C, typename Xpr_::Derived>()) {
-            xpr_apply_if<F, C>(xpr.derived(), std::forward<Args>(args)...);
+        } else {   // unary node
+            if constexpr (xpr_any_of<UnaryPred, typename Xpr_::Derived>()) {
+                xpr_for_each<UnaryFunc, UnaryPred>(xpr.derived(), std::forward<Args>(args)...);
+            }
         }
     }
     return;
 }
+template <typename UnaryFunc, typename UnaryPred, typename Xpr, typename... Args>
+constexpr decltype(auto) xpr_for_each(Xpr&& xpr, UnaryPred p, UnaryFunc f, Args&&... args) {
+    return xpr_for_each<std::decay_t<UnaryFunc>, std::decay_t<UnaryPred>>(
+      std::forward<Xpr>(xpr), std::forward<Args>(args)...);
+}
 
-}   // namespace meta
+}   // namespace internals
 }   // namespace fdapde
 
 #endif   // __FIELD_META_H__

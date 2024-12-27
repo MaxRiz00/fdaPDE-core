@@ -131,6 +131,17 @@ class MatrixProduct : public fdapde::MatrixBase<Lhs::StaticInputSize, MatrixProd
         for (int k = 0; k < lhs_.cols(); ++k) { res += lhs_.eval(i, k, p) * rhs_.eval(k, j, p); }
         return res;
     }
+    constexpr Scalar eval(int i, const InputType& p) const {   // matrix-vector product
+        MATRIX_FIELD_SAME_INPUT_TYPE(Lhs, Rhs);
+        fdapde_static_assert(Rhs::Cols == 1 || Lhs::Rows == 1, INVALID_MATRIX_VECTOR_PRODUCT_DIMENSIONS);
+        Scalar res = 0;
+        if constexpr (Rhs::Cols == 1) {
+            for (int k = 0; k < lhs_.cols(); ++k) { res += lhs_.eval(i, k, p) * rhs_.eval(i, p); }
+        } else {
+            for (int k = 0; k < lhs_.cols(); ++k) { res += lhs_.eval(i, p) * rhs_.eval(k, i, p); }
+        }
+	return res;
+    }
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
@@ -334,13 +345,13 @@ operator-(const MatrixBase<Lhs::StaticInputSize, Lhs>& lhs, const MatrixBase<Rhs
 template <typename Lhs, typename Rhs, typename BinaryOperation>
 class MatrixCoeffWiseOp :
     public fdapde::MatrixBase<
-      std::conditional_t<std::is_arithmetic_v<Lhs> || meta::is_scalar_field_v<Lhs>, Rhs, Lhs>::StaticInputSize,
+      std::conditional_t<std::is_arithmetic_v<Lhs> || internals::is_scalar_field_v<Lhs>, Rhs, Lhs>::StaticInputSize,
       MatrixCoeffWiseOp<Lhs, Rhs, BinaryOperation>> {
    public:
     using LhsDerived = Lhs;
     using RhsDerived = Rhs;
     template <typename T1, typename T2> using Meta = MatrixCoeffWiseOp<T1, T2, BinaryOperation>;
-    static constexpr bool is_coeff_lhs = std::is_arithmetic_v<Lhs> || meta::is_scalar_field_v<Lhs>;
+    static constexpr bool is_coeff_lhs = std::is_arithmetic_v<Lhs> || internals::is_scalar_field_v<Lhs>;
     using CoeffType = std::conditional_t<is_coeff_lhs, Lhs, Rhs>;
    private:
     // keep this private to avoid to consider ScalarCoeffOp as a unary node
@@ -348,12 +359,12 @@ class MatrixCoeffWiseOp :
     constexpr const Derived& derived() const { if constexpr(is_coeff_lhs) return rhs_; else return lhs_; }
     constexpr const CoeffType& coeff() const { if constexpr(is_coeff_lhs) return lhs_; else return rhs_; }
    public:
-    static constexpr bool is_coeff_scalar_field = meta::is_scalar_field_v<CoeffType>;
+    static constexpr bool is_coeff_scalar_field = internals::is_scalar_field_v<CoeffType>;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
     using Base = MatrixBase<StaticInputSize, MatrixCoeffWiseOp<Lhs, Rhs, BinaryOperation>>;
     using Scalar = decltype(std::declval<BinaryOperation>().operator()(
       std::declval<typename Derived::Scalar>(), std::declval<decltype([]() {
-          if constexpr (meta::is_scalar_field_v<CoeffType>) {
+          if constexpr (internals::is_scalar_field_v<CoeffType>) {
               return typename CoeffType::Scalar {};
           } else {
               return CoeffType {};
@@ -405,13 +416,13 @@ class MatrixCoeffWiseOp :
           std::is_arithmetic_v<CoeffType> || std::is_invocable_v<CoeffType FDAPDE_COMMA InputType>,
           COEFFICIENT_IS_NOT_AN_ARITHMETIC_TYPE_AND_IS_NOT_INVOCABLE_AT_INPUT_TYPE);
         if constexpr (is_coeff_lhs) {
-            if constexpr (meta::is_scalar_field_v<LhsDerived>) {
+            if constexpr (internals::is_scalar_field_v<LhsDerived>) {
                 return op_(lhs_(p), rhs_.eval(i, j, p));
             } else {
                 return op_(lhs_, rhs_.eval(i, j, p));
             }
         } else {
-            if constexpr (meta::is_scalar_field_v<RhsDerived>) {
+            if constexpr (internals::is_scalar_field_v<RhsDerived>) {
                 return op_(lhs_.eval(i, j, p), rhs_(p));
             } else {
                 return op_(lhs_.eval(i, j, p), rhs_);
@@ -424,13 +435,13 @@ class MatrixCoeffWiseOp :
           std::is_arithmetic_v<CoeffType> || std::is_invocable_v<CoeffType FDAPDE_COMMA InputType>,
           COEFFICIENT_IS_NOT_AN_ARITHMETIC_TYPE_AND_IS_NOT_INVOCABLE_AT_INPUT_TYPE);
         if constexpr (is_coeff_lhs) {
-            if constexpr (meta::is_scalar_field_v<LhsDerived>) {
+            if constexpr (internals::is_scalar_field_v<LhsDerived>) {
                 return op_(lhs_(p), rhs_.eval(i, p));
             } else {
                 return op_(lhs_, rhs_.eval(i, p));
             }
         } else {
-            if constexpr (meta::is_scalar_field_v<RhsDerived>) {
+            if constexpr (internals::is_scalar_field_v<RhsDerived>) {
                 return op_(lhs_.eval(i, p), rhs_(p));
             } else {
                 return op_(lhs_.eval(i, p), rhs_);
@@ -461,8 +472,8 @@ class MatrixCoeffWiseOp :
 template <int Size, typename Lhs, typename Rhs>
 constexpr MatrixCoeffWiseOp<Lhs, Rhs, std::multiplies<>>
 operator*(const MatrixBase<Size, Lhs>& lhs, const Rhs& rhs)
-    requires(std::is_arithmetic_v<Rhs> || meta::is_scalar_field_v<Rhs>) {
-    if constexpr (meta::is_scalar_field_v<Rhs>) {
+    requires(std::is_arithmetic_v<Rhs> || internals::is_scalar_field_v<Rhs>) {
+    if constexpr (internals::is_scalar_field_v<Rhs>) {
         return MatrixCoeffWiseOp<Lhs, Rhs, std::multiplies<>>(lhs.derived(), rhs.derived(), std::multiplies<>());
     } else {
         return MatrixCoeffWiseOp<Lhs, Rhs, std::multiplies<>>(lhs.derived(), rhs, std::multiplies<>());
@@ -471,8 +482,8 @@ operator*(const MatrixBase<Size, Lhs>& lhs, const Rhs& rhs)
 template <int Size, typename Lhs, typename Rhs>
 constexpr MatrixCoeffWiseOp<Lhs, Rhs, std::multiplies<>>
 operator*(const Lhs& lhs, const MatrixBase<Size, Rhs>& rhs)
-    requires(std::is_arithmetic_v<Lhs> || meta::is_scalar_field_v<Lhs>) {
-    if constexpr (meta::is_scalar_field_v<Lhs>) {
+    requires(std::is_arithmetic_v<Lhs> || internals::is_scalar_field_v<Lhs>) {
+    if constexpr (internals::is_scalar_field_v<Lhs>) {
         return MatrixCoeffWiseOp<Lhs, Rhs, std::multiplies<>>(lhs.derived(), rhs.derived(), std::multiplies<>());
     } else {
         return MatrixCoeffWiseOp<Lhs, Rhs, std::multiplies<>>(lhs, rhs.derived(), std::multiplies<>());
@@ -481,8 +492,8 @@ operator*(const Lhs& lhs, const MatrixBase<Size, Rhs>& rhs)
 template <int Size, typename Lhs, typename Rhs>
 constexpr MatrixCoeffWiseOp<Lhs, Rhs, std::divides<>>
 operator*(const MatrixBase<Size, Lhs>& lhs, const Rhs& rhs)
-    requires(std::is_arithmetic_v<Rhs> || meta::is_scalar_field_v<Rhs>) {
-    if constexpr (meta::is_scalar_field_v<Rhs>) {
+    requires(std::is_arithmetic_v<Rhs> || internals::is_scalar_field_v<Rhs>) {
+    if constexpr (internals::is_scalar_field_v<Rhs>) {
         return MatrixCoeffWiseOp<Lhs, Rhs, std::divides<>>(lhs.derived(), rhs.derived(), std::divides<>());
     } else {
         return MatrixCoeffWiseOp<Lhs, Rhs, std::divides<>>(lhs.derived(), rhs, std::divides<>());

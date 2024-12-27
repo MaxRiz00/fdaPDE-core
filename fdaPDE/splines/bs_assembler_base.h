@@ -58,7 +58,7 @@ struct bs_assembler_base {
     // detect test space (since a test function is always present in a weak form)
     using TestSpace = test_space_t<Form_>;
     using Form =
-      std::decay_t<decltype(meta::xpr_wrap<BsMap, decltype([]<typename Xpr>() {
+      std::decay_t<decltype(xpr_wrap<BsMap, decltype([]<typename Xpr>() {
 	    return !(
 	        std::is_invocable_v<Xpr, bs_assembler_packet<Xpr::StaticInputSize>>);
 	  })>(std::declval<Form_>()))>;
@@ -83,7 +83,7 @@ struct bs_assembler_base {
       const Form_& form, const geo_iterator& begin, const geo_iterator& end, const Quadrature_&... quadrature)
         requires(sizeof...(quadrature) <= 1)
         :
-        form_(meta::xpr_wrap<BsMap, decltype([]<typename Xpr>() {
+        form_(xpr_wrap<BsMap, decltype([]<typename Xpr>() {
                                  return !(std::is_invocable_v<Xpr, bs_assembler_packet<Xpr::StaticInputSize>>);
                              })>(form)),
         dof_handler_(std::addressof(internals::test_space(form_).dof_handler())),
@@ -181,7 +181,7 @@ struct bs_assembler_base {
             local_cell_id++;
         }
         // evaluate Map nodes at quadrature nodes
-        meta::xpr_apply_if<
+        xpr_apply_if<
           decltype([]<typename Xpr_, typename... Args>(Xpr_& xpr, Args&&... args) {
               xpr.init(std::forward<Args>(args)...);
               return;

@@ -20,6 +20,7 @@
 #include <type_traits>
 
 #include "../utils/symbols.h"
+#include "meta.h"
 
 namespace fdapde {
 
@@ -406,6 +407,40 @@ template <int Size, typename Derived> struct ScalarBase {
    protected:
     double step_ = 1e-3;   // step size used in derivative approximation
 };
+
+namespace internals {
+
+// for type Functor_ having just a call operator, xpr_wrap<Xpr_, Functor_> makes Functor_ a valid expression type to be
+// stored inside Xpr_
+template <int StaticInputSize_, typename Functor_, int Bits_ = 0>
+class xpr_scalar_wrap : ScalarBase<StaticInputSize_, xpr_scalar_wrap<StaticInputSize_, Functor_, Bits_>> {
+    using FunctorType = std::decay_t<Functor_>;
+    using fn_traits = fn_ptr_traits<&FunctorType::operator()>;
+    fdapde_static_assert(std::tuple_size_v<typename fn_traits::ArgsType> == 1, FUNCTOR_MUST_ACCEPT_A_SINGLE_ARGUMENT);
+    FunctorType f_;
+   public:
+    using InputType = std::tuple_element_t<0, typename fn_traits::ArgsType>;
+    using Scalar = typename fn_traits::RetType;
+    static constexpr int StaticInputSize = StaticInputSize_;
+    static constexpr int NestAsRef = 0;
+    static constexpr int XprBits = 0 | int(Bits_);
+    static constexpr int Rows = 1;
+    static constexpr int Cols = 1;
+
+    constexpr xpr_scalar_wrap() noexcept : f_() { }
+    constexpr xpr_scalar_wrap(const Functor_& f) noexcept : f_(f) { }
+    // accessors
+    constexpr Scalar operator()(const InputType& p) const { return xpr_(p); }
+    constexpr int input_size() const { return StaticInputSize; }
+};
+template <typename Xpr_, int StaticInputSize_, typename Functor_, int Bits_ = 0>
+struct xpr_or_scalar_wrap :
+    std::type_identity<std::conditional_t<
+      internals::is_scalar_field_v<Xpr_>, Xpr_, xpr_scalar_wrap<StaticInputSize_, Functor_, Bits_>>> { };
+template <typename Xpr_, int StaticInputSize_, typename Functor_, int Bits_ = 0>
+using xpr_or_scalar_wrap_t = typename xpr_or_scalar_wrap<Xpr_, StaticInputSize_, Functor_, Bits_>::type;
+
+}   // namespace internals
 
 }   // namespace fdapde
 

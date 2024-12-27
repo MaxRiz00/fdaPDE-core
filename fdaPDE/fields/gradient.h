@@ -25,10 +25,11 @@ namespace fdapde {
 
 template <typename Derived_> class Gradient : public fdapde::MatrixBase<Derived_::StaticInputSize, Gradient<Derived_>> {
    public:
-    using Derived = Derived_;
+  using Derived = std::decay_t<Derived_>;
     template <typename T> using Meta = Gradient<T>;
     using Base = MatrixBase<Derived::StaticInputSize, Gradient<Derived>>;
-    using FunctorType = PartialDerivative<std::decay_t<Derived>, 1>;
+    using FunctorType =
+      PartialDerivative<internals::xpr_or_scalar_wrap_t<Derived, Derived::StaticInputSize, Derived>, 1>;
     using InputType = typename FunctorType::InputType;
     using Scalar = typename FunctorType::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
@@ -42,10 +43,8 @@ template <typename Derived_> class Gradient : public fdapde::MatrixBase<Derived_
         for (int i = 0; i < xpr_.input_size(); ++i) { data_[i] = PartialDerivative<std::decay_t<Derived>, 1>(xpr_, i); }
     }
     // getters
-    constexpr const PartialDerivative<std::decay_t<Derived>, 1>& operator()(int i, int j) {
-        return data_[i * cols() + j];
-    }
-    constexpr const PartialDerivative<std::decay_t<Derived>, 1>& operator[](int i) { return data_[i]; }
+    constexpr const FunctorType& operator()(int i, int j) { return data_[i * cols() + j]; }
+    constexpr const FunctorType& operator[](int i) { return data_[i]; }
     constexpr Scalar eval(int i, int j, const InputType& p) const { return data_[i * cols() + j](p); }
     constexpr Scalar eval(int i, const InputType& p) const { return data_[i](p); }
     constexpr int rows() const { return Rows; }
@@ -63,7 +62,7 @@ template <typename Derived_> class Gradient : public fdapde::MatrixBase<Derived_
 };
 
 template <typename XprType>
-constexpr Gradient<XprType> grad(const XprType& xpr) requires(meta::is_scalar_field_v<XprType>) {
+constexpr Gradient<XprType> grad(const XprType& xpr) requires(internals::is_scalar_field_v<XprType>) {
     return Gradient<XprType>(xpr);
 }
 

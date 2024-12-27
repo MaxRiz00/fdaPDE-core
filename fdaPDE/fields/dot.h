@@ -28,8 +28,8 @@ template <typename Lhs, typename Rhs> class DotProduct : public ScalarBase<Lhs::
     fdapde_static_assert(
       (Lhs::StaticInputSize == Dynamic || Rhs::StaticInputSize == Dynamic ||
        Lhs::StaticInputSize == Rhs::StaticInputSize) &&
-        ((meta::is_scalar_field_v<Lhs> && meta::is_scalar_field_v<Rhs>) ||
-         (meta::is_matrix_field_v<Lhs> && meta::is_matrix_field_v<Rhs> &&
+        ((internals::is_scalar_field_v<Lhs> && internals::is_scalar_field_v<Rhs>) ||
+         (internals::is_matrix_field_v<Lhs> && internals::is_matrix_field_v<Rhs> &&
           ((Lhs::Cols == Rhs::Cols &&
             (Lhs::Rows == Rhs::Rows || (Lhs::Cols == 1 && Rhs::Rows == 1 && Lhs::Rows == Rhs::Cols) ||
              (Lhs::Rows == 1 && Rhs::Cols == 1 && Lhs::Cols == Rhs::Rows)))))),
@@ -63,7 +63,7 @@ template <typename Lhs, typename Rhs> class DotProduct : public ScalarBase<Lhs::
         fdapde_static_assert(
           std::is_same_v<typename Lhs::InputType FDAPDE_COMMA typename Rhs::InputType>,
           YOU_MIXED_FIELDS_WITH_DIFFERENT_INPUT_VECTOR_TYPES);
-        if constexpr (meta::is_scalar_field_v<Lhs> && meta::is_scalar_field_v<Rhs>) {
+        if constexpr (internals::is_scalar_field_v<Lhs> && internals::is_scalar_field_v<Rhs>) {
             // scalar-scalar case, just plain multiplication
             return lhs_(p) * rhs_(p);
         } else {

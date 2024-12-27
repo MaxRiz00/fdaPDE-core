@@ -26,7 +26,8 @@ template <typename Derived_> class Laplacian : public ScalarBase<Derived_::Stati
     using Derived = Derived_;
     template <typename T> using Meta = Laplacian<T>;
     using Base = ScalarBase<Derived::StaticInputSize, Laplacian<Derived>>;
-    using FunctorType = PartialDerivative<Derived, 2>;
+    using FunctorType =
+      PartialDerivative<internals::xpr_or_scalar_wrap_t<Derived, Derived::StaticInputSize, Derived>, 2>;
     using InputType = typename Derived::InputType;
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
@@ -35,7 +36,7 @@ template <typename Derived_> class Laplacian : public ScalarBase<Derived_::Stati
 
     constexpr Laplacian(const Derived& xpr) : Base(), xpr_(xpr) {
         if constexpr (StaticInputSize == Dynamic) data_.resize(xpr_.input_size());
-        for (int i = 0; i < xpr_.input_size(); ++i) { data_[i] = PartialDerivative<Derived, 2>(xpr_, i, i); }
+        for (int i = 0; i < xpr_.input_size(); ++i) { data_[i] = FunctorType(xpr_, i, i); }
     }
     constexpr Scalar operator()(const InputType& p) const {
         Scalar res = 0;
