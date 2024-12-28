@@ -71,17 +71,33 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
         public:
             Nurbs() = default;
 
-            Nurbs(std::array<std::vector<double>,M>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>& index, int order): 
-                 index_(index), order_(order){
+            Nurbs(std::array<std::vector<double>,M>&& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>&& index, int order): 
+                 index_(std::move(index)), order_(order){
 
+                // we suppose the knots are not padded
                 // build a spline basis for each dimension
 
                 std::array<std::size_t, M> maxIdx;
 
 
                 for (std::size_t i = 0; i < M; ++i) {
-                    // create a spline basis for each dimension
-                    spline_basis_[i] = std::make_shared<SplineBasis>(knots[i], order_);
+
+                    std::vector<double> knots_ ;
+                    // pad the knot vector to obtain a full basis for the whole knot span [u_0, u_n]
+                    auto n=knots[i].size();
+                    knots_.resize(n + 2 * order_);
+                    for (std::size_t j = 0; j < n + 2 * order_; ++j) {
+                        if (j < order_) {
+                            knots_[j] = knots[i][0];
+                        } else {
+                            if (j < n + order_) {
+                                knots_[j] = knots[i][j - order_];
+                            } else {
+                                knots_[j] = knots[i][n - 1];
+                            }
+                        }
+                    }
+                    spline_basis_[i] = std::make_shared<SplineBasis>(knots_, order_);
 
                     // compute the minIdx and extents for each dimension
                     minIdx_[i] = (index_[i] >= order_)? (index_[i]-order_) : 0;
@@ -111,8 +127,8 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             };
 
             // constructor for the 1d knot passed as std::vector<double>, using the previous constructor
-            Nurbs(std::vector<double>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>& index, int order): 
-            Nurbs(std::array<std::vector<double>,M>{knots}, weights, index, order) {
+            Nurbs(std::vector<double>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, int index, int order): 
+            Nurbs(std::array<std::vector<double>,M>{std::move(knots)}, weights, std::array<int,M>{index}, order) {
                 fdapde_static_assert(M == 1, THIS_METHOD_IS_ONLY_FOR_1D_NURBS);
             };
 
@@ -181,9 +197,9 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                     for(std::size_t j = 0; j<extents_[i]; j++ ){
                         // compute a spline basis function
                         spline_evaluation[i][j] = basis_eval[minIdx_[i]+j]; // rivedi 
-
                         // metti in spline un overload del call operator che accetta un double
                     }
+                    
                     //numerator update
                     num *= spline_evaluation[i][index_[i] - minIdx_[i]]; 
                     //spline evaluation for i-th dimension
@@ -509,6 +525,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 constexpr const std::array<int,M>& index() const { return index_; }
                 constexpr const std::array<std::shared_ptr<SplineBasis>, M>& spline_basis() const { return spline_basis_; }
 
+                constexpr Scalar operator()(double p) const { return operator()(std::vector<double>{p}); }
     
     };
 

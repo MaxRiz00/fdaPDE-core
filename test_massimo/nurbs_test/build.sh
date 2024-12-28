@@ -27,4 +27,4 @@ cmake --build .
 
 # Step 5: Run the resulting executable
 echo "Running the executable..."
-./NurbsTest #--gtest_filter="nurbs_test.nurbs_basis_second_derivative_2D"
+./NurbsTest --gtest_filter="nurbs_test.nurbs_basis_1D"

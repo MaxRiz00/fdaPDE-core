@@ -102,6 +102,8 @@ namespace fdapde {
             // getters
             constexpr const Nurbs<M>& operator[](int i) const { return basis_[i]; }
             constexpr int size() const { return basis_.size(); }
+            constexpr int order() const { return order_; }
+            constexpr const std::vector<Nurbs<M>>& spline_basis() const { return basis_; }
     };
 }   // namespace fdapde
 
