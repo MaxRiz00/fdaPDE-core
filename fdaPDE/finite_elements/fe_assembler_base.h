@@ -168,7 +168,7 @@ struct fe_assembler_base {
         test_space_(&internals::test_space(form_)),
         begin_(begin),
         end_(end) {
-        fdapde_assert(dof_handler_->n_dofs() > 0);	
+        fdapde_assert(dof_handler_->n_dofs() > 0);
     }
     const TestSpace& test_space() const { return *test_space_; }
    protected:

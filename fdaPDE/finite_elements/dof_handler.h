@@ -298,6 +298,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
 
 }   // namespace internals
 
+// 2D and surface triangulations 
 template <int EmbedDim>
 class DofHandler<2, EmbedDim, fdapde::finite_element> :
     public internals::fe_dof_handler_base<2, EmbedDim, DofHandler<2, EmbedDim, fdapde::finite_element>> {
@@ -487,54 +488,41 @@ class DofHandler<2, EmbedDim, fdapde::finite_element> :
     std::unordered_map<int, std::vector<int>> edge_to_dofs_;   // for each edge, the dofs which are not on its nodes
 };
 
+// 3D tetrahedralizations
 template <>
 class DofHandler<3, 3, fdapde::finite_element> :
     public internals::fe_dof_handler_base<3, 3, DofHandler<3, 3, fdapde::finite_element>> {
-   private:
+   public:
     using Base = internals::fe_dof_handler_base<3, 3, DofHandler<3, 3, fdapde::finite_element>>;
+    using TriangulationType = typename Base::TriangulationType;
     using CellType = typename Base::CellType;
+    using Base::dofs_;
     using Base::n_dofs_;
-    using Base::triangulation_;
-    int n_dofs_per_face_ = 0, n_dofs_per_edge_ = 0, n_dofs_per_cell_ = 0, n_dofs_internal_per_cell_ = 0;
-    std::unordered_map<int, std::vector<int>> face_to_dofs_;   // for each face, its internal dofs (not nodes nor edges)
-    std::unordered_map<int, std::vector<int>> edge_to_dofs_;   // for each edge, the dofs which are not on its nodes
-
+    using Base::triangulation_;  
+   private:
     // basic iterator type
     template <typename Iterator, typename ValueType>
-    class iterator : public internals::index_iterator<Iterator, ValueType> {
+    class iterator : public internals::filtering_iterator<Iterator, ValueType> {
        protected:
-        using Base = internals::index_iterator<Iterator, ValueType>;
+        using Base = internals::filtering_iterator<Iterator, ValueType>;
         using Base::index_;
+        friend Base;
         const DofHandler* dof_handler_;
-        BinaryVector<fdapde::Dynamic> filter_;
-        void next_() {
-            for (; index_ < Base::end_ && !filter_[index_]; ++index_);
-            if (index_ == Base::end_) return;
-            Base::val_ = ValueType(index_, dof_handler_);
-            index_++;
+        Iterator& operator()(int i) {
+            Base::val_ = ValueType(i, dof_handler_);
+            return *this;
         }
        public:
         iterator(
           int index, int begin, int end, const DofHandler* dof_handler, const BinaryVector<fdapde::Dynamic>& filter) :
-            Base(index, begin, end), dof_handler_(dof_handler), filter_(filter) {
-            next_();
+            Base(index, begin, end, filter), dof_handler_(dof_handler) {
+            for (; index_ < Base::end_ && !filter[index_]; ++index_);
+            if (index_ != Base::end_) { operator()(index_); }
         }
-        iterator(int index, int begin, int end, const DofHandler* dof_handler) :
+        iterator(int index, int begin, int end, const DofHandler* dof_handler) :   // apply no filter
             iterator(index, begin, end, dof_handler, BinaryVector<fdapde::Dynamic>::Ones(end - begin)) { }
-        Iterator& operator++() {
-            next_();
-            return static_cast<Iterator&>(*this);
-        }
-        Iterator& operator--() {
-            for (; index_ >= Base::begin_ && !filter_[index_]; --index_);
-            if (index_ == -1) return static_cast<Iterator&>(*this);
-            Base::val_ = ValueType(index_, dof_handler_);
-            index_--;
-            return static_cast<Iterator&>(*this);
-        }
     };
    public:
-    using TriangulationType = typename Base::TriangulationType;
     DofHandler() = default;
     DofHandler(const TriangulationType& triangulation) : Base(triangulation) { }
 
@@ -542,54 +530,145 @@ class DofHandler<3, 3, fdapde::finite_element> :
         using dof_descriptor = typename FEType::cell_dof_descriptor<TriangulationType::local_dim>;
         Base::enumerate(fe);   // enumerate dofs at nodes
         n_dofs_internal_per_cell_ = dof_descriptor::n_dofs_internal;
-        n_dofs_per_face_ = dof_descriptor::n_dofs_per_face;
+        n_dofs_per_node_ = dof_descriptor::n_dofs_per_node;
         n_dofs_per_edge_ = dof_descriptor::n_dofs_per_edge;
-        n_dofs_per_cell_ = TriangulationType::n_nodes_per_cell +
-                           n_dofs_per_face_ * TriangulationType::n_faces_per_cell +
-                           n_dofs_per_edge_ * TriangulationType::n_edges_per_cell + n_dofs_internal_per_cell_;
+        n_dofs_per_face_ = dof_descriptor::n_dofs_per_face;
+        n_dofs_per_cell_ = n_dofs_per_node_ * TriangulationType::n_nodes_per_cell +
+                           n_dofs_per_edge_ * TriangulationType::n_edges_per_cell +
+                           n_dofs_per_face_ * TriangulationType::n_faces_per_cell + n_dofs_internal_per_cell_;
+        dof_multiplicity_ = dof_descriptor::dof_multiplicity;
+        // move geometrical markers on boundary faces to dof markers on nodes. high labeled nodes have higher priority
+        if constexpr (dof_descriptor::n_dofs_per_node > 0) {
+            for (typename TriangulationType::face_iterator it = triangulation_->boundary_faces_begin();
+                 it != triangulation_->boundary_faces_end(); ++it) {
+                int marker = it->marker();
+                for (int node_id : it->node_ids()) {
+                    // give priority to highly marked edges
+                    if (marker > Base::dofs_markers_[node_id]) { Base::dofs_markers_[node_id] = marker; }
+                }
+            }
+        }
         // insert additional dofs if requested by the finite element
-        std::unordered_set<int> boundary_dofs;
+	static constexpr int n_dofs_at_nodes = dof_descriptor::n_dofs_per_node * TriangulationType::n_nodes_per_cell;
+        std::unordered_set<std::pair<int, int>, fdapde::pair_hash> boundary_dofs;
         if constexpr (
           dof_descriptor::n_dofs_per_edge > 0 || dof_descriptor::n_dofs_per_face > 0 ||
           dof_descriptor::n_dofs_internal > 0) {
             constexpr int n_edges_per_cell = TriangulationType::n_edges_per_cell;
             constexpr int n_faces_per_cell = TriangulationType::n_faces_per_cell;
+            auto edge_pattern =
+              cexpr::combinations<TriangulationType::n_nodes_per_edge, TriangulationType::n_nodes_per_cell>();
+	    
             for (typename TriangulationType::cell_iterator it = triangulation_->cells_begin();
                  it != triangulation_->cells_end(); ++it) {
+                int cell_id = it->id();
                 if constexpr (dof_descriptor::n_dofs_per_edge > 0) {
                     Base::template local_enumerate<dof_descriptor::dof_sharing>(
-                      it->edges_begin(), it->edges_end(), edge_to_dofs_, boundary_dofs, it->id(),
-                      Base::n_nodes_per_cell, n_dofs_per_edge_);
+                      it->edges_begin(), it->edges_end(), edge_to_dofs_, boundary_dofs, cell_id,
+                      n_dofs_at_nodes, n_dofs_per_edge_);
+
+                    if constexpr (dof_descriptor::n_dofs_per_edge > 1) {
+                        // reorder dofs to preserve numbering monotonicity on edge
+                        int offset = 0;
+                        for (int i = 0; i < edge_pattern.rows(); ++i) {   // cycle on edges
+                            if (dofs_(cell_id, edge_pattern(i, 0)) > dofs_(cell_id, edge_pattern(i, 1))) {
+                                // reverse in-place
+                                offset = n_dofs_at_nodes + i * dof_descriptor::n_dofs_per_edge;
+                                int k = 0, h = dof_descriptor::n_dofs_per_edge - 1;
+                                int tmp;
+                                while (k < h) {
+                                    tmp = dofs_(cell_id, offset + h);
+                                    dofs_(cell_id, offset + h) = dofs_(cell_id, offset + k);
+                                    dofs_(cell_id, offset + k) = tmp;
+                                    h--;
+                                    k++;
+                                }
+                            }
+                        }
+                    }
                 }
                 if constexpr (dof_descriptor::n_dofs_per_face > 0) {
                     Base::template local_enumerate<dof_descriptor::dof_sharing>(
-                      it->faces_begin(), it->faces_end(), face_to_dofs_, boundary_dofs, it->id(),
-                      Base::n_nodes_per_cell + dof_descriptor::n_dofs_per_edge * n_edges_per_cell, n_dofs_per_face_);
+                      it->faces_begin(), it->faces_end(), face_to_dofs_, boundary_dofs, cell_id,
+                      n_dofs_at_nodes + dof_descriptor::n_dofs_per_edge * n_edges_per_cell, n_dofs_per_face_);
                 }
                 if constexpr (dof_descriptor::n_dofs_internal > 0) {
-                    int table_offset = Base::n_nodes_per_cell + n_edges_per_cell * dof_descriptor::n_dofs_per_edge +
-                                       n_faces_per_cell * dof_descriptor::n_dofs_per_face;
+                    // internal dofs are never shared
+                    int table_offset =
+                      n_dofs_at_nodes + n_edges_per_cell * n_dofs_per_edge_ + n_faces_per_cell * n_dofs_per_face_;
                     for (int j = 0; j < dof_descriptor::n_dofs_internal; ++j) {
-                        dofs_(it->id(), table_offset + j) = n_dofs_++;
+                        dofs_(cell_id, table_offset + j) = n_dofs_++;
+			Base::dofs_to_cell_.push_back(cell_id);
                     }
+		    // if the internal dofs are the unique inserted dofs, we must move the boundary marker to such dofs
+		    // this logic should be triggered only from order 0 elements
+                    if constexpr (dof_descriptor::n_dofs_internal == dof_descriptor::n_dofs_per_cell) {
+                        if (it->on_boundary()) {
+                            // search for boundary marker
+                            int marker = Unmarked;
+                            for (auto jt = it->faces_begin(); jt != it->faces_end(); ++jt) {
+                                if (jt->on_boundary() && jt->marker() > marker) { marker = jt->marker(); }
+                            }
+                            for (int j = 0; j < dof_descriptor::n_dofs_internal; ++j) {
+                                // all internal nodes share the same marker
+                                boundary_dofs.insert({dofs_(cell_id, table_offset + j), marker});
+                            }
+                        }
+                    }	    
                 }
             }
         }
+        Base::n_unique_dofs_ = n_dofs_;
         // update boundary
-        Base::boundary_dofs_.resize(n_dofs_);
-        Base::boundary_dofs_.topRows(triangulation_->n_nodes()) = triangulation_->boundary_nodes();
-        for (auto it = boundary_dofs.begin(); it != boundary_dofs.end(); ++it) { Base::boundary_dofs_.set(*it); }
+        Base::boundary_dofs_.resize(n_dofs_ * dof_descriptor::dof_multiplicity);
+        if constexpr (dof_descriptor::n_dofs_per_node > 0) {   // inherit boundary description from geometry
+            Base::boundary_dofs_.topRows(triangulation_->n_nodes()) = triangulation_->boundary_nodes();
+        }
+        if constexpr (dof_descriptor::n_dofs_per_edge > 0 || dof_descriptor::n_dofs_internal > 0) {
+            Base::dofs_markers_.resize(n_dofs_, Unmarked);
+            for (auto it = boundary_dofs.begin(); it != boundary_dofs.end(); ++it) {
+                Base::boundary_dofs_.set(it->first);
+                Base::dofs_markers_[it->first] = it->second;
+            }
+        }
+        // if dof_multiplicity is higher than one, replicate the computed dof numbering adding n_dofs_ to each dof
+        if constexpr (dof_descriptor::dof_multiplicity > 1) {
+            Base::dofs_to_cell_.resize(n_dofs_ * dof_descriptor::dof_multiplicity);
+            Base::dofs_markers_.resize(n_dofs_ * dof_descriptor::dof_multiplicity);
+            for (int i = 1; i < dof_descriptor::dof_multiplicity; ++i) {
+                dofs_.middleCols(i * dof_descriptor::n_dofs_per_cell, dof_descriptor::n_dofs_per_cell) =
+                  dofs_.leftCols(dof_descriptor::n_dofs_per_cell).array() + (i * n_dofs_);
+                Base::boundary_dofs_.middleRows(i * n_dofs_, n_dofs_) = Base::boundary_dofs_.topRows(n_dofs_);
+                for (int j = 0; j < n_dofs_; ++j) {
+                    Base::dofs_to_cell_[j + i * n_dofs_] = Base::dofs_to_cell_[j];
+                    Base::dofs_markers_[j + i * n_dofs_] = Base::dofs_markers_[j];
+                }
+                if constexpr (dof_descriptor::n_dofs_per_edge > 0) {
+                    for (auto& [edge_id, dof_ids] : edge_to_dofs_) {
+                        for (int dof : dof_ids) { dof_ids.push_back(dof + i * n_dofs_); }
+                    }
+                }
+                if constexpr (dof_descriptor::n_dofs_per_face > 0) {
+                    for (auto& [face_id, dof_ids] : face_to_dofs_) {
+                        for (int dof : dof_ids) { dof_ids.push_back(dof + i * n_dofs_); }
+                    }
+                }
+            }
+            n_dofs_ = n_dofs_ * dof_descriptor::dof_multiplicity;
+        }
         return;
     }
     // getters
     int n_dofs_per_cell() const { return n_dofs_per_cell_; }
     int n_dofs_per_edge() const { return n_dofs_per_edge_; }
     int n_dofs_per_face() const { return n_dofs_per_face_; }
+    int n_dofs_per_node() const { return n_dofs_per_node_; }
     int n_dofs_internal_per_cell() const { return n_dofs_internal_per_cell_; }
+    int dof_multiplicity() const { return dof_multiplicity_; }
     const std::unordered_map<int, std::vector<int>>& edge_to_dofs() const { return edge_to_dofs_; }
     const std::unordered_map<int, std::vector<int>>& face_to_dofs() const { return face_to_dofs_; }
 
-    // iterators over edges
+    // iterator over (dof informed) edges
     struct edge_iterator : public iterator<edge_iterator, typename CellType::EdgeType> {
         edge_iterator(int index, const DofHandler* dof_handler, const BinaryVector<fdapde::Dynamic>& filter) :
             iterator<edge_iterator, typename CellType::EdgeType>(
@@ -610,16 +689,35 @@ class DofHandler<3, 3, fdapde::finite_element> :
               index, 0, dof_handler->triangulation()->n_faces(), dof_handler) { }
     };
     // iterator over boundary faces
-    struct boundary_iterator : public face_iterator {
-        boundary_iterator(int index, const DofHandler* dof_handler) :
-            face_iterator(index, dof_handler, dof_handler->triangulation()->boundary_faces()) { }
+    struct boundary_face_iterator : public face_iterator {
+       private:
+        int marker_;
+       public:
+        boundary_face_iterator(int index, const DofHandler* dof_handler) :
+            face_iterator(index, dof_handler, dof_handler->triangulation()->boundary_faces()), marker_(BoundaryAll) { }
+        boundary_face_iterator(
+          int index, const DofHandler* dof_handler, int marker) :   // filter boudnary faces by marker
+            edge_iterator(index, dof_handler, marker == BoundaryAll = dof_handler->triangulation()->boundary_faces()
+                          : dof_handler->triangulation()->boundary_faces() &
+                              fdapde::make_binary_vector(
+                                dof_handler->triangulation()->faces_markers().begin(),
+                                dof_handler->triangulation()->faces_markers().end(), marker)) { }
+        int marker() const { return marker_; }
     };
-    boundary_iterator boundary_faces_begin() const { return boundary_iterator(0, this); }
-    boundary_iterator boundary_faces_end() const {
-        return boundary_iterator(triangulation_->n_faces(), this);
+    boundary_face_iterator boundary_faces_begin() const { return boundary_face_iterator(0, this); }
+    boundary_face_iterator boundary_faces_end() const {
+        return boundary_face_iterator(triangulation_->n_faces(), this);
     }
+    using boundary_iterator = boundary_face_iterator;
+   private:
+    int n_dofs_per_node_ = 0, n_dofs_per_face_ = 0, n_dofs_per_edge_ = 0, n_dofs_per_cell_ = 0;
+    int n_dofs_internal_per_cell_ = 0;
+    int dof_multiplicity_ = 0;
+    std::unordered_map<int, std::vector<int>> face_to_dofs_;   // for each face, its internal dofs (not nodes nor edges)
+    std::unordered_map<int, std::vector<int>> edge_to_dofs_;   // for each edge, the dofs which are not on its nodes
 };
 
+// 1D intervals and linear network
 template <int EmbedDim>
 class DofHandler<1, EmbedDim, fdapde::finite_element> :
     public internals::fe_dof_handler_base<1, EmbedDim, DofHandler<1, EmbedDim, fdapde::finite_element>> {
