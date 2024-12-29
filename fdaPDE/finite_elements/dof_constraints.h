@@ -35,20 +35,10 @@ template <typename DofHandler> class DofConstraints {
     // guarantees that the linear system Ax = b is such that all (affine) constraints are respected
     template <typename T> void enforce_constraints(T&& t) const {
         if constexpr (fdapde::is_subscriptable<std::decay_t<T>, int>) {   // linear system dense rhs
-            BinaryVector<Dynamic> b_mask(t.rows());
-            for (const fdapde::Duplet<double>& duplet : constraint_values_) {
-                if (!b_mask[duplet.row()]) {
-                    t[duplet.row()] = duplet.value() * eps;
-                    b_mask.set(duplet.row());
-                }
-            }
+            for (const fdapde::Duplet<double>& duplet : constraint_values_) { t[duplet.row()] = duplet.value() * eps; }
         } else {   // linear system sparse matrix
-            BinaryMatrix<Dynamic> A_mask(t.rows(), t.cols());
             for (const fdapde::Triplet<double>& triplet : constraint_pattern_) {
-                if (!A_mask(triplet.row(), triplet.col())) {   // guaratees only the first constraint is set
-                    t.coeffRef(triplet.row(), triplet.col()) = triplet.value() * eps;
-                    A_mask.set(triplet.row(), triplet.col());
-                }
+                t.coeffRef(triplet.row(), triplet.col()) = triplet.value() * eps;
             }
         }
         return;
@@ -75,26 +65,12 @@ template <typename DofHandler> class DofConstraints {
                   [&]() {
                       int dof_id_ = dof_id + component_id * dof_handler_->n_unique_dofs();
                       constraint_pattern_.emplace_back(dof_id_, dof_id_, 1.0);
-                      constraint_values_.emplace_back (dof_id_, g(it->coord()));
+                      constraint_values_ .emplace_back(dof_id_, g(it->coord()));
                       component_id++;
                   }(),
                   ...);
             }
         }
-        return;
-    }
-    template <typename Iterator> void set_pattern_from_triplets(Iterator begin, Iterator end) {
-        fdapde_static_assert(
-          std::is_same_v<std::decay_t<typename Iterator::value_type> FDAPDE_COMMA fdapde::Triplet<double>>,
-          INVALID_ITERATOR_VALUE_TYPE_FOR_CONSTRAINT_PATTERN);
-        constraint_pattern_.push_back(constraint_pattern_.end(), begin, end);
-        return;
-    }
-    template <typename Iterator> void set_values_from_duplets(Iterator begin, Iterator end) {
-        fdapde_static_assert(
-          std::is_same_v<std::decay_t<typename Iterator::value_type> FDAPDE_COMMA fdapde::Duplet<double>>,
-          INVALID_ITERATOR_VALUE_TYPE_FOR_CONSTRAINT_VALUES);
-        constraint_values_.push_back(constraint_values_.end(), begin, end);
         return;
     }
    private:

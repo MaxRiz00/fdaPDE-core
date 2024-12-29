@@ -608,7 +608,7 @@ class DofHandler<3, 3, fdapde::finite_element> :
                                     // search for the same face id on adjacent cell
                                     const auto& adj_cells = jt->adjacent_cells();
                                     int adj_cell = adj_cells[0] != cell_id ? adj_cells[0] : adj_cells[1];
-                                    int ht = 0;   // face id on adjacent cell
+                                    int ht = 0;   // local face id on adjacent cell
                                     for (; ht < TriangulationType::n_faces_per_cell; ++ht) {
                                         if (triangulation_->cell_to_faces()(adj_cell, ht) == jt->id()) break;
                                     }
@@ -622,7 +622,7 @@ class DofHandler<3, 3, fdapde::finite_element> :
                                                        .row(offset + j)
                                                        .transpose();
                                         f1_[j] = it->J() * ref_p + it->node(0);
-                                        f2_[j] = kt.J() * ref_p + kt.node(0);
+                                        f2_[j] = kt .J() * ref_p + kt .node(0);
                                     }
                                     // compute permutation to ensure that dofs on adjacent faces are mapped to the same
                                     // point on the reference cell when transitioning from physical to reference space

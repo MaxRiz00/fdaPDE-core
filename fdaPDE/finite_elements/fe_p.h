@@ -102,7 +102,6 @@ template <int LocalDim, int Order, int NComponents> struct vector_fe_p_basis_typ
 // representation of the finite element space P_h^K = { v \in H^1(D) : v_{e} \in P^K \forall e \in T_h }
 template <int Order, int NComponents> struct FeP {  
     static constexpr int order = Order;
-    fdapde_static_assert(Order < 4, THIS_CLASS_SUPPORTS_LAGRANGE_ELEMENTS_UP_TO_ORDER_THREE);
     static constexpr int n_components = NComponents;
     static constexpr bool is_vector_fe = (n_components != 1);
     fdapde_static_assert(n_components > 0, DEFINITION_OF_FINITE_ELEMENT_WITH_ZERO_OR_LESS_COMPONENTS_IS_ILL_FORMED);
@@ -115,8 +114,17 @@ template <int Order, int NComponents> struct FeP {
         static constexpr int fe_order = Order;
         static constexpr int n_dofs_per_node = 1;
         static constexpr int n_dofs_per_edge = local_dim > 1 ? (Order - 1 < 0 ? 0 : (Order - 1)) : 0;
-        static constexpr int n_dofs_per_face = local_dim > 2 ? (Order - 2 < 0 ? 0 : (Order - 2)) : 0;
-        static constexpr int n_dofs_internal = local_dim < 3 ? (Order - local_dim < 0 ? 0 : (Order - local_dim)) : 0;
+        static constexpr int n_dofs_per_face = local_dim > 2 ? (Order - 2 < 0 ? 0 : (Order - 1) * Order / 2) : 0;
+        static constexpr int n_dofs_internal = []() {
+            if (local_dim == 1) return Order < 1 ? 0 : Order - 1;
+            if (local_dim == 2) return Order < 2 ? 0 : (Order - 1) * (Order - 2) / 2;
+            if (local_dim == 3) {
+                if (Order < 2) return 0;
+                int n_dofs_internal_ = 0;
+                for (int i = 1; i < Order - 2; ++i) { n_dofs_internal_ += (i + 1) * i / 2; }
+                return n_dofs_internal_;
+            }
+        }();
         static constexpr int n_dofs_per_cell = n_dofs_per_node * ReferenceCell::n_nodes +
                                                n_dofs_per_edge * ReferenceCell::n_edges +
                                                n_dofs_per_face * ReferenceCell::n_faces + n_dofs_internal;
@@ -159,15 +167,21 @@ template <int Order, int NComponents> struct FeP {
             if constexpr (local_dim == 2) {
                 if constexpr (n_dofs_per_edge > 0) { edge_enumerate(); }
                 if constexpr (n_dofs_internal > 0) {
-                    // add simplex barycenter
-                    dofs_phys_coords_.row(j++) =
-                      (reference_simplex.col(1) + reference_simplex.col(2)).transpose() * 1.0 / (local_dim + 1);
+                    // add triangle of equidistant nodes having Order - 2 nodes per side
+                    double step = 1.0 / Order;
+                    for (int k = 0; k < Order - 2; ++k) {
+                        for (int h = 0; h < Order - 2 - k; ++h) {
+                            dofs_phys_coords_(j, 0) = step * (k + 1);
+                            dofs_phys_coords_(j, 1) = step * (h + 1);
+                            j++;
+                        }
+                    }
                 }
             }
             if constexpr (local_dim == 3) {
                 if constexpr (n_dofs_per_edge > 0) { edge_enumerate(); }
                 if constexpr (n_dofs_per_face > 0) {
-                    // add barycenter of tetrahedron faces
+                    // add triangle of equidistant nodes having Order - 2 nodes per side
                     std::vector<bool> bitmask(n_nodes, 0);
                     std::fill_n(bitmask.begin(), ReferenceCell::n_nodes_per_face, 1);
                     cexpr::Matrix<double, local_dim, 3> face_coords;
@@ -177,9 +191,25 @@ template <int Order, int NComponents> struct FeP {
                         }
                         cexpr::Matrix<double, local_dim, 2> J;
                         for (int k = 0; k < 2; ++k) J.col(k) = face_coords.col(k + 1) - face_coords.col(0);
-                        dofs_phys_coords_.row(j++) =
-                          (J * cexpr::Vector<double, 2>::Constant(1.0 / (local_dim + 1))) + face_coords.col(0);
+                        double step = 1.0 / Order;
+                        for (int k = 0; k < Order - 2; ++k) {
+                            for (int h = 0; h < Order - 2 - k; ++h) {
+                                dofs_phys_coords_.row(j++) = J.col(0) * step * (k + 1) + J.col(1) * step * (h + 1);;
+                            }
+                        }
                         std::prev_permutation(bitmask.begin(), bitmask.end());
+                    }
+                }
+                if constexpr (n_dofs_internal > 0) {
+                    // add 3D simplex-shaped grid of equidistant points with Order - 3 nodes per side
+                    double step = 1.0 / Order;
+                    for (int l = 0; l < Order - 3; ++l) {   // z-axis
+                        for (int k = 0; k < Order - 3 - l; ++k) {
+                            for (int h = 0; h < Order - 3 - k; ++h) {
+                                dofs_phys_coords_.row(j++) =
+                                  cexpr::Matrix<double, local_dim, 3>(step * (k + 1), step * (h + 1), step * (l + 1));
+                            }
+                        }
                     }
                 }
             }
@@ -304,7 +334,9 @@ template <int NComponents> constexpr FeP<0, NComponents> P0 = FeP<0, NComponents
 template <int NComponents> constexpr FeP<1, NComponents> P1 = FeP<1, NComponents> {};
 template <int NComponents> constexpr FeP<2, NComponents> P2 = FeP<2, NComponents> {};
 template <int NComponents> constexpr FeP<3, NComponents> P3 = FeP<3, NComponents> {};
-    
+template <int NComponents> constexpr FeP<4, NComponents> P4 = FeP<4, NComponents> {};
+template <int NComponents> constexpr FeP<5, NComponents> P5 = FeP<5, NComponents> {};
+  
 }   // namespace fdapde
 
 #endif   // __FE_P_H__
