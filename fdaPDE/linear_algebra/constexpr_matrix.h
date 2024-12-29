@@ -225,6 +225,36 @@ operator*(const MatrixBase<Lhs::Rows, Lhs::Cols, Lhs>& op1, const MatrixBase<Rhs
     return MatrixProduct<Lhs, Rhs> {op1.derived(), op2.derived()};
 }
 
+// kronecker tensor product between matrices
+template <typename Lhs, typename Rhs>
+struct MatrixKroneckerProduct :
+    public MatrixBase<Lhs::Rows * Rhs::Rows, Lhs::Cols * Rhs::Cols, MatrixKroneckerProduct<Lhs, Rhs>> {
+    using Base = MatrixBase<Lhs::Rows * Rhs::Rows, Lhs::Cols * Rhs::Cols, MatrixKroneckerProduct<Lhs, Rhs>>;
+    using Scalar = decltype(std::declval<typename Lhs::Scalar>() * std::declval<typename Rhs::Scalar>());
+    static constexpr int Rows = Lhs::Rows * Rhs::Rows;
+    static constexpr int Cols = Lhs::Cols * Rhs::Cols;
+    static constexpr int NestAsReaf = 0;
+    static constexpr int ReadOnly = 1;
+
+    constexpr MatrixKroneckerProduct(const Lhs& lhs, const Rhs& rhs) : lhs_(lhs), rhs_(rhs) { }
+    constexpr Scalar operator()(int i, int j) const {
+        // compute offsets in operand matrices
+        int col_lhs = i / Rhs::Cols, row_lhs = i / Rhs::Rows;
+        int col_rhs = i % Rhs::Cols, row_rhs = i % Rhs::Rows;
+        return lhs_(row_lhs, col_lhs) * rhs_(row_rhs, col_rhs);
+    }
+    constexpr int rows() const { return lhs_.rows() * rhs_.rows(); }
+    constexpr int cols() const { return lhs_.cols() * rhs_.cols(); }
+   protected:
+    typename internals::ref_select<const Lhs>::type lhs_;
+    typename internals::ref_select<const Rhs>::type rhs_;
+};
+template <typename Lhs, typename Rhs>
+constexpr MatrixKroneckerProduct<Lhs, Rhs>
+kronecker(const MatrixBase<Lhs::Rows, Lhs::Cols, Lhs>& op1, const MatrixBase<Rhs::Rows, Rhs::Cols, Rhs>& op2) {
+    return MatrixKroneckerProduct<Lhs, Rhs> {op1.derived(), op2.derived()};
+}
+  
 template <int BlockRows_, int BlockCols_, typename Derived>
 class MatrixBlock : public MatrixBase<BlockRows_, BlockCols_, MatrixBlock<BlockRows_, BlockCols_, Derived>> {
     fdapde_static_assert(
@@ -583,6 +613,17 @@ operator!=(const MatrixBase<Rows1, Cols1, XprType1>& op1, const MatrixBase<Rows2
     }
     return true;
 }
+template <int Rows1, int Cols1, typename XprType1, int Rows2, int Cols2, typename XprType2>
+constexpr bool
+almost_equal(const MatrixBase<Rows1, Cols1, XprType1>& op1, const MatrixBase<Rows2, Cols2, XprType2>& op2) {
+    fdapde_static_assert(Rows1 == Rows2 && Cols1 == Cols2, YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES);
+    for (int i = 0; i < Rows1; ++i) {
+        for (int j = 0; j < Cols1; ++j) {
+            if (!almost_equal(op1.derived()(i, j), op2.derived()(i, j))) return false;
+        }
+    }
+    return true;
+}
 
 template <int Size_> struct PermutationMatrix : public MatrixBase<Size_, Size_, PermutationMatrix<Size_>> {
     using Base = MatrixBase<Size_, Size_, PermutationMatrix<Size_>>;
@@ -785,7 +826,7 @@ class Map : public MatrixBase<Rows_, Cols_, Map<Scalar_, Rows_, Cols_, StorageOr
     int outer_stride_ = 1;   // increment between two consecutive rows (RowMajor) or columns (ColMajor)
     int inner_stride_ = 1;   // increment between two consecutive entries within a row (RowMajor) or column (ColMajor)
 };
-
+  
 }   // namespace cexpr
 }   // namespace fdapde
 

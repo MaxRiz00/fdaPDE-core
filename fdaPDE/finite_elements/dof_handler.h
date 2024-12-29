@@ -508,7 +508,7 @@ class DofHandler<3, 3, fdapde::finite_element> :
         using Base::index_;
         friend Base;
         const DofHandler* dof_handler_;
-        Iterator& operator()(int i) {
+        iterator<Iterator, ValueType>& operator()(int i) {
             Base::val_ = ValueType(i, dof_handler_);
             return *this;
         }
@@ -588,9 +588,63 @@ class DofHandler<3, 3, fdapde::finite_element> :
                     }
                 }
                 if constexpr (dof_descriptor::n_dofs_per_face > 0) {
-                    Base::template local_enumerate<dof_descriptor::dof_sharing>(
-                      it->faces_begin(), it->faces_end(), face_to_dofs_, boundary_dofs, cell_id,
-                      n_dofs_at_nodes + dof_descriptor::n_dofs_per_edge * n_edges_per_cell, n_dofs_per_face_);
+                    if constexpr (dof_descriptor::n_dofs_per_face > 1) {
+                        // faces are enumerated in pairs (of adjacent faces)
+                        int offset = n_dofs_at_nodes + dof_descriptor::n_dofs_per_edge * n_edges_per_cell;
+                        for (auto jt = it->faces_begin(); jt != it->faces_end(); ++jt) {
+                            if (face_to_dofs_.find(jt->id()) == face_to_dofs_.end()) {
+                                // never processed face, build enumeration
+                                for (int j = 0; j < n_dofs_per_face_; ++j) {
+                                    dofs_(cell_id, offset + j) = n_dofs_;
+                                    face_to_dofs_[jt->id()].push_back(n_dofs_);
+                                    if (jt->on_boundary()) {
+                                        // boundary dofs are marked with the corresponding geometrical boundary marker
+                                        boundary_dofs.insert({n_dofs_, jt->marker()});
+                                    }
+                                    n_dofs_++;
+                                    dofs_to_cell_.push_back(cell_id);
+                                }
+                                if (!jt->on_boundary()) {
+                                    // search for the same face id on adjacent cell
+                                    const auto& adj_cells = jt->adjacent_cells();
+                                    int adj_cell = adj_cells[0] != cell_id ? adj_cells[0] : adj_cells[1];
+                                    int ht = 0;   // face id on adjacent cell
+                                    for (; ht < TriangulationType::n_faces_per_cell; ++ht) {
+                                        if (triangulation_->cell_to_faces()(adj_cell, ht) == jt->id()) break;
+                                    }
+                                    const auto& kt = triangulation_->cell(adj_cell);
+                                    // compute physical dofs
+                                    std::array<cexpr::Vector<double, embed_dim>, dof_descriptor::n_dofs_per_face> f1_;
+                                    std::array<cexpr::Vector<double, embed_dim>, dof_descriptor::n_dofs_per_face> f2_;
+                                    for (int j = 0; j < dof_descriptor::n_dofs_per_face; ++j) {
+                                        // map dof coordinate from reference to physical cell
+                                        auto ref_p = reference_dofs_barycentric_coords_.rightCols(local_dim)
+                                                       .row(offset + j)
+                                                       .transpose();
+                                        f1_[j] = it->J() * ref_p + it->node(0);
+                                        f2_[j] = kt.J() * ref_p + kt.node(0);
+                                    }
+                                    // compute permutation to ensure that dofs on adjacent faces are mapped to the same
+                                    // point on the reference cell when transitioning from physical to reference space
+                                    for (int i = 0; i < dof_descriptor::n_dofs_per_face; ++i) {
+                                        for (int j = 0; j < dof_descriptor::n_dofs_per_face; ++j) {
+                                            if (cexpr::almost_equal(f1_[i], f2_[j])) {
+                                                // kt->J() sends j-th dof of face ht to i-th dof of face jt
+                                                // set j-th dof of face ht to i-th dof of face jt
+                                                dofs_(adj_cell, offset + ht * dof_descriptor::n_dofs_per_face + j) =
+                                                  dofs_(cell_id, offset + i);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {   // insert single dof (no reordering required)
+                        Base::template local_enumerate<dof_descriptor::dof_sharing>(
+                          it->faces_begin(), it->faces_end(), face_to_dofs_, boundary_dofs, cell_id,
+                          n_dofs_at_nodes + dof_descriptor::n_dofs_per_edge * n_edges_per_cell, n_dofs_per_face_);
+                    }
                 }
                 if constexpr (dof_descriptor::n_dofs_internal > 0) {
                     // internal dofs are never shared
@@ -697,11 +751,13 @@ class DofHandler<3, 3, fdapde::finite_element> :
             face_iterator(index, dof_handler, dof_handler->triangulation()->boundary_faces()), marker_(BoundaryAll) { }
         boundary_face_iterator(
           int index, const DofHandler* dof_handler, int marker) :   // filter boudnary faces by marker
-            edge_iterator(index, dof_handler, marker == BoundaryAll = dof_handler->triangulation()->boundary_faces()
-                          : dof_handler->triangulation()->boundary_faces() &
-                              fdapde::make_binary_vector(
-                                dof_handler->triangulation()->faces_markers().begin(),
-                                dof_handler->triangulation()->faces_markers().end(), marker)) { }
+            face_iterator(
+              index, dof_handler,
+              marker == BoundaryAll ? dof_handler->triangulation()->boundary_faces() :
+                                      dof_handler->triangulation()->boundary_faces() &
+                                        fdapde::make_binary_vector(
+                                          dof_handler->triangulation()->faces_markers().begin(),
+                                          dof_handler->triangulation()->faces_markers().end(), marker)) { }
         int marker() const { return marker_; }
     };
     boundary_face_iterator boundary_faces_begin() const { return boundary_face_iterator(0, this); }
