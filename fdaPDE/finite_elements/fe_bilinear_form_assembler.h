@@ -115,7 +115,8 @@ class fe_bilinear_form_assembly_loop :
         MdArray<double, MdExtents<n_trial_basis, n_quadrature_nodes, local_dim, n_trial_components>> trial_grads;
         cexpr::Matrix<double, n_test_basis , n_quadrature_nodes> test_divs;
         cexpr::Matrix<double, n_trial_basis, n_quadrature_nodes> trial_divs;
-        MdArray<double, MdExtents<n_test_basis, n_quadrature_nodes, n_test_components, local_dim, local_dim>> test_hess;
+        MdArray<double, MdExtents<n_test_basis,  n_quadrature_nodes, n_test_components,  local_dim, local_dim>>
+	  test_hess;
         MdArray<double, MdExtents<n_trial_basis, n_quadrature_nodes, n_trial_components, local_dim, local_dim>>
           trial_hess;
 

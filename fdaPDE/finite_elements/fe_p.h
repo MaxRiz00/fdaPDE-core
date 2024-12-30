@@ -114,14 +114,14 @@ template <int Order, int NComponents> struct FeP {
         static constexpr int fe_order = Order;
         static constexpr int n_dofs_per_node = 1;
         static constexpr int n_dofs_per_edge = local_dim > 1 ? (Order - 1 < 0 ? 0 : (Order - 1)) : 0;
-        static constexpr int n_dofs_per_face = local_dim > 2 ? (Order - 2 < 0 ? 0 : (Order - 1) * Order / 2) : 0;
+        static constexpr int n_dofs_per_face = local_dim > 2 ? (Order - 2 < 0 ? 0 : (Order - 1) * (Order - 2) / 2) : 0;
         static constexpr int n_dofs_internal = []() {
             if (local_dim == 1) return Order < 1 ? 0 : Order - 1;
             if (local_dim == 2) return Order < 2 ? 0 : (Order - 1) * (Order - 2) / 2;
             if (local_dim == 3) {
-                if (Order < 2) return 0;
+                if (Order < 3) return 0;
                 int n_dofs_internal_ = 0;
-                for (int i = 1; i < Order - 2; ++i) { n_dofs_internal_ += (i + 1) * i / 2; }
+                for (int i = 1; i < Order - 3; ++i) { n_dofs_internal_ += (i + 1) * i / 2; }
                 return n_dofs_internal_;
             }
         }();
@@ -139,7 +139,7 @@ template <int Order, int NComponents> struct FeP {
             cexpr::Matrix<double, local_dim, n_nodes> reference_simplex;
             reference_simplex.setZero();
             for (int i = 0; i < local_dim; ++i) { reference_simplex(i, i + 1) = 1; }
-            dofs_phys_coords_.template topRows<n_nodes>(0) = reference_simplex.transpose();
+            dofs_phys_coords_.template topRows<n_nodes>() = reference_simplex.transpose();
             int j = n_nodes;
             // constexpr enumeration of reference simplex edges
             auto edge_enumerate = [&, this]() {
@@ -214,7 +214,7 @@ template <int Order, int NComponents> struct FeP {
                 }
             }
             // compute barycentric coordinates
-            dofs_bary_coords_.template rightCols<local_dim>(1) = dofs_phys_coords_;
+            dofs_bary_coords_.template rightCols<local_dim>() = dofs_phys_coords_;
             if constexpr (local_dim == 1) {
                 for (int i = 0; i < dofs_bary_coords_.rows(); ++i) {
                     dofs_bary_coords_(i, 0) = 1 - dofs_bary_coords_(i, 1);
@@ -253,9 +253,9 @@ template <int Order, int NComponents> struct FeP {
     // select quadrature which optimally integrates (Order + 1) polynomials
     template <int LocalDim> class select_cell_quadrature {
         static constexpr int select_quadrature_() {
-            if (LocalDim == 1) return Order == 1 ? 2 : (Order == 2 ? 3 : 3);
-            if (LocalDim == 2) return Order == 1 ? 3 : (Order == 2 ? 6 : 12);
-            if (LocalDim == 3) return Order == 1 ? 4 : (Order == 2 ? 5 : 5);
+            if (LocalDim == 1) return Order == 1 ? 2 : (Order == 2 ? 3  : 4 );
+            if (LocalDim == 2) return Order == 1 ? 3 : (Order == 2 ? 6  : 12);
+            if (LocalDim == 3) return Order == 1 ? 4 : (Order == 2 ? 11 : 24);
         }
        public:
         using type = internals::fe_quadrature_simplex<LocalDim, select_quadrature_()>;
@@ -329,13 +329,13 @@ template <int NComponents> struct FeP<0, NComponents> {
     template <int LocalDim> using face_quadrature_t = typename select_cell_quadrature<LocalDim - 1>::type;
 };
 
-// lagrange finite element alias
-template <int NComponents> constexpr FeP<0, NComponents> P0 = FeP<0, NComponents> {};
-template <int NComponents> constexpr FeP<1, NComponents> P1 = FeP<1, NComponents> {};
-template <int NComponents> constexpr FeP<2, NComponents> P2 = FeP<2, NComponents> {};
-template <int NComponents> constexpr FeP<3, NComponents> P3 = FeP<3, NComponents> {};
-template <int NComponents> constexpr FeP<4, NComponents> P4 = FeP<4, NComponents> {};
-template <int NComponents> constexpr FeP<5, NComponents> P5 = FeP<5, NComponents> {};
+// lagrange finite element aliases (N: number of components, N > 1 \implies vector finite elements)
+template <int N> constexpr FeP<0, N> P0 = FeP<0, N> {};
+template <int N> constexpr FeP<1, N> P1 = FeP<1, N> {};
+template <int N> constexpr FeP<2, N> P2 = FeP<2, N> {};
+template <int N> constexpr FeP<3, N> P3 = FeP<3, N> {};
+template <int N> constexpr FeP<4, N> P4 = FeP<4, N> {};
+template <int N> constexpr FeP<5, N> P5 = FeP<5, N> {};
   
 }   // namespace fdapde
 

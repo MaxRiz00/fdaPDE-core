@@ -177,6 +177,8 @@ struct fe_assembler_base {
     static consteval MdArray<
       double, MdExtents<fe_traits__::n_basis, Quadrature__::order, fe_traits__::n_components>>
     eval_shape_values() {
+        fdapde_static_assert(
+          Quadrature__::local_dim == embed_dim, QUADRATURE_DIMENSION_DOES_NOT_MATCH_PROBLEM_DIMENSION);
         using BasisType = typename fe_traits__::BasisType;
 	using dof_descriptor = typename fe_traits__::dof_descriptor;
         constexpr int n_basis = BasisType::n_basis;
@@ -203,6 +205,8 @@ struct fe_assembler_base {
     static consteval MdArray<
       double, MdExtents<fe_traits__::n_basis, Quadrature__::order, fe_traits__::n_components, local_dim>>
     eval_shape_grads() {
+        fdapde_static_assert(
+          Quadrature__::local_dim == embed_dim, QUADRATURE_DIMENSION_DOES_NOT_MATCH_PROBLEM_DIMENSION);
         using BasisType = typename fe_traits__::BasisType;
 	using dof_descriptor = typename fe_traits__::dof_descriptor;
         constexpr int n_basis = BasisType::n_basis;
@@ -227,6 +231,8 @@ struct fe_assembler_base {
     static consteval MdArray<
       double, MdExtents<fe_traits__::n_basis, Quadrature__::order, fe_traits__::n_components, local_dim, local_dim>>
     eval_shape_hess() {
+        fdapde_static_assert(
+          Quadrature__::local_dim == embed_dim, QUADRATURE_DIMENSION_DOES_NOT_MATCH_PROBLEM_DIMENSION);
         using BasisType = typename fe_traits__::BasisType;
 	using dof_descriptor = typename fe_traits__::dof_descriptor;
         constexpr int n_basis = BasisType::n_basis;

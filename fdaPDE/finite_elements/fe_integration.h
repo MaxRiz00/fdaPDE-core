@@ -37,55 +37,94 @@ struct higher_degree_fe_quadrature :
 template <typename LhsQuadrature, typename RhsQuadrature>
 using higher_degree_fe_quadrature_t = higher_degree_fe_quadrature<LhsQuadrature, RhsQuadrature>::type;
 
-// quadrature points and weights at: https://people.sc.fsu.edu/~jburkardt/datasets/datasets.html
 template <int LocalDim, int Size> struct fe_quadrature_simplex;
 
 // degree: highest polynomial degree correctly integrated by the formula
 // order : number of quadrature nodes
 
-// 1D 2 point formula
-template <> struct fe_quadrature_simplex<1, 2> : public fe_quadrature_simplex_base {
+// https://pomax.github.io/bezierinfo/legendre-gauss.html (obtained mapping the [-1, 1] gauss quadratures on [0, 1])
+// 1D 1 point formula, degree 1
+template <> struct fe_quadrature_simplex<1, 1> : public fe_quadrature_simplex_base {
     static constexpr int local_dim = 1;
-    static constexpr int order  = 2;
+    static constexpr int order  = 1;
     static constexpr int degree = 1;
 
     static constexpr cexpr::Vector<double, order> nodes {
-      std::array<double, order> {0.211324865405187, 0.788675134594812}
+      std::array<double, order> {
+	0.500000000000000}
     };
     static constexpr cexpr::Vector<double, order> weights {
-      std::array<double, order> {0.500000000000000, 0.500000000000000}
+      std::array<double, order> {
+	1.000000000000000}
     };
 };
 
-// 1D 3 point formula
+// 1D 2 point formula, degree 3
+template <> struct fe_quadrature_simplex<1, 2> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 1;
+    static constexpr int order  = 2;
+    static constexpr int degree = 3;
+
+    static constexpr cexpr::Vector<double, order> nodes {
+      std::array<double, order> {
+	0.211324865405187, 0.788675134594812}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+	0.500000000000000, 0.500000000000000}
+    };
+};
+
+// 1D 3 point formula, degree 5
 template <> struct fe_quadrature_simplex<1, 3> : public fe_quadrature_simplex_base {
     static constexpr int local_dim = 1;
     static constexpr int order  = 3;
-    static constexpr int degree = 2;
+    static constexpr int degree = 5;
 
     static constexpr cexpr::Vector<double, order> nodes {
-      std::array<double, order> {0.112701665379258, 0.500000000000000, 0.887298334620741}
+      std::array<double, order> {
+	0.112701665379258, 0.500000000000000, 0.887298334620741}
     };
     static constexpr cexpr::Vector<double, order> weights {
-      std::array<double, order> {0.277777777777778, 0.444444444444444, 0.277777777777778}
+      std::array<double, order> {
+	0.277777777777778, 0.444444444444444, 0.277777777777778}
     };
 };
 
-// 2D 1 point formula
+// 1D 4 point formula, degree 7
+template <> struct fe_quadrature_simplex<1, 4> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 1;
+    static constexpr int order  = 4;
+    static constexpr int degree = 7;
+
+    static constexpr cexpr::Vector<double, order> nodes {
+      std::array<double, order> {
+	0.069431844202973, 0.330009478207571, 0.669990521792428, 0.930568155797026}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+	0.173927422568726, 0.326072577431273, 0.326072577431273, 0.173927422568726}
+    };
+};
+  
+// https://people.sc.fsu.edu/~jburkardt/datasets/quadrature_rules_tri/quadrature_rules_tri.html
+// 2D 1 point formula, degree 1
 template <> struct fe_quadrature_simplex<2, 1> : public fe_quadrature_simplex_base {
     static constexpr int local_dim = 2;
     static constexpr int order  = 1;
     static constexpr int degree = 1;
 
     static constexpr cexpr::Matrix<double, order, local_dim> nodes {
-      std::array<double, order * local_dim> {0.333333333333333, 0.333333333333333}
+      std::array<double, order * local_dim> {
+	0.333333333333333, 0.333333333333333}
     };
     static constexpr cexpr::Vector<double, order> weights {
-      std::array<double, order> {1.000000000000000}
+      std::array<double, order> {
+	1.000000000000000}
     };
 };
 
-// 2D 3 point formula
+// 2D 3 point formula, degree 2
 template <> struct fe_quadrature_simplex<2, 3> : public fe_quadrature_simplex_base {
     static constexpr int local_dim = 2;
     static constexpr int order  = 3;
@@ -102,7 +141,24 @@ template <> struct fe_quadrature_simplex<2, 3> : public fe_quadrature_simplex_ba
     };
 };
 
-// 2D 6 point formula
+// 2D 4 point formula, degree 3
+template <> struct fe_quadrature_simplex<2, 4> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 2;
+    static constexpr int order  = 4;
+    static constexpr int degree = 3;
+
+    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+      std::array<double, order * local_dim> {
+	0.333333333333333, 0.333333333333333, 0.600000000000000, 0.200000000000000, 0.200000000000000,
+	0.600000000000000, 0.200000000000000, 0.200000000000000}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+       -0.562500000000000, 0.520833333333333, 0.520833333333333, 0.520833333333333}
+    };
+};
+
+// 2D 6 point formula, degree 4
 template <> struct fe_quadrature_simplex<2, 6> : public fe_quadrature_simplex_base {
     static constexpr int local_dim = 2;
     static constexpr int order  = 6;
@@ -121,7 +177,7 @@ template <> struct fe_quadrature_simplex<2, 6> : public fe_quadrature_simplex_ba
     };
 };
 
-// 2D 7 point formula
+// 2D 7 point formula, degree 5
 template <> struct fe_quadrature_simplex<2, 7> : public fe_quadrature_simplex_base {
     static constexpr int local_dim = 2;
     static constexpr int order  = 7;
@@ -140,7 +196,7 @@ template <> struct fe_quadrature_simplex<2, 7> : public fe_quadrature_simplex_ba
     };
 };
 
-// 2D 12 point formula
+// 2D 12 point formula, degree 6
 template <> struct fe_quadrature_simplex<2, 12> : public fe_quadrature_simplex_base {
     static constexpr int local_dim = 2;
     static constexpr int order  = 12;
@@ -161,19 +217,165 @@ template <> struct fe_quadrature_simplex<2, 12> : public fe_quadrature_simplex_b
 	0.082851075618374, 0.082851075618374}
     };
 };
+
+// https://people.sc.fsu.edu/~jburkardt/datasets/quadrature_rules_tet/quadrature_rules_tet.html
+// 3D 1 point formula, degree 1
+template <> struct fe_quadrature_simplex<3, 1> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 3;
+    static constexpr int order = 1;
+    static constexpr int degree = 1;
+
+    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+      std::array<double, order * local_dim> {
+	0.250000000000000, 0.250000000000000, 0.250000000000000}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+	1.000000000000000}
+    };
+};
+
+// 3D 4 point formula, degree 2
+template <> struct fe_quadrature_simplex<3, 4> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 3;
+    static constexpr int order = 4;
+    static constexpr int degree = 2;
+
+    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+      std::array<double, order * local_dim> {
+	0.585410196624969, 0.138196601125011, 0.138196601125011, 0.138196601125011, 0.138196601125011,
+	0.138196601125011, 0.138196601125011, 0.138196601125011, 0.585410196624969, 0.138196601125011,
+	0.585410196624969, 0.138196601125011}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+	0.250000000000000, 0.250000000000000, 0.250000000000000, 0.250000000000000}
+    };
+};
+
+// 3D 5 point formula, degree 3
+template <> struct fe_quadrature_simplex<3, 5> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 3;
+    static constexpr int order = 5;
+    static constexpr int degree = 3;
+
+    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+      std::array<double, order * local_dim> {
+	0.250000000000000, 0.250000000000000, 0.250000000000000, 0.500000000000000, 0.166666666666667,
+	0.166666666666667, 0.166666666666667, 0.500000000000000, 0.166666666666667, 0.166666666666667,
+	0.166666666666667, 0.500000000000000, 0.166666666666667, 0.166666666666667, 0.166666666666667}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+        -0.80000000000000, 0.450000000000000, 0.450000000000000, 0.450000000000000, 0.450000000000000}
+    };
+};
+
+// 3D 11 point formula, degree 4
+template <> struct fe_quadrature_simplex<3, 11> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 3;
+    static constexpr int order = 11;
+    static constexpr int degree = 4;
+
+    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+      std::array<double, order * local_dim> {
+	0.250000000000000, 0.250000000000000, 0.250000000000000, 0.785714285714285, 0.071428571428571,
+	0.071428571428571, 0.071428571428571, 0.071428571428571, 0.071428571428571, 0.071428571428571,
+	0.071428571428571, 0.785714285714285, 0.071428571428571, 0.785714285714285, 0.071428571428571,
+	0.100596423833200, 0.399403576166799, 0.399403576166799, 0.399403576166799, 0.100596423833200,
+	0.399403576166799, 0.399403576166799, 0.399403576166799, 0.100596423833200, 0.399403576166799,
+	0.100596423833200, 0.100596423833200, 0.100596423833200, 0.399403576166799, 0.100596423833200,
+	0.100596423833200, 0.100596423833200, 0.399403576166799}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+       -0.078933333333333, 0.045733333333333, 0.045733333333333, 0.045733333333333, 0.045733333333333,
+	0.149333333333333, 0.149333333333333, 0.149333333333333, 0.149333333333333, 0.149333333333333,
+	0.149333333333333}
+    };
+};
+
+// 3D 15 point formula, degree 5
+template <> struct fe_quadrature_simplex<3, 15> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 3;
+    static constexpr int order = 15;
+    static constexpr int degree = 5;
+
+    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+      std::array<double, order * local_dim> {
+	0.250000000000000, 0.250000000000000, 0.250000000000000, 0.000000000000000, 0.333333333333333,
+	0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333,
+	0.333333333333333, 0.000000000000000, 0.333333333333333, 0.000000000000000, 0.333333333333333,
+	0.727272727272727, 0.090909090909090, 0.090909090909090, 0.090909090909090, 0.090909090909090,
+	0.090909090909090, 0.090909090909090, 0.090909090909090, 0.727272727272727, 0.090909090909090,
+	0.727272727272727, 0.090909090909090, 0.433449846426335, 0.066550153573664, 0.066550153573664,
+	0.066550153573664, 0.433449846426335, 0.066550153573664, 0.066550153573664, 0.066550153573664,
+	0.433449846426335, 0.066550153573664, 0.433449846426335, 0.433449846426335, 0.433449846426335,
+	0.066550153573664, 0.433449846426335, 0.433449846426335, 0.433449846426335, 0.066550153573664}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+	0.181702068582535, 0.036160714285714, 0.036160714285714, 0.036160714285714, 0.036160714285714,
+	0.069871494516173, 0.069871494516173, 0.069871494516173, 0.069871494516173, 0.065694849368318,
+	0.065694849368318, 0.065694849368318, 0.065694849368318, 0.065694849368318, 0.065694849368318}
+    };
+};
+
+// 3D 24 point formula, degree 6
+template <> struct fe_quadrature_simplex<3, 24> : public fe_quadrature_simplex_base {
+    static constexpr int local_dim = 3;
+    static constexpr int order = 24;
+    static constexpr int degree = 6;
+
+    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+      std::array<double, order * local_dim> {
+	0.356191386222544, 0.214602871259151, 0.214602871259151, 0.214602871259151, 0.214602871259151,
+	0.214602871259151, 0.214602871259151, 0.214602871259151, 0.356191386222544, 0.214602871259151,
+	0.356191386222544, 0.214602871259151, 0.877978124396166, 0.040673958534611, 0.040673958534611,
+	0.040673958534611, 0.040673958534611, 0.040673958534611, 0.040673958534611, 0.040673958534611,
+	0.877978124396166, 0.040673958534611, 0.877978124396166, 0.040673958534611, 0.032986329573173,
+	0.322337890142275, 0.322337890142275, 0.322337890142275, 0.322337890142275, 0.322337890142275,
+	0.322337890142275, 0.322337890142275, 0.032986329573173, 0.322337890142275, 0.032986329573173,
+	0.322337890142275, 0.269672331458315, 0.063661001875017, 0.063661001875017, 0.063661001875017,
+	0.269672331458315, 0.063661001875017, 0.063661001875017, 0.063661001875017, 0.269672331458315,
+	0.603005664791649, 0.063661001875017, 0.063661001875017, 0.063661001875017, 0.603005664791649,
+	0.063661001875017, 0.063661001875017, 0.063661001875017, 0.603005664791649, 0.063661001875017,
+	0.269672331458315, 0.603005664791649, 0.269672331458315, 0.603005664791649, 0.063661001875017,
+	0.603005664791649, 0.063661001875017, 0.269672331458315, 0.063661001875017, 0.603005664791649,
+	0.269672331458315, 0.269672331458315, 0.063661001875017, 0.603005664791649, 0.603005664791649,
+	0.269672331458315, 0.063661001875017}
+    };
+    static constexpr cexpr::Vector<double, order> weights {
+      std::array<double, order> {
+	0.039922750258167, 0.039922750258167, 0.039922750258167, 0.039922750258167, 0.010077211055320,
+	0.010077211055320, 0.010077211055320, 0.010077211055320, 0.055357181543654, 0.055357181543654,
+	0.055357181543654, 0.055357181543654, 0.048214285714285, 0.048214285714285, 0.048214285714285,
+	0.048214285714285, 0.048214285714285, 0.048214285714285, 0.048214285714285, 0.048214285714285,
+	0.048214285714285, 0.048214285714285, 0.048214285714285, 0.048214285714285}
+    };
+};
   
 }   // namespace internals
 
 // 1D formulas
-[[maybe_unused]] static struct QS1D2P_  : internals::fe_quadrature_simplex<1, 2>  { } QS1D2P;
-[[maybe_unused]] static struct QS1D3P_  : internals::fe_quadrature_simplex<1, 3>  { } QS1D3P;
+[[maybe_unused]] static struct QS1DP1_ : internals::fe_quadrature_simplex<1, 1>  { } QS1DP1;
+[[maybe_unused]] static struct QS1DP3_ : internals::fe_quadrature_simplex<1, 2>  { } QS1DP3;
+[[maybe_unused]] static struct QS1DP5_ : internals::fe_quadrature_simplex<1, 3>  { } QS1DP5;
+[[maybe_unused]] static struct QS1DP7_ : internals::fe_quadrature_simplex<1, 4>  { } QS1DP7;
 // 2D formulas
-[[maybe_unused]] static struct QS2D1P_  : internals::fe_quadrature_simplex<2, 1>  { } QS2D1P;
-[[maybe_unused]] static struct QS2D3P_  : internals::fe_quadrature_simplex<2, 3>  { } QS2D3P;
-[[maybe_unused]] static struct QS2D6P_  : internals::fe_quadrature_simplex<2, 6>  { } QS2D6P;
-[[maybe_unused]] static struct QS2D7P_  : internals::fe_quadrature_simplex<2, 7>  { } QS2D7P;
-[[maybe_unused]] static struct QS2D12P_ : internals::fe_quadrature_simplex<2, 12> { } QS2D12P;
-
+[[maybe_unused]] static struct QS2DP1_ : internals::fe_quadrature_simplex<2, 1>  { } QS2DP1;
+[[maybe_unused]] static struct QS2DP2_ : internals::fe_quadrature_simplex<2, 3>  { } QS2DP2;
+[[maybe_unused]] static struct QS2DP3_ : internals::fe_quadrature_simplex<2, 4>  { } QS2DP3;
+[[maybe_unused]] static struct QS2DP4_ : internals::fe_quadrature_simplex<2, 6>  { } QS2DP4;
+[[maybe_unused]] static struct QS2DP5_ : internals::fe_quadrature_simplex<2, 7>  { } QS2DP5;
+[[maybe_unused]] static struct QS2DP6_ : internals::fe_quadrature_simplex<2, 12> { } QS2DP6;
+// 3D formulas
+[[maybe_unused]] static struct QS3DP1_ : internals::fe_quadrature_simplex<3, 1>  { } QS3DP1;
+[[maybe_unused]] static struct QS3DP2_ : internals::fe_quadrature_simplex<3, 4>  { } QS3DP2;
+[[maybe_unused]] static struct QS3DP3_ : internals::fe_quadrature_simplex<3, 5>  { } QS3DP3;
+[[maybe_unused]] static struct QS3DP4_ : internals::fe_quadrature_simplex<3, 11> { } QS3DP4;
+[[maybe_unused]] static struct QS3DP5_ : internals::fe_quadrature_simplex<3, 15> { } QS3DP5;
+[[maybe_unused]] static struct QS3DP6_ : internals::fe_quadrature_simplex<3, 24> { } QS3DP6;
   
 }   // namespace fdapde
 

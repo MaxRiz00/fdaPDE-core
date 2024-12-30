@@ -521,10 +521,6 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
     Triangulation(
       const DMatrix<double>& nodes, const DMatrix<int>& cells, const DMatrix<int>& boundary, int flags = 0) :
         Base(nodes, cells, boundary, flags) {
-        if (Base::flags_ & cache_cells) {   // populate cache if cell caching is active
-            cell_cache_.reserve(n_cells_);
-            for (int i = 0; i < n_cells_; ++i) { cell_cache_.emplace_back(i, this); }
-        }
         using face_t = std::array<int, n_nodes_per_face>;
         using edge_t = std::array<int, n_nodes_per_edge>;
         struct face_info {
@@ -601,7 +597,11 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
         n_faces_ = faces_.size() / n_nodes_per_face;
         n_edges_ = edges_.size() / n_nodes_per_edge;
         boundary_faces_ = BinaryVector<fdapde::Dynamic>(boundary_faces.begin(), boundary_faces.end(), n_faces_);
-	boundary_edges_ = BinaryVector<fdapde::Dynamic>(boundary_edges.begin(), boundary_edges.end(), n_edges_);
+        boundary_edges_ = BinaryVector<fdapde::Dynamic>(boundary_edges.begin(), boundary_edges.end(), n_edges_);
+        if (Base::flags_ & cache_cells) {   // populate cache if cell caching is active
+            cell_cache_.reserve(n_cells_);
+            for (int i = 0; i < n_cells_; ++i) { cell_cache_.emplace_back(i, this); }
+        }
         return;
     }
     // cubic mesh static constructors (nx, ny, nz: number of nodes along x,y,z axis respectively)
@@ -660,6 +660,7 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
         }
     }
     bool is_face_on_boundary(int id) const { return boundary_faces_[id]; }
+    bool is_edge_on_boundary(int id) const { return boundary_edges_[id]; }
     const DMatrix<int, Eigen::RowMajor>& neighbors() const { return neighbors_; }
     Eigen::Map<const DMatrix<int, Eigen::RowMajor>> faces() const {
         return Eigen::Map<const DMatrix<int, Eigen::RowMajor>>(faces_.data(), n_faces_, n_nodes_per_face);
@@ -756,16 +757,21 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
         return std::make_pair(boundary_begin(marker), boundary_end(marker));
     }
     const std::vector<int>& faces_markers() const { return faces_markers_; }
+    const std::vector<int>& edges_markers() const { return edges_markers_; }
     // set boundary markers
     template <typename Lambda> void mark_boundary(int marker, Lambda&& lambda)
       requires(requires(Lambda lambda, FaceType e) {
         { lambda(e) } -> std::same_as<bool>; }) {
         fdapde_assert(marker >= 0);
         faces_markers_.resize(n_faces_, Unmarked);
+	edges_markers_.resize(n_edges_, Unmarked);
         for (boundary_face_iterator it = boundary_faces_begin(); it != boundary_faces_end(); ++it) {
             if (lambda(*it)) {
                 // give priority to highly marked faces
                 if (faces_markers_[it->id()] < marker) { faces_markers_[it->id()] = marker; }
+                for (int edge_id : it->edge_ids()) {   // inherit edge marker from face
+                    if (edges_markers_[edge_id] < marker) { edges_markers_[edge_id] = marker; }
+                }
             }
         }
         return;
@@ -776,21 +782,29 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
         int n_markers = std::distance(first, last);
 	bool all_markers_positive = std::all_of(first, last, [](auto marker) { return marker >= 0; });
         fdapde_assert(n_markers == n_faces() && all_markers_positive);
-	faces_markers_.resize(n_faces_, Unmarked);
+        faces_markers_.resize(n_faces_, Unmarked);
+        edges_markers_.resize(n_edges_, Unmarked);
         for (int i = 0; i < n_faces_; ++i) {
             int marker = *(first + i);
             // give priority to highly marked faces
             if (faces_markers_[i] < marker) { faces_markers_[i] = marker; }
+            for (int edge_id : it->edge_ids()) {   // inherit edge marker from face
+                if (edges_markers_[edge_id] < marker) { edges_markers_[edge_id] = marker; }
+            }
         }
         return;
     }
     // marks all boundary faces
     void mark_boundary(int marker) {
         fdapde_assert(marker >= 0);
-	faces_markers_.resize(n_faces_, Unmarked);
+        faces_markers_.resize(n_faces_, Unmarked);
+        edges_markers_.resize(n_edges_, Unmarked);
         for (auto it = boundary_begin(); it != boundary_end(); ++it) {
             // give priority to highly marked faces
-            if (faces_markers_[it->id()] < marker) faces_markers_[it->id()] = marker;
+            if (faces_markers_[it->id()] < marker) { faces_markers_[it->id()] = marker; }
+            for (int edge_id : it->edge_ids()) {   // inherit edge marker from face
+                if (edges_markers_[edge_id] < marker) { edges_markers_[edge_id] = marker; }
+            }
         }
         return;
     }
@@ -800,18 +814,19 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
         std::unordered_map<int, int> node_map, cell_map;
     };
     SurfaceReturnType surface() const {
-        DMatrix<double> nodes(n_boundary_nodes(), FaceType::n_nodes);
-        DMatrix<int> cells(n_boundary_faces(), FaceType::n_nodes), boundary(n_boundary_nodes(), 1);
+        Eigen::Matrix<double, Dynamic, Dynamic> nodes(n_boundary_nodes(), FaceType::n_nodes);
+        Eigen::Matrix<int, Dynamic, Dynamic> cells(n_boundary_faces(), FaceType::n_nodes),
+          boundary(n_boundary_nodes(), 1);
         std::unordered_map<int, int> node_map;   // bounds node ids in the 3D mesh to rescaled ids on the surface mesh
         std::unordered_map<int, int> cell_map;   // bounds face ids in the 3D mesh to rescaled ids on the surface mesh
         // compute nodes, cells and boundary matrices
         int i = 0, j = 0;
         for (boundary_face_iterator it = boundary_faces_begin(); it != boundary_faces_end(); ++it) {
-   	    int cell_id = it->adjacent_cells()[0] > -1 ? it->adjacent_cells()[0] : it->adjacent_cells()[1];
+   	    int cell_id = it->adjacent_cells()[0] != -1 ? it->adjacent_cells()[0] : it->adjacent_cells()[1];
             cell_map[cell_id] = i;
-            DVector<int> face_nodes = it->node_ids();
+	    Eigen::Matrix<int, Dynamic, 1> node_ids = it->node_ids();
             for (int k = 0; k < FaceType::n_nodes; ++k) {
-                int node_id = face_nodes[k];
+                int node_id = node_ids[k];
                 if (node_map.find(node_id) != node_map.end()) {
                     cells(i, k) = node_map.at(node_id);
                 } else {   // never visited face
@@ -851,6 +866,7 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
     BinaryVector<fdapde::Dynamic> boundary_faces_ {};           // j-th element is 1 \iff face j is on boundary
     BinaryVector<fdapde::Dynamic> boundary_edges_ {};           // j-th element is 1 \iff edge j is on boundary
     std::vector<int> faces_markers_;
+    std::vector<int> edges_markers_;
     int n_faces_ = 0, n_edges_ = 0;
     mutable std::optional<LocationPolicy> location_policy_ {};
     // cell caching

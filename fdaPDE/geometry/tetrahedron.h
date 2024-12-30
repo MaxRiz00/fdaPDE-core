@@ -64,6 +64,9 @@ class Tetrahedron : public Simplex<Triangulation::local_dim, Triangulation::embe
         DVector<int> node_ids() const { return mesh_->edges().row(edge_id_); }
         int id() const { return edge_id_; }
         const std::unordered_set<int>& adjacent_cells() const { return mesh_->edge_to_cells().at(edge_id_); }
+        int marker() const {   // mesh edge's marker
+            return mesh_->edges_markers().size() > edge_id_ ? mesh_->edges_markers()[edge_id_] : Unmarked;
+        }
     };
     // a triangulation-aware view of a tetrahedron face
     class FaceType : public Simplex<2, Triangulation::embed_dim> {

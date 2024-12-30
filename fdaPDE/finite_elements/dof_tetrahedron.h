@@ -70,9 +70,8 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
             Base::FaceType(face_id, dof_handler->triangulation()), dof_handler_(dof_handler) {
             // if you query a DofTetrahedron for its face, most likely you want to access its dofs. compute and cache
             dofs_ = DVector<int>(
-              TriangulationType::n_nodes_per_edge +
-              dof_handler_->n_dofs_per_edge() * TriangulationType::n_edges_per_cell +
-              dof_handler_->n_dofs_per_face() * TriangulationType::n_faces_per_cell);
+              dof_handler_->n_dofs_per_node() * TriangulationType::n_nodes_per_face +
+              dof_handler_->n_dofs_per_edge() * TriangulationType::n_edges_per_face + dof_handler_->n_dofs_per_face());
             int j = 0;
             for (int d : this->node_ids()) dofs_[j++] = d;   // at nodes, dof numbering == mesh numbering
             if (dof_handler_->n_dofs_per_edge() > 0) {       // dofs on face's edges
