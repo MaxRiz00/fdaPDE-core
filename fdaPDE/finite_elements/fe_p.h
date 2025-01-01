@@ -121,7 +121,7 @@ template <int Order, int NComponents> struct FeP {
             if (local_dim == 3) {
                 if (Order < 3) return 0;
                 int n_dofs_internal_ = 0;
-                for (int i = 1; i < Order - 3; ++i) { n_dofs_internal_ += (i + 1) * i / 2; }
+                for (int i = 1; i < Order - 2; ++i) { n_dofs_internal_ += (i + 1) * i / 2; }
                 return n_dofs_internal_;
             }
         }();
@@ -148,7 +148,7 @@ template <int Order, int NComponents> struct FeP {
                 cexpr::Matrix<double, local_dim, 2> edge_coords;
                 for (int i = 0; i < ReferenceCell::n_edges; ++i) {
                     for (int k = 0, h = 0; k < n_nodes; ++k) {
-                        if (bitmask[k]) edge_coords.col(h++) = reference_simplex.col(k);
+		      if (bitmask[k]) { edge_coords.col(h++) = reference_simplex.col(k); }
                     }
                     for (int k = 0; k < n_dofs_per_edge; ++k) {
                         dofs_phys_coords_.row(j++) =
@@ -171,9 +171,7 @@ template <int Order, int NComponents> struct FeP {
                     double step = 1.0 / Order;
                     for (int k = 0; k < Order - 2; ++k) {
                         for (int h = 0; h < Order - 2 - k; ++h) {
-                            dofs_phys_coords_(j, 0) = step * (k + 1);
-                            dofs_phys_coords_(j, 1) = step * (h + 1);
-                            j++;
+                            dofs_phys_coords_.row(j++) = cexpr::Matrix<double, 1, 2>(step * (k + 1), step * (h + 1));
                         }
                     }
                 }
@@ -182,6 +180,14 @@ template <int Order, int NComponents> struct FeP {
                 if constexpr (n_dofs_per_edge > 0) { edge_enumerate(); }
                 if constexpr (n_dofs_per_face > 0) {
                     // add triangle of equidistant nodes having Order - 2 nodes per side
+                    double step = 1.0 / Order;
+		    // compute barycentric coordinates of nodes to insert on faces
+                    cexpr::Matrix<double, n_dofs_per_face, 2> bary_coords;
+                    for (int k = 0, r = 0; k < Order - 2; ++k) {
+                        for (int h = 0; h < Order - 2 - k; ++h) {
+                            bary_coords.row(r++) = cexpr::Matrix<double, 1, 2>(step * (k + 1), step * (h + 1));
+                        }
+                    }
                     std::vector<bool> bitmask(n_nodes, 0);
                     std::fill_n(bitmask.begin(), ReferenceCell::n_nodes_per_face, 1);
                     cexpr::Matrix<double, local_dim, 3> face_coords;
@@ -190,12 +196,10 @@ template <int Order, int NComponents> struct FeP {
                             if (bitmask[k]) face_coords.col(h++) = reference_simplex.col(k);
                         }
                         cexpr::Matrix<double, local_dim, 2> J;
-                        for (int k = 0; k < 2; ++k) J.col(k) = face_coords.col(k + 1) - face_coords.col(0);
-                        double step = 1.0 / Order;
-                        for (int k = 0; k < Order - 2; ++k) {
-                            for (int h = 0; h < Order - 2 - k; ++h) {
-                                dofs_phys_coords_.row(j++) = J.col(0) * step * (k + 1) + J.col(1) * step * (h + 1);;
-                            }
+                        for (int k = 0; k < 2; ++k) { J.col(k) = face_coords.col(k + 1) - face_coords.col(0); }
+                        for (int k = 0; k < n_dofs_per_face; ++k) {
+                            dofs_phys_coords_.row(j++) =
+                              (J * bary_coords.row(k).transpose() + face_coords.col(0)).transpose();
                         }
                         std::prev_permutation(bitmask.begin(), bitmask.end());
                     }
@@ -207,7 +211,7 @@ template <int Order, int NComponents> struct FeP {
                         for (int k = 0; k < Order - 3 - l; ++k) {
                             for (int h = 0; h < Order - 3 - k; ++h) {
                                 dofs_phys_coords_.row(j++) =
-                                  cexpr::Matrix<double, local_dim, 3>(step * (k + 1), step * (h + 1), step * (l + 1));
+                                  cexpr::Matrix<double, 1, 3>(step * (k + 1), step * (h + 1), step * (l + 1));
                             }
                         }
                     }

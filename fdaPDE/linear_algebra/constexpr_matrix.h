@@ -525,17 +525,17 @@ template <int Rows, int Cols, typename Derived> struct MatrixBase {
     template <int BlockRows, int BlockCols> constexpr MatrixBlock<BlockRows, BlockCols, Derived> block(int i, int j) {
         return MatrixBlock<BlockRows, BlockCols, Derived>(derived(), i, j);
     }
-    template <int BlockRows> constexpr MatrixBlock<BlockRows, Cols, Derived> topRows(int i) {
-        return block<BlockRows, Cols>(i, 0);
+    template <int BlockRows> constexpr MatrixBlock<BlockRows, Cols, Derived> topRows() {
+        return block<BlockRows, Cols>(0, 0);
     }
-    template <int BlockRows> constexpr MatrixBlock<BlockRows, Cols, Derived> bottomRows(int i) {
-        return block<BlockRows, Cols>(Rows - i - 1, 0);
+    template <int BlockRows> constexpr MatrixBlock<BlockRows, Cols, Derived> bottomRows() {
+        return block<BlockRows, Cols>(Rows - BlockRows, 0);
     }
-    template <int BlockCols> constexpr MatrixBlock<Rows, BlockCols, Derived> leftCols(int i) {
-        return block<Rows, BlockCols>(0, i);
+    template <int BlockCols> constexpr MatrixBlock<Rows, BlockCols, Derived> leftCols() {
+        return block<Rows, BlockCols>(0, 0);
     }
-    template <int BlockCols> constexpr MatrixBlock<Rows, BlockCols, Derived> rightCols(int i) {
-        return block<Rows, BlockCols>(0, Cols - i - 1);
+    template <int BlockCols> constexpr MatrixBlock<Rows, BlockCols, Derived> rightCols() {
+        return block<Rows, BlockCols>(0, Cols - BlockCols);
     }
     // dot product
     template <int RhsRows, int RhsCols, typename RhsDerived>
@@ -614,12 +614,21 @@ operator!=(const MatrixBase<Rows1, Cols1, XprType1>& op1, const MatrixBase<Rows2
     return true;
 }
 template <int Rows1, int Cols1, typename XprType1, int Rows2, int Cols2, typename XprType2>
-constexpr bool
-almost_equal(const MatrixBase<Rows1, Cols1, XprType1>& op1, const MatrixBase<Rows2, Cols2, XprType2>& op2) {
+constexpr bool almost_equal(
+  const MatrixBase<Rows1, Cols1, XprType1>& op1, const MatrixBase<Rows2, Cols2, XprType2>& op2, double epsilon = 1e-7) {
     fdapde_static_assert(Rows1 == Rows2 && Cols1 == Cols2, YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES);
+    fdapde_static_assert(
+      std::is_same_v<typename XprType1::Scalar FDAPDE_COMMA typename XprType2::Scalar>,
+      YOU_MIXED_MATRICES_OF_DIFFERENT_SCALAR_TYPES);
+    using Scalar_ = typename XprType1::Scalar;
     for (int i = 0; i < Rows1; ++i) {
         for (int j = 0; j < Cols1; ++j) {
-            if (!almost_equal(op1.derived()(i, j), op2.derived()(i, j))) return false;
+            Scalar_ a = op1.derived()(i, j);
+            Scalar_ b = op2.derived()(i, j);
+            if (!(std::fabs(a - b) < epsilon ||
+                  std::fabs(a - b) < ((std::fabs(a) < std::fabs(b) ? std::fabs(b) : std::fabs(a)) * epsilon))) {
+                return false;
+            }
         }
     }
     return true;

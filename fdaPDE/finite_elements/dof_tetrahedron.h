@@ -40,7 +40,8 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
         EdgeType(int edge_id, const DofHandler* dof_handler) :
             Base::EdgeType(edge_id, dof_handler->triangulation()), dof_handler_(dof_handler) {
             // if you query a DofTetrahedron for its edge, most likely you want to access its dofs. compute and cache
-            dofs_ = DVector<int>(TriangulationType::n_nodes_per_edge + dof_handler_->n_dofs_per_edge());
+            dofs_ = Eigen::Matrix<int, Dynamic, 1>(
+              dof_handler_->n_dofs_per_node() * TriangulationType::n_nodes_per_edge + dof_handler_->n_dofs_per_edge());
             int j = 0;
             for (int d : this->node_ids()) dofs_[j++] = d;   // at nodes, dof numbering == mesh numbering
             if (dof_handler_->n_dofs_per_edge() > 0) {
@@ -49,8 +50,8 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
                 }
             }
         }
-        const DVector<int>& dofs() const { return dofs_; }
-        DVector<short> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
+        const Eigen::Matrix<int, Dynamic, 1>& dofs() const { return dofs_; }
+        Eigen::Matrix<int, Dynamic, 1> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
         BinaryVector<fdapde::Dynamic> boundary_dofs() const {
             BinaryVector<fdapde::Dynamic> boundary(dofs_.size());
             int i = 0;
@@ -134,7 +135,7 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
             return *this;
         }
        public:
-        edge_iterator(int index, const DofTetrahedron* t) : Base(index, 0, t_->n_edges), t_(t) {
+        edge_iterator(int index, const DofTetrahedron* t) : Base(index, 0, t->n_edges), t_(t) {
             if (index_ < t_->n_edges) operator()(index_);
         }
     };
@@ -152,7 +153,7 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
             return *this;
         }
        public:
-        face_iterator(int index, const DofTetrahedron* t) : Base(index, 0, t_->n_faces), t_(t) {
+        face_iterator(int index, const DofTetrahedron* t) : Base(index, 0, t->n_faces), t_(t) {
             if (index_ < t_->n_faces) operator()(index_);
         }
     };

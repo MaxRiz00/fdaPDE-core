@@ -29,6 +29,8 @@ class Tetrahedron : public Simplex<Triangulation::local_dim, Triangulation::embe
     fdapde_static_assert(
       Triangulation::local_dim == 3 && Triangulation::embed_dim == 3, THIS_CLASS_IS_FOR_TETRAHEDRAL_MESHES_ONLY);
    public:
+    static constexpr int n_nodes_per_edge = 2;
+    static constexpr int n_nodes_per_face = 3;
     // constructor
     Tetrahedron() = default;
     Tetrahedron(int id, const Triangulation* mesh) : id_(id), mesh_(mesh), boundary_(false) {
@@ -38,14 +40,12 @@ class Tetrahedron : public Simplex<Triangulation::local_dim, Triangulation::embe
             if (mesh_->is_node_on_boundary(mesh_->cells()(id_, j))) b_matches_++;
         }
         if (b_matches_ >= this->n_nodes - 1) boundary_ = true;
-        // compute edges identifiers
-        std::unordered_set<int> edge_ids;
-        for (int i = 0; i < this->n_faces; ++i) {
-            int face_id = mesh_->cell_to_faces()(id_, i);
-            for (int j = 0; j < 3; ++j) { edge_ids.insert(mesh_->face_to_edges()(face_id, j)); }
-        }
-        int i = 0;
-        for (const int& id : edge_ids) edge_ids_[i++] = id;
+        // compute edges identifiers (guarantees edge_iterator order: (0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))
+        int f1 = mesh_->cell_to_faces()(id_, 0);   // (0 1 2)
+        int f2 = mesh_->cell_to_faces()(id_, 1);   // (0 1 3)
+        int f3 = mesh_->cell_to_faces()(id_, 2);   // (0 2 3)
+        const auto& edge_of = mesh_->face_to_edges();
+        edge_ids_ = {edge_of(f1, 0), edge_of(f1, 1), edge_of(f2, 1), edge_of(f1, 2), edge_of(f2, 2), edge_of(f3, 2)};
         this->initialize();
     }
     // a triangulation-aware view of a tetrahedron edge

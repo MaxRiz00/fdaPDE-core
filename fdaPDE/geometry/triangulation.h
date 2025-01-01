@@ -532,8 +532,8 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
         std::unordered_map<edge_t, edge_info, fdapde::std_array_hash<int, n_nodes_per_edge>> edges_map;
         std::unordered_map<face_t, face_info, fdapde::std_array_hash<int, n_nodes_per_face>> faces_map;
 	std::vector<bool> boundary_faces, boundary_edges;
-        face_t face;
-        edge_t edge;
+        face_t face, face_;
+        edge_t edge, edge_;
         cell_to_faces_.resize(n_cells_, n_faces_per_cell);
         // search vertex of face f opposite to edge e (the j-th vertex of f which is not a node of e)
         auto node_opposite_to_face = [this](int e, int f) -> int {
@@ -550,12 +550,13 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
         int face_id = 0, edge_id = 0;
         for (int i = 0; i < n_cells_; ++i) {
             for (int j = 0; j < face_pattern.rows(); ++j) {
-                // construct face
+                // construct face. faces are constructed with ordering: (0 1 2), (0 1 3), (0 2 3), (1 2 3)
                 for (int k = 0; k < n_nodes_per_face; ++k) { face[k] = cells_(i, face_pattern(j, k)); }
+		face_ = face;
                 std::sort(face.begin(), face.end());   // normalize wrt node ordering
                 auto it = faces_map.find(face);
                 if (it == faces_map.end()) {   // never processed face
-                    faces_.insert(faces_.end(), face.begin(), face.end());
+                    faces_.insert(faces_.end(), face_.begin(), face_.end());
                     face_to_cells_.insert(face_to_cells_.end(), {i, -1});
                     boundary_faces.push_back(true);
                     faces_map.emplace(face, face_info {face_id, i});
@@ -563,11 +564,13 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
                     face_id++;
                     // compute for each face the ids of its edges
                     for (int k = 0; k < n_edges_per_face; ++k) {
-                        for (int h = 0; h < n_nodes_per_edge; ++h) { edge[h] = face[edge_pattern(k, h)]; }
+                        // construct edge. edges are constructed with order: (0 1), (0 2), (1, 2)
+                        for (int h = 0; h < n_nodes_per_edge; ++h) { edge[h] = face_[edge_pattern(k, h)]; }
+			edge_ = edge;
                         std::sort(edge.begin(), edge.end());
                         auto it = edges_map.find(edge);
                         if (it == edges_map.end()) {
-                            edges_.insert(edges_.end(), edge.begin(), edge.end());
+                            edges_.insert(edges_.end(), edge_.begin(), edge_.end());
                             face_to_edges_.push_back(edge_id);
                             edge_to_cells_[edge_id].insert(i);   // store (edge, cell) binding
                             edges_map.emplace(edge, edge_id);
@@ -629,12 +632,12 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
                         v = {p,           p + 1,           p + nx,           p + nx + 1,
                              p + nx * ny, p + nx * ny + 1, p + nx * ny + nx, p + nx * ny + nx + 1};
                         // split sub-cube in 6 tetrahedra (this guarantees a conforming triangulation)
-                        cells.row(cell_id + 0) << v[6], v[2], v[1], v[0];
-                        cells.row(cell_id + 1) << v[6], v[4], v[1], v[0];
-                        cells.row(cell_id + 2) << v[6], v[5], v[7], v[1];
-                        cells.row(cell_id + 3) << v[6], v[3], v[7], v[1];
-                        cells.row(cell_id + 4) << v[6], v[3], v[2], v[1];
-                        cells.row(cell_id + 5) << v[6], v[5], v[4], v[1];
+                        cells.row(cell_id + 0) << v[2], v[4], v[6], v[5];
+                        cells.row(cell_id + 1) << v[2], v[6], v[5], v[7];
+                        cells.row(cell_id + 2) << v[2], v[5], v[7], v[3];
+                        cells.row(cell_id + 3) << v[2], v[5], v[3], v[1];
+                        cells.row(cell_id + 4) << v[2], v[1], v[5], v[0];
+                        cells.row(cell_id + 5) << v[2], v[4], v[5], v[0];
                         cell_id = cell_id + 6;
                     }
                     boundary(node_id, 0) =
@@ -788,7 +791,7 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
             int marker = *(first + i);
             // give priority to highly marked faces
             if (faces_markers_[i] < marker) { faces_markers_[i] = marker; }
-            for (int edge_id : it->edge_ids()) {   // inherit edge marker from face
+            for (int edge_id : face_to_edges().row(i)) {   // inherit edge marker from face
                 if (edges_markers_[edge_id] < marker) { edges_markers_[edge_id] = marker; }
             }
         }

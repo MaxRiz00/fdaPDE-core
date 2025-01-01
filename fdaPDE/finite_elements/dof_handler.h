@@ -186,9 +186,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
     }
     void enforce_constraints(SpMatrix<double>& A) const { dof_constraints_.enforce_constraints(A); }
     void enforce_constraints(DVector<double>& b)  const { dof_constraints_.enforce_constraints(b); }
-    DMatrix<double> dofs_coords() const {   // computes degrees of freedom's physical coordinates
+    Eigen::Matrix<double, Dynamic, Dynamic> dofs_coords() const {   // computes dofs physical coordinates
         // allocate space (just for unique dofs, i.e., without considering any dof multiplicity)
-        DMatrix<double> coords;
+        Eigen::Matrix<double, Dynamic, Dynamic> coords;
         coords.resize(n_unique_dofs_, TriangulationType::embed_dim);
         std::unordered_set<int> visited;
         // cycle over all mesh elements
@@ -210,13 +210,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
     }
    protected:
     const TriangulationType* triangulation_;
-    DMatrix<int, Eigen::RowMajor> dofs_;
+    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_;
     BinaryVector<fdapde::Dynamic> boundary_dofs_;   // whether the i-th dof is on boundary or not
     std::vector<int> dofs_to_cell_;                 // for each dof, the id of (one of) the cell containing it
     DofConstraints<Derived> dof_constraints_;
     std::vector<int> dofs_markers_;
     int n_dofs_per_cell_ = 0, n_dofs_ = 0, n_unique_dofs_ = 0;
-    DMatrix<double> reference_dofs_barycentric_coords_;
+    Eigen::Matrix<double, Dynamic, Dynamic> reference_dofs_barycentric_coords_;
 
     // local enumeration of dofs on cell
     template <bool dof_sharing, typename Iterator, typename Map>
@@ -567,9 +567,15 @@ class DofHandler<3, 3, fdapde::finite_element> :
                     if constexpr (dof_descriptor::n_dofs_per_face > 1) {
                         // faces are enumerated in pairs (of adjacent faces)
                         int offset = n_dofs_at_nodes + dof_descriptor::n_dofs_per_edge * n_edges_per_cell;
+                        auto local_face_id = [this](int face_id, int cell_id) {   // local id of face_id in cell_id
+                            int i = 0;
+                            for (; i < TriangulationType::n_faces_per_cell; ++i) {
+                                if (triangulation_->cell_to_faces()(cell_id, i) == face_id) break;
+                            }
+                            return i;
+                        };
                         for (auto jt = it->faces_begin(); jt != it->faces_end(); ++jt) {
-                            if (face_to_dofs_.find(jt->id()) == face_to_dofs_.end()) {
-                                // never processed face, build enumeration
+                            if (face_to_dofs_.find(jt->id()) == face_to_dofs_.end()) {   // never processed face
                                 for (int j = 0; j < n_dofs_per_face_; ++j) {
                                     dofs_(cell_id, offset + j) = n_dofs_;
                                     face_to_dofs_[jt->id()].push_back(n_dofs_);
@@ -583,22 +589,24 @@ class DofHandler<3, 3, fdapde::finite_element> :
                                 if (!jt->on_boundary()) {
                                     // search for the same face id on adjacent cell
                                     const auto& adj_cells = jt->adjacent_cells();
+                                    int offset_ = n_dofs_at_nodes + dof_descriptor::n_dofs_per_edge * n_edges_per_cell;
                                     int adj_cell = adj_cells[0] != cell_id ? adj_cells[0] : adj_cells[1];
-                                    int ht = 0;   // local face id on adjacent cell
-                                    for (; ht < TriangulationType::n_faces_per_cell; ++ht) {
-                                        if (triangulation_->cell_to_faces()(adj_cell, ht) == jt->id()) break;
-                                    }
-                                    const auto& kt = triangulation_->cell(adj_cell);
+                                    int ht = local_face_id(jt->id(), adj_cell);
+                                    int gt = local_face_id(jt->id(), cell_id);
+                                    const typename TriangulationType::CellType& kt = triangulation_->cell(adj_cell);
                                     // compute physical dofs
                                     std::array<cexpr::Vector<double, embed_dim>, dof_descriptor::n_dofs_per_face> f1_;
                                     std::array<cexpr::Vector<double, embed_dim>, dof_descriptor::n_dofs_per_face> f2_;
                                     for (int j = 0; j < dof_descriptor::n_dofs_per_face; ++j) {
                                         // map dof coordinate from reference to physical cell
-                                        auto ref_p = reference_dofs_barycentric_coords_.rightCols(local_dim)
-                                                       .row(offset + j)
-                                                       .transpose();
-                                        f1_[j] = it->J() * ref_p + it->node(0);
-                                        f2_[j] = kt .J() * ref_p + kt .node(0);
+                                        f1_[j] = it->J() * reference_dofs_barycentric_coords_.rightCols(local_dim)
+                                                             .row(offset_ + gt * dof_descriptor::n_dofs_per_face + j)
+                                                             .transpose() +
+                                                 it->node(0);
+                                        f2_[j] = kt .J() * reference_dofs_barycentric_coords_.rightCols(local_dim)
+                                                            .row(offset_ + ht * dof_descriptor::n_dofs_per_face + j)
+                                                            .transpose() +
+                                                 kt .node(0);
                                     }
                                     // compute permutation to ensure that dofs on adjacent faces are mapped to the same
                                     // point on the reference cell when transitioning from physical to reference space
@@ -607,7 +615,7 @@ class DofHandler<3, 3, fdapde::finite_element> :
                                             if (cexpr::almost_equal(f1_[i], f2_[j])) {
                                                 // kt->J() sends j-th dof of face ht to i-th dof of face jt
                                                 // set j-th dof of face ht to i-th dof of face jt
-                                                dofs_(adj_cell, offset + ht * dof_descriptor::n_dofs_per_face + j) =
+                                                dofs_(adj_cell, offset_ + ht * dof_descriptor::n_dofs_per_face + j) =
                                                   dofs_(cell_id, offset + i);
                                                 break;
                                             }
@@ -615,6 +623,7 @@ class DofHandler<3, 3, fdapde::finite_element> :
                                     }
                                 }
                             }
+                            offset += n_dofs_per_face_;
                         }
                     } else {   // insert single dof (no reordering required)
                         Base::template local_enumerate<dof_descriptor::dof_sharing>(
