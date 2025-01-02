@@ -93,8 +93,8 @@ struct assembly_add_op : public assembly_xpr_base<assembly_add_op<Lhs, Rhs>> {
         fdapde_assert(lhs.rows() == rhs.rows() && lhs.cols() == rhs.cols());
     }
     OutputType assemble() const {
-        if constexpr (std::is_same_v<OutputType, SpMatrix<double>>) {
-            SpMatrix<double> assembled_mat(lhs_.rows(), lhs_.cols());
+        if constexpr (std::is_same_v<OutputType, Eigen::SparseMatrix<double>>) {
+            Eigen::SparseMatrix<double> assembled_mat(lhs_.rows(), lhs_.cols());
             std::vector<Eigen::Triplet<double>> triplet_list;
             assemble(triplet_list);
             // linearity of the integral is implicitly used here, as duplicated triplets are summed up (see Eigen docs)

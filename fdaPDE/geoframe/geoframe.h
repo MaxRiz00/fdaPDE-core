@@ -99,17 +99,19 @@ template <typename Triangulation_, int Order_ = 2> struct GeoFrame {
             geoframe_assert(
               coords.cols() == embed_dim && coords.rows() > 0, "empty or wrongly sized coordinate matrix.");
             using Scalar__ = typename CoordsType::Scalar;
-            std::shared_ptr<DMatrix<Scalar__>> coords_ptr = std::make_shared<DMatrix<Scalar__>>(coords);
+            using MatrixType = Eigen::Matrix<Scalar__, Dynamic, Dynamic>;
+            std::shared_ptr<MatrixType> coords_ptr = std::make_shared<MatrixType>(coords);
             fetch_<layer_t>(layers_).insert({name, layer_t(name, this, coords_ptr)});
         } else {
             geoframe_assert(
               coords.size() > 0 && coords.size() % embed_dim == 0, "empty or wrongly sized coordinate matrix.");
             using Scalar__ = typename CoordsType::value_type;
+            using MatrixType = Eigen::Matrix<Scalar__, Dynamic, Dynamic>;
             int n_rows = coords.size() / embed_dim;
             int n_cols = embed_dim;
-            std::shared_ptr<DMatrix<Scalar__>> coords_ptr =
-              std::make_shared<DMatrix<Scalar__>>(Eigen::Map<const DMatrix<Scalar__>>(coords.data(), n_rows, n_cols));
-	    fetch_<layer_t>(layers_).insert({name, layer_t(name, this, coords_ptr)});
+            std::shared_ptr<MatrixType> coords_ptr =
+              std::make_shared<MatrixType>(Eigen::Map<const MatrixType>(coords.data(), n_rows, n_cols));
+            fetch_<layer_t>(layers_).insert({name, layer_t(name, this, coords_ptr)});
         }
         idx_to_layer_name_[n_layers_] = name;
         n_layers_++;
@@ -127,14 +129,14 @@ template <typename Triangulation_, int Order_ = 2> struct GeoFrame {
             if constexpr (fdapde::is_eigen_dense_v<CoordsType>) return typename CoordsType::Scalar();
             else return typename CoordsType::value_type();
         }());
-        std::shared_ptr<DMatrix<Scalar__>> coords_ptr;
+	using MatrixType = Eigen::Matrix<Scalar__, Dynamic, Dynamic>;
+        std::shared_ptr<MatrixType> coords_ptr;
         if constexpr (fdapde::is_eigen_dense_v<CoordsType>) {
-            coords_ptr = std::make_shared<DMatrix<Scalar__>>(coords);
+            coords_ptr = std::make_shared<MatrixType>(coords);
         } else {
             int n_rows = coords.size() / embed_dim;
             int n_cols = embed_dim;
-            coords_ptr =
-              std::make_shared<DMatrix<Scalar__>>(Eigen::Map<const DMatrix<Scalar__>>(coords.data(), n_rows, n_cols));
+            coords_ptr = std::make_shared<MatrixType>(Eigen::Map<const MatrixType>(coords.data(), n_rows, n_cols));
         }
         for (auto it = layers.begin(); it != layers.end(); ++it) {
             std::string name(*it);
@@ -418,8 +420,8 @@ template <typename Triangulation_, int Order_ = 2> struct GeoFrame {
     const Triangulation_& triangulation() const { return *triangulation_; }
     int n_cells() const { return triangulation_->n_cells(); }
     int n_nodes() const { return triangulation_->n_nodes(); }
-    const DMatrix<double>& nodes() const { return triangulation_->nodes(); }
-    const DMatrix<int, Eigen::RowMajor>& cells() const { return triangulation_->cells(); }
+    const Eigen::Matrix<double, Dynamic, Dynamic>& nodes() const { return triangulation_->nodes(); }
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cells() const { return triangulation_->cells(); }
    private:
     // internal utilities
     template <typename LayerType> decltype(auto) get_as_(const std::string& name) const {

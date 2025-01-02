@@ -30,13 +30,13 @@ template <typename MeshType> class TreeSearch {
     static constexpr int local_dim = MeshType::local_dim;
     KDTree<2 * embed_dim> tree_;
     const MeshType* mesh_;
-    SVector<embed_dim> c_;   // normalization constants
+    Eigen::Matrix<double, embed_dim, 1> c_;   // normalization constants
     // build search query for point p
-    KDTree<2 * embed_dim>::RangeType query(const SVector<embed_dim>& p) const {
-        SVector<embed_dim> scaled_p = (p - mesh_->range().row(0).transpose()).array() * c_.array();
-        SVector<2 * embed_dim> ll, ur;
-        ll << SVector<embed_dim>::Zero(), scaled_p;
-        ur << scaled_p, SVector<embed_dim>::Ones();
+    KDTree<2 * embed_dim>::RangeType query(const Eigen::Matrix<double, embed_dim, 1>& p) const {
+        Eigen::Matrix<double, embed_dim, 1> scaled_p = (p - mesh_->range().row(0).transpose()).array() * c_.array();
+	Eigen::Matrix<double, 2 * embed_dim, 1> ll, ur;
+        ll << Eigen::Matrix<double, embed_dim, 1>::Zero(), scaled_p;
+        ur << scaled_p, Eigen::Matrix<double, embed_dim, 1>::Ones();
         return {ll, ur};
     }
    public:
@@ -44,12 +44,13 @@ template <typename MeshType> class TreeSearch {
     TreeSearch(const MeshType* mesh) : mesh_(mesh) {
         // the i-th row of data contains the bounding box of the i-th element, stored as the vector [lower-left,
         // upper-right] corner. This moves each element to a point in R^{2N}
-        DMatrix<double> data;
+        Eigen::Matrix<double, Dynamic, Dynamic> data;
         data.resize(mesh_->n_cells(), 2 * embed_dim);
         for (int dim = 0; dim < embed_dim; ++dim) { c_[dim] = 1.0 / (mesh_->range()(1, dim) - mesh_->range()(0, dim)); }
         int i = 0;
         for (typename MeshType::cell_iterator it = mesh_->cells_begin(); it != mesh_->cells_end(); ++it) {
-            std::pair<SVector<embed_dim>, SVector<embed_dim>> bbox = it->bounding_box();
+            std::pair<Eigen::Matrix<double, embed_dim, 1>, Eigen::Matrix<double, embed_dim, 1>> bbox =
+              it->bounding_box();
             // unit hypercube point scaling
             data.row(i).leftCols(embed_dim)  = (bbox.first  - mesh_->range().row(0).transpose()).array() * c_.array();
             data.row(i).rightCols(embed_dim) = (bbox.second - mesh_->range().row(0).transpose()).array() * c_.array();
@@ -58,7 +59,7 @@ template <typename MeshType> class TreeSearch {
         tree_ = KDTree<2 * embed_dim>(std::move(data));   // organize elements in a KD-tree structure
     }
     // finds all the elements containing p
-    std::vector<int> all_locate(const SVector<embed_dim>& p) const {
+    std::vector<int> all_locate(const Eigen::Matrix<double, embed_dim, 1>& p) const {
         std::vector<int> result;
         for (int id : tree_.range_search(query(p))) {
             typename MeshType::CellType c = mesh_->cell(id);
@@ -67,7 +68,7 @@ template <typename MeshType> class TreeSearch {
         return result;
     }
     // finds element containing p, returns -1 if element not found
-    int locate(const SVector<embed_dim>& p) const {
+    int locate(const Eigen::Matrix<double, embed_dim, 1>& p) const {
         // exhaustively scan the query results to get the searched mesh element
         for (int id : tree_.range_search(query(p))) {
             typename MeshType::CellType c = mesh_->cell(id);
@@ -75,10 +76,10 @@ template <typename MeshType> class TreeSearch {
         }
         return -1;   // no element found
     }
-    DVector<int> locate(const DMatrix<double>& locs) const {
+    Eigen::Matrix<int, Dynamic, 1> locate(const Eigen::Matrix<double, Dynamic, Dynamic>& locs) const {
         fdapde_assert(locs.cols() == embed_dim);
-        DVector<int> ids(locs.rows());
-        for (int i = 0; i < locs.rows(); ++i) { ids[i] = locate(SVector<embed_dim>(locs.row(i))); }
+        Eigen::Matrix<int, Dynamic, 1> ids(locs.rows());
+        for (int i = 0; i < locs.rows(); ++i) { ids[i] = locate(Eigen::Matrix<double, embed_dim, 1>(locs.row(i))); }
         return ids;
     }
 };

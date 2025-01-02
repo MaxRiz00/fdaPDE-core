@@ -23,19 +23,6 @@
 #include "traits.h"
 #include "assert.h"
 
-// static structures, allocated on stack at compile time.
-template <int N, typename T = double> using SVector = Eigen::Matrix<T, N, 1>;
-template <int N, int M = N, typename T = double> using SMatrix = Eigen::Matrix<T, N, M>;
-
-// dynamic size, heap-appocated, structures.
-template <typename T, int Options_ = Eigen::ColMajor>
-using DMatrix = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Options_>;
-template <typename T> using DVector    = Eigen::Matrix<T, Eigen::Dynamic, 1>;
-template <typename T> using DiagMatrix = Eigen::DiagonalMatrix<T, Eigen::Dynamic, Eigen::Dynamic>;
-
-// sparse matrix structures
-template <typename T> using SpMatrix = Eigen::SparseMatrix<T>;
-
 namespace fdapde {
 
 constexpr int Dynamic = -1;       // used when the size of a vector or matrix is not known at compile time
@@ -55,17 +42,17 @@ constexpr int random_seed = -1;   // signals that a random seed is used somewher
 [[maybe_unused]] constexpr int ColMajor = 1;
 
 template <int N, typename T = double> struct static_dynamic_vector_selector {
-    using type = typename std::conditional<N == Dynamic, DVector<T>, SVector<N, T>>::type;
+    using type = typename std::conditional<N == Dynamic, Eigen::Matrix<T, Dynamic, 1>, Eigen::Matrix<T, N, 1>>::type;
 };
 template <int N, typename T = double>
 using static_dynamic_vector_selector_t = typename static_dynamic_vector_selector<N, T>::type;
 
 template <int N, int M, typename T = double> struct static_dynamic_matrix_selector {
     using type = typename switch_type<
-      switch_type_case<N == Dynamic && M == Dynamic, DMatrix<T>>,
-      switch_type_case<N == Dynamic && M != Dynamic, Eigen::Matrix<T, N, Eigen::Dynamic>>,
-      switch_type_case<N != Dynamic && M == Dynamic, Eigen::Matrix<T, Eigen::Dynamic, M>>,
-      switch_type_case<N != Dynamic && M != Dynamic, SMatrix<N, M, T>>>::type;
+      switch_type_case<N == Dynamic && M == Dynamic, Eigen::Matrix<T, Dynamic, Dynamic>>,
+      switch_type_case<N == Dynamic && M != Dynamic, Eigen::Matrix<T, N, Dynamic>>,
+      switch_type_case<N != Dynamic && M == Dynamic, Eigen::Matrix<T, Dynamic, M>>,
+      switch_type_case<N != Dynamic && M != Dynamic, Eigen::Matrix<T, N, M>>>::type;
 };
 template <int N, int M, typename T = double>
 using static_dynamic_matrix_selector_t = typename static_dynamic_matrix_selector<N, M, T>::type;
@@ -107,9 +94,9 @@ struct pair_hash {
         return hash;
     }
 };
-// hash function for DMatrix<T>, allows DMatrix<T> as key in an unordered map.
+// hash function for Eigen::Matrix<T, Dynamic, Dynamic>
 struct matrix_hash {
-    template <typename T> std::size_t operator()(const DMatrix<T>& matrix) const {
+    template <typename T> std::size_t operator()(const Eigen::Matrix<T, Dynamic, Dynamic>& matrix) const {
         std::size_t hash = 0;
         for (std::size_t i = 0; i < matrix.rows(); ++i) {
             for (std::size_t j = 0; j < matrix.cols(); ++j) {
@@ -122,14 +109,18 @@ struct matrix_hash {
   
 // hash function for an standard container's iterator range
 template <typename T>
+    requires(requires(T) {
+        typename T::value_type;
+        typename T::const_iterator;
+    })
 struct std_container_hash {
-  std::size_t operator()(const typename T::const_iterator& begin, const typename T::const_iterator& end) const {
-    std::size_t hash = 0;
-    for(auto it = begin; it != end; ++it) {
-      hash ^= std::hash<typename T::value_type>()(*it) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    std::size_t operator()(const typename T::const_iterator& begin, const typename T::const_iterator& end) const {
+        std::size_t hash = 0;
+        for (auto it = begin; it != end; ++it) {
+            hash ^= std::hash<typename T::value_type>()(*it) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        }
+        return hash;
     }
-    return hash;
-  }
 };
 // hash function for std::array<T, N>
 template <typename T, int N> struct std_array_hash {
@@ -137,16 +128,11 @@ template <typename T, int N> struct std_array_hash {
       return std_container_hash<std::array<T, N>>()(array.begin(), array.end());
     };
 };
-  
-// oredering relation for SVector<N>, allows SVector<N> to be keys of std::map
-template <int N> struct s_vector_compare {
-    bool operator()(const SVector<N>& lhs, const SVector<N>& rhs) const {
-        return std::lexicographical_compare(lhs.data(), lhs.data() + lhs.size(), rhs.data(), rhs.data() + rhs.size());
-    };
-};
-// ordering relation for DVector<T>
-template <typename T> struct d_vector_compare {
-    bool operator()(const DVector<T>& lhs, const DVector<T>& rhs) const {
+
+// ordering relation for Eigen::Matrix<T, N, 1> (N can be Dynamic)
+struct eigen_vector_compare {
+  template <typename Scalar, int Rows>
+    bool operator()(const Eigen::Matrix<Scalar, Rows, 1>& lhs, const Eigen::Matrix<Scalar, Rows, 1>& rhs) const {
         return std::lexicographical_compare(lhs.data(), lhs.data() + lhs.size(), rhs.data(), rhs.data() + rhs.size());
     }
 };

@@ -34,13 +34,13 @@ template <int LocalDim, int EmbedDim> class Polygon {
 
     // constructors
     Polygon() noexcept = default;
-    Polygon(const DMatrix<double>& nodes) noexcept : triangulation_() {
+    Polygon(const Eigen::Matrix<double, Dynamic, Dynamic>& nodes) noexcept : triangulation_() {
         fdapde_assert(nodes.rows() > 0 && nodes.cols() == embed_dim);
         if (internals::are_2d_counterclockwise_sorted(nodes)) {
             triangulate_(nodes);
         } else {   // nodes are in clocwise order, reverse node ordering
             int n_nodes = nodes.rows();
-            DMatrix<double> reversed_nodes(n_nodes, embed_dim);
+            Eigen::Matrix<double, Dynamic, Dynamic> reversed_nodes(n_nodes, embed_dim);
             for (int i = 0; i < n_nodes; ++i) { reversed_nodes.row(i) = nodes.row(n_nodes - 1 - i); }
             triangulate_(reversed_nodes);
         }
@@ -49,9 +49,11 @@ template <int LocalDim, int EmbedDim> class Polygon {
     Polygon(const Polygon&) noexcept = default;
     Polygon(Polygon&&) noexcept = default;  
     // observers
-    const DMatrix<double>& nodes() const { return triangulation_.nodes(); }
-    const DMatrix<int, Eigen::RowMajor>& cells() const { return triangulation_.cells(); }
-    Eigen::Map<const DMatrix<int, Eigen::RowMajor>> edges() const { return triangulation_.edges(); }
+    const Eigen::Matrix<double, Dynamic, Dynamic>& nodes() const { return triangulation_.nodes(); }
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cells() const { return triangulation_.cells(); }
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> edges() const {
+        return triangulation_.edges();
+    }
     const Triangulation<local_dim, embed_dim>& triangulation() const { return triangulation_; }
     double measure() const { return triangulation_.measure(); }
     int n_nodes() const { return triangulation_.n_nodes(); }
@@ -64,12 +66,12 @@ template <int LocalDim, int EmbedDim> class Polygon {
         return triangulation_.locate(p) != -1;
     }
     // random sample points in polygon
-    DMatrix<double> sample(int n_samples, int seed = fdapde::random_seed) const {
+    Eigen::Matrix<double, Dynamic, Dynamic> sample(int n_samples, int seed = fdapde::random_seed) const {
         return triangulation_.sample(n_samples, seed);
     }
    private:
     // perform polygon triangulation
-    void triangulate_(const DMatrix<double>& nodes) {
+    void triangulate_(const Eigen::Matrix<double, Dynamic, Dynamic>& nodes) {
         std::vector<int> cells;
         // perform monotone partitioning
         std::vector<std::vector<int>> poly_partition = monotone_partition_(nodes);
@@ -82,13 +84,13 @@ template <int LocalDim, int EmbedDim> class Polygon {
         }
         // set-up face-based data structure
         triangulation_ = Triangulation<LocalDim, EmbedDim>(
-          nodes, Eigen::Map<DMatrix<int, Eigen::RowMajor>>(cells.data(), cells.size() / 3, 3),
-          DVector<int>::Ones(nodes.rows()));
+          nodes, Eigen::Map<Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(cells.data(), cells.size() / 3, 3),
+          Eigen::Matrix<int, Dynamic, 1>::Ones(nodes.rows()));
     }
 
     // partition an arbitrary polygon P into a set of monotone polygons (plane sweep approach, section 3.2 of De Berg,
     // M. (2000). Computational geometry: algorithms and applications. Springer Science & Business Media.)
-    std::vector<std::vector<int>> monotone_partition_(const DMatrix<double>& coords) {      
+    std::vector<std::vector<int>> monotone_partition_(const Eigen::Matrix<double, Dynamic, Dynamic>& coords) {      
         using poly_t = DCEL<local_dim, embed_dim>;
 	using halfedge_t = typename poly_t::halfedge_t;
 	using halfedge_ptr_t = std::add_pointer_t<halfedge_t>;
@@ -256,7 +258,7 @@ template <int LocalDim, int EmbedDim> class Polygon {
         return monotone_partition;
     }
     // triangulate monotone polygon (returns a RowMajor ordered matrix of cells).
-    std::vector<int> triangulate_monotone_(const DMatrix<double>& nodes) {
+    std::vector<int> triangulate_monotone_(const Eigen::Matrix<double, Dynamic, Dynamic>& nodes) {
         // every triangulation of a polygon of n points has n - 2 triangles (lemma 1.2.2 of (1))
         std::vector<int> cells;
 	int n_nodes = nodes.rows();
@@ -406,15 +408,17 @@ template <int LocalDim, int EmbedDim> class MultiPolygon {
             // set up face-based storage
             triangulation_ = Triangulation<local_dim, embed_dim>(
               nodes,
-              Eigen::Map<DMatrix<int, Eigen::RowMajor>>(
+              Eigen::Map<Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
                 cells.data(), cells.size() / n_nodes_per_cell, n_nodes_per_cell),
-              DVector<int>::Ones(nodes.rows()));
+              Eigen::Matrix<int, Dynamic, 1>::Ones(nodes.rows()));
         }
     }
     // observers
-    const DMatrix<double>& nodes() const { return triangulation_.nodes(); }
-    const DMatrix<int, Eigen::RowMajor>& cells() const { return triangulation_.cells(); }
-    Eigen::Map<const DMatrix<int, Eigen::RowMajor>> edges() const { return triangulation_.edges(); }
+    const Eigen::Matrix<double, Dynamic, Dynamic>& nodes() const { return triangulation_.nodes(); }
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cells() const { return triangulation_.cells(); }
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> edges() const {
+        return triangulation_.edges();
+    }
     // computes only the boundary edges of the multipoligon (discards triangulation's edges)
     Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> boundary_edges() const {
         int n_edges = triangulation_.n_boundary_edges();
@@ -439,7 +443,7 @@ template <int LocalDim, int EmbedDim> class MultiPolygon {
         return triangulation_.locate(p) != -1;
     }
     // random sample points in polygon
-    DMatrix<double> sample(int n_samples, int seed = fdapde::random_seed) const {
+    Eigen::Matrix<double, Dynamic, Dynamic> sample(int n_samples, int seed = fdapde::random_seed) const {
         return triangulation_.sample(n_samples, seed);
     }
    private:

@@ -24,21 +24,23 @@
 
 namespace fdapde {
 
-template <int StaticInputSize, typename Derived> struct ScalarBase;
+template <int StaticInputSize, typename Derived> struct ScalarFieldBase;
 
 template <typename Derived_, typename UnaryFunctor>
-struct ScalarUnaryOp : public ScalarBase<Derived_::StaticInputSize, ScalarUnaryOp<Derived_, UnaryFunctor>> {
+struct ScalarFieldUnaryOp :
+    public ScalarFieldBase<Derived_::StaticInputSize, ScalarFieldUnaryOp<Derived_, UnaryFunctor>> {
     using Derived = Derived_;
-    template <typename T> using Meta = ScalarUnaryOp<T, UnaryFunctor>;
-    using Base = ScalarBase<Derived::StaticInputSize, ScalarUnaryOp<Derived, UnaryFunctor>>;
+    template <typename T> using Meta = ScalarFieldUnaryOp<T, UnaryFunctor>;
+    using Base = ScalarFieldBase<Derived::StaticInputSize, ScalarFieldUnaryOp<Derived, UnaryFunctor>>;
     using InputType = typename Derived::InputType;
     using Scalar = decltype(std::declval<UnaryFunctor>().operator()(std::declval<typename Derived::Scalar>()));
     static constexpr int StaticInputSize = Derived::StaticInputSize;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = Derived::XprBits;
 
-    constexpr ScalarUnaryOp(const Derived_& derived, const UnaryFunctor& op) : Base(), derived_(derived), op_(op) { }
-    constexpr ScalarUnaryOp(const Derived_& derived) : ScalarUnaryOp(derived, UnaryFunctor {}) { }
+    constexpr ScalarFieldUnaryOp(const Derived_& derived, const UnaryFunctor& op) :
+        Base(), derived_(derived), op_(op) { }
+    constexpr ScalarFieldUnaryOp(const Derived_& derived) : ScalarFieldUnaryOp(derived, UnaryFunctor {}) { }
     constexpr Scalar operator()(const InputType& p) const {
         if constexpr (StaticInputSize == Dynamic) { fdapde_assert(p.rows() == Base::input_size()); }
         return op_(derived_(p));
@@ -49,23 +51,23 @@ struct ScalarUnaryOp : public ScalarBase<Derived_::StaticInputSize, ScalarUnaryO
     typename internals::ref_select<const Derived>::type derived_;
     UnaryFunctor op_;
 };
-template <int Size, typename Derived> constexpr auto sin(const ScalarBase<Size, Derived>& f) {
-    return ScalarUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::sin(x); })>(f.derived());
+template <int Size, typename Derived> constexpr auto sin(const ScalarFieldBase<Size, Derived>& f) {
+    return ScalarFieldUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::sin(x); })>(f.derived());
 }
-template <int Size, typename Derived> constexpr auto cos(const ScalarBase<Size, Derived>& f) {
-    return ScalarUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::cos(x); })>(f.derived());
+template <int Size, typename Derived> constexpr auto cos(const ScalarFieldBase<Size, Derived>& f) {
+    return ScalarFieldUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::cos(x); })>(f.derived());
 }
-template <int Size, typename Derived> constexpr auto logn(const ScalarBase<Size, Derived>& f) {
-    return ScalarUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::log(x); })>(f.derived());
+template <int Size, typename Derived> constexpr auto logn(const ScalarFieldBase<Size, Derived>& f) {
+    return ScalarFieldUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::log(x); })>(f.derived());
 }
-template <int Size, typename Derived> constexpr auto exp(const ScalarBase<Size, Derived>& f) {
-    return ScalarUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::exp(x); })>(f.derived());
+template <int Size, typename Derived> constexpr auto exp(const ScalarFieldBase<Size, Derived>& f) {
+    return ScalarFieldUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::exp(x); })>(f.derived());
 }
-template <int Size, typename Derived> constexpr auto abs(const ScalarBase<Size, Derived>& f) {
-    return ScalarUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::abs(x); })>(f.derived());
+template <int Size, typename Derived> constexpr auto abs(const ScalarFieldBase<Size, Derived>& f) {
+    return ScalarFieldUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::abs(x); })>(f.derived());
 }
-template <int Size, typename Derived> constexpr auto sqrt(const ScalarBase<Size, Derived>& f) {
-    return ScalarUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::sqrt(x); })>(f.derived());
+template <int Size, typename Derived> constexpr auto sqrt(const ScalarFieldBase<Size, Derived>& f) {
+    return ScalarFieldUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return std::sqrt(x); })>(f.derived());
 }
 
 namespace internals {
@@ -77,12 +79,12 @@ class pow_t {
 };
 }   // namespace internals
 
-template <int Size, typename Derived> constexpr auto pow(const ScalarBase<Size, Derived>& f, int i) {
-    return ScalarUnaryOp<Derived, internals::pow_t>(f.derived(), internals::pow_t(i));
+template <int Size, typename Derived> constexpr auto pow(const ScalarFieldBase<Size, Derived>& f, int i) {
+    return ScalarFieldUnaryOp<Derived, internals::pow_t>(f.derived(), internals::pow_t(i));
 }
 
 template <typename Lhs_, typename Rhs_, typename BinaryOperation>
-class ScalarBinOp : public ScalarBase<Lhs_::StaticInputSize, ScalarBinOp<Lhs_, Rhs_, BinaryOperation>> {
+class ScalarFieldBinOp : public ScalarFieldBase<Lhs_::StaticInputSize, ScalarFieldBinOp<Lhs_, Rhs_, BinaryOperation>> {
     fdapde_static_assert(
       Lhs_::StaticInputSize == Rhs_::StaticInputSize, YOU_MIXED_SCALAR_FUNCTIONS_WITH_DIFFERENT_STATIC_INNER_SIZES);
     fdapde_static_assert(
@@ -91,21 +93,23 @@ class ScalarBinOp : public ScalarBase<Lhs_::StaticInputSize, ScalarBinOp<Lhs_, R
    public:
     using LhsDerived = Lhs_;
     using RhsDerived = Rhs_;
-    template <typename T1, typename T2> using Meta = ScalarBinOp<T1, T2, BinaryOperation>;
-    using Base = ScalarBase<LhsDerived::StaticInputSize, ScalarBinOp<LhsDerived, RhsDerived, BinaryOperation>>;
+    template <typename T1, typename T2> using Meta = ScalarFieldBinOp<T1, T2, BinaryOperation>;
+    using Base =
+      ScalarFieldBase<LhsDerived::StaticInputSize, ScalarFieldBinOp<LhsDerived, RhsDerived, BinaryOperation>>;
     using InputType = typename LhsDerived::InputType;
     using Scalar = typename LhsDerived::Scalar;
     static constexpr int StaticInputSize = LhsDerived::StaticInputSize;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = LhsDerived::XprBits | RhsDerived::XprBits;
 
-    ScalarBinOp(const Lhs_& lhs, const Rhs_& rhs, BinaryOperation op) requires(StaticInputSize == Dynamic) :
+    ScalarFieldBinOp(const Lhs_& lhs, const Rhs_& rhs, BinaryOperation op) requires(StaticInputSize == Dynamic) :
         Base(), lhs_(lhs), rhs_(rhs), op_(op) {
         fdapde_assert(lhs.input_size() == rhs.input_size());
     }
-    constexpr ScalarBinOp(const Lhs_& lhs, const Rhs_& rhs, BinaryOperation op) requires(StaticInputSize != Dynamic) :
-        Base(), lhs_(lhs), rhs_(rhs), op_(op) { }
-    constexpr ScalarBinOp(const Lhs_& lhs, const Rhs_& rhs) : ScalarBinOp(lhs, rhs, BinaryOperation {}) { }
+    constexpr ScalarFieldBinOp(const Lhs_& lhs, const Rhs_& rhs, BinaryOperation op)
+        requires(StaticInputSize != Dynamic)
+        : Base(), lhs_(lhs), rhs_(rhs), op_(op) { }
+    constexpr ScalarFieldBinOp(const Lhs_& lhs, const Rhs_& rhs) : ScalarFieldBinOp(lhs, rhs, BinaryOperation {}) { }
     constexpr Scalar operator()(const InputType& p) const {
         fdapde_static_assert(
           std::is_same_v<typename Lhs_::InputType FDAPDE_COMMA typename Rhs_::InputType>,
@@ -123,33 +127,33 @@ class ScalarBinOp : public ScalarBase<Lhs_::StaticInputSize, ScalarBinOp<Lhs_, R
 };
 
 template <int Size, typename Lhs, typename Rhs>
-constexpr ScalarBinOp<Lhs, Rhs, std::plus<>>
-operator+(const ScalarBase<Size, Lhs>& lhs, const ScalarBase<Size, Rhs>& rhs) {
-    return ScalarBinOp<Lhs, Rhs, std::plus<>> {lhs.derived(), rhs.derived(), std::plus<>()};
+constexpr ScalarFieldBinOp<Lhs, Rhs, std::plus<>>
+operator+(const ScalarFieldBase<Size, Lhs>& lhs, const ScalarFieldBase<Size, Rhs>& rhs) {
+    return ScalarFieldBinOp<Lhs, Rhs, std::plus<>> {lhs.derived(), rhs.derived(), std::plus<>()};
 }
 template <int Size, typename Lhs, typename Rhs>
-constexpr ScalarBinOp<Lhs, Rhs, std::minus<>>
-operator-(const ScalarBase<Size, Lhs>& lhs, const ScalarBase<Size, Rhs>& rhs) {
-    return ScalarBinOp<Lhs, Rhs, std::minus<>> {lhs.derived(), rhs.derived(), std::minus<>()};
+constexpr ScalarFieldBinOp<Lhs, Rhs, std::minus<>>
+operator-(const ScalarFieldBase<Size, Lhs>& lhs, const ScalarFieldBase<Size, Rhs>& rhs) {
+    return ScalarFieldBinOp<Lhs, Rhs, std::minus<>> {lhs.derived(), rhs.derived(), std::minus<>()};
 }
 template <int Size, typename Lhs, typename Rhs>
-constexpr ScalarBinOp<Lhs, Rhs, std::multiplies<>>
-operator*(const ScalarBase<Size, Lhs>& lhs, const ScalarBase<Size, Rhs>& rhs) {
-    return ScalarBinOp<Lhs, Rhs, std::multiplies<>> {lhs.derived(), rhs.derived(), std::multiplies<>()};
+constexpr ScalarFieldBinOp<Lhs, Rhs, std::multiplies<>>
+operator*(const ScalarFieldBase<Size, Lhs>& lhs, const ScalarFieldBase<Size, Rhs>& rhs) {
+    return ScalarFieldBinOp<Lhs, Rhs, std::multiplies<>> {lhs.derived(), rhs.derived(), std::multiplies<>()};
 }
 template <int Size, typename Lhs, typename Rhs>
-constexpr ScalarBinOp<Lhs, Rhs, std::divides<>>
-operator/(const ScalarBase<Size, Lhs>& lhs, const ScalarBase<Size, Rhs>& rhs) {
-    return ScalarBinOp<Lhs, Rhs, std::divides<>> {lhs.derived(), rhs.derived(), std::divides<>()};
+constexpr ScalarFieldBinOp<Lhs, Rhs, std::divides<>>
+operator/(const ScalarFieldBase<Size, Lhs>& lhs, const ScalarFieldBase<Size, Rhs>& rhs) {
+    return ScalarFieldBinOp<Lhs, Rhs, std::divides<>> {lhs.derived(), rhs.derived(), std::divides<>()};
 }
 
 template <typename Lhs_, typename Rhs_, typename BinaryOperation>
-struct ScalarCoeffOp :
-    public ScalarBase<
+struct ScalarFieldCoeffOp :
+    public ScalarFieldBase<
       std::conditional_t<std::is_arithmetic_v<Lhs_>, Rhs_, Lhs_>::StaticInputSize,
-      ScalarCoeffOp<Lhs_, Rhs_, BinaryOperation>> {
+      ScalarFieldCoeffOp<Lhs_, Rhs_, BinaryOperation>> {
    private:
-    // keep this private to avoid to consider ScalarCoeffOp as a unary node
+    // keep this private to avoid to consider ScalarFieldCoeffOp as a unary node
     using Derived = std::conditional_t<std::is_arithmetic_v<Lhs_>, Rhs_, Lhs_>;
    public:
     using CoeffType = std::conditional_t<std::is_arithmetic_v<Lhs_>, Lhs_, Rhs_>;
@@ -158,19 +162,20 @@ struct ScalarCoeffOp :
       COEFFICIENT_IN_BINARY_OPERATION_NOT_CONVERTIBLE_TO_SCALAR_TYPE);
     using LhsDerived = Lhs_;
     using RhsDerived = Rhs_;
-    template <typename T1, typename T2> using Meta = ScalarCoeffOp<T1, T2, BinaryOperation>;
+    template <typename T1, typename T2> using Meta = ScalarFieldCoeffOp<T1, T2, BinaryOperation>;
     static constexpr bool is_coeff_lhs =
       std::is_arithmetic_v<Lhs_>;   // whether to perform op_(xpr_(p), coeff) or op_(coeff, xpr_(p))
-    using Base = ScalarBase<Derived::StaticInputSize, ScalarCoeffOp<LhsDerived, RhsDerived, BinaryOperation>>;
+    using Base = ScalarFieldBase<Derived::StaticInputSize, ScalarFieldCoeffOp<LhsDerived, RhsDerived, BinaryOperation>>;
     using InputType = typename Derived::InputType;
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = Derived::XprBits;
 
-    constexpr ScalarCoeffOp(const Lhs_& lhs, const Rhs_& rhs, BinaryOperation op) :
+    constexpr ScalarFieldCoeffOp(const Lhs_& lhs, const Rhs_& rhs, BinaryOperation op) :
         Base(), lhs_(lhs), rhs_(rhs), op_(op) { }
-    constexpr ScalarCoeffOp(const Lhs_& lhs, const Rhs_& rhs) : ScalarCoeffOp(lhs, rhs, BinaryOperation {}) { }
+    constexpr ScalarFieldCoeffOp(const Lhs_& lhs, const Rhs_& rhs) :
+        ScalarFieldCoeffOp(lhs, rhs, BinaryOperation {}) { }
     constexpr Scalar operator()(const InputType& p) const {
         if constexpr (StaticInputSize == Dynamic) { fdapde_assert(p.rows() == Base::input_size()); }
         if constexpr (is_coeff_lhs) {
@@ -193,17 +198,21 @@ struct ScalarCoeffOp :
     typename internals::ref_select<const RhsDerived>::type rhs_;
     BinaryOperation op_;
 };
-  
+
 #define FDAPDE_DEFINE_SCALAR_COEFF_OP(OPERATOR, FUNCTOR)                                                               \
     template <int Size, typename Derived, typename Coeff>                                                              \
-    constexpr ScalarCoeffOp<Derived, Coeff, FUNCTOR> OPERATOR(const ScalarBase<Size, Derived>& lhs, Coeff rhs)         \
-        requires(std::is_arithmetic_v<Coeff>) {                                                                        \
-        return ScalarCoeffOp<Derived, Coeff, FUNCTOR> {lhs.derived(), rhs, FUNCTOR()};                                 \
+    constexpr ScalarFieldCoeffOp<Derived, Coeff, FUNCTOR> OPERATOR(                                                    \
+      const ScalarFieldBase<Size, Derived>& lhs, Coeff rhs)                                                            \
+        requires(std::is_arithmetic_v<Coeff>)                                                                          \
+    {                                                                                                                  \
+        return ScalarFieldCoeffOp<Derived, Coeff, FUNCTOR> {lhs.derived(), rhs, FUNCTOR()};                            \
     }                                                                                                                  \
     template <int Size, typename Derived, typename Coeff>                                                              \
-    constexpr ScalarCoeffOp<Coeff, Derived, FUNCTOR> OPERATOR(Coeff lhs, const ScalarBase<Size, Derived>& rhs)         \
-        requires(std::is_arithmetic_v<Coeff>) {                                                                        \
-        return ScalarCoeffOp<Coeff, Derived, FUNCTOR> {lhs, rhs.derived(), FUNCTOR()};                                 \
+    constexpr ScalarFieldCoeffOp<Coeff, Derived, FUNCTOR> OPERATOR(                                                    \
+      Coeff lhs, const ScalarFieldBase<Size, Derived>& rhs)                                                            \
+        requires(std::is_arithmetic_v<Coeff>)                                                                          \
+    {                                                                                                                  \
+        return ScalarFieldCoeffOp<Coeff, Derived, FUNCTOR> {lhs, rhs.derived(), FUNCTOR()};                            \
     }
 
 FDAPDE_DEFINE_SCALAR_COEFF_OP(operator+, std::plus<>      )
@@ -214,12 +223,12 @@ FDAPDE_DEFINE_SCALAR_COEFF_OP(operator/, std::divides<>   )
 template <
   int Size,   // input space dimension (fdapde::Dynamic accepted)
   typename FunctorType_ = std::function<double(static_dynamic_vector_selector_t<Size>)>>
-class ScalarField : public ScalarBase<Size, ScalarField<Size, FunctorType_>> {
+class ScalarField : public ScalarFieldBase<Size, ScalarField<Size, FunctorType_>> {
     using FunctorType = std::decay_t<FunctorType_>;   // type of wrapped functor
     using traits = fn_ptr_traits<&FunctorType::operator()>;
     fdapde_static_assert(traits::n_args == 1, PROVIDED_FUNCTOR_MUST_ACCEPT_ONLY_ONE_ARGUMENT);
    public:
-    using Base = ScalarBase<Size, ScalarField<Size, FunctorType>>;
+    using Base = ScalarFieldBase<Size, ScalarField<Size, FunctorType>>;
     using InputType = std::tuple_element_t<0, typename traits::ArgsType>;
     using Scalar = typename std::invoke_result<FunctorType, InputType>::type;
     static constexpr int StaticInputSize = Size;      // dimensionality of base space (can be Dynamic)
@@ -230,7 +239,7 @@ class ScalarField : public ScalarBase<Size, ScalarField<Size, FunctorType_>> {
     explicit ScalarField(int n) requires(StaticInputSize == Dynamic)
         : Base(), f_(), dynamic_input_size_(n) { }
     constexpr explicit ScalarField(const FunctorType& f) : f_(f) {};
-    template <typename Expr> ScalarField(const ScalarBase<Size, Expr>& f) {
+    template <typename Expr> ScalarField(const ScalarFieldBase<Size, Expr>& f) {
         fdapde_static_assert(
           std::is_same_v<FunctorType FDAPDE_COMMA std::function<Scalar(InputType)>> &&
             std::is_convertible_v<typename Expr::Scalar FDAPDE_COMMA Scalar>,
@@ -238,7 +247,7 @@ class ScalarField : public ScalarBase<Size, ScalarField<Size, FunctorType_>> {
         Expr expr = f.get();
         f_ = [expr](const InputType& x) { return expr(x); };
     }
-    template <typename Expr> ScalarField& operator=(const ScalarBase<Size, Expr>& f) {
+    template <typename Expr> ScalarField& operator=(const ScalarFieldBase<Size, Expr>& f) {
         fdapde_static_assert(
           std::is_same_v<FunctorType FDAPDE_COMMA std::function<Scalar(InputType)>> &&
             std::is_convertible_v<typename Expr::Scalar FDAPDE_COMMA Scalar>,
@@ -258,7 +267,7 @@ class ScalarField : public ScalarBase<Size, ScalarField<Size, FunctorType_>> {
         return *this;
     }
     // static initializers
-    struct ConstantFunction : public ScalarBase<Size, ConstantFunction> {
+    struct ConstantFunction : public ScalarFieldBase<Size, ConstantFunction> {
         Scalar c_ = 0;
         ConstantFunction(Scalar c) : c_(c) { }
         constexpr Scalar operator()([[maybe_unused]] const InputType& x) const { return c_; }
@@ -270,12 +279,12 @@ class ScalarField : public ScalarBase<Size, ScalarField<Size, FunctorType_>> {
     constexpr Scalar operator()(const InputType& x) const { return f_(x); }
     constexpr Scalar operator()(const InputType& x) { return f_(x); }
     // evaluation at matrix of points
-    DVector<Scalar> eval_at(const DMatrix<double>& points) const {
+    Eigen::Matrix<Scalar, Dynamic, 1> eval_at(const Eigen::Matrix<double, Dynamic, Dynamic>& points) const {
         fdapde_static_assert(
           std::is_invocable_v<FunctorType FDAPDE_COMMA decltype(points.row(std::declval<int>()))>,
           INVALID_SCALAR_FIELD_INVOCATION);
         fdapde_assert(points.rows() > 0 && points.cols() == input_size());
-        DVector<Scalar> evals(points.rows());
+	Eigen::Matrix<Scalar, Dynamic, 1> evals(points.rows());
         for (int i = 0; i < points.rows(); ++i) { evals[i] = f_(points.row(i)); }
         return evals;
     }
@@ -292,10 +301,11 @@ class ScalarField : public ScalarBase<Size, ScalarField<Size, FunctorType_>> {
 template <typename Derived, int Order> struct PartialDerivative;
 
 template <typename Derived_>
-struct PartialDerivative<Derived_, 1> : public ScalarBase<Derived_::StaticInputSize, PartialDerivative<Derived_, 1>> {
+struct PartialDerivative<Derived_, 1> :
+    public ScalarFieldBase<Derived_::StaticInputSize, PartialDerivative<Derived_, 1>> {
     using Derived = Derived_;
     template <typename T> using Meta = PartialDerivative<T, 1>;
-    using Base = ScalarBase<Derived::StaticInputSize, PartialDerivative<Derived, 1>>;
+    using Base = ScalarFieldBase<Derived::StaticInputSize, PartialDerivative<Derived, 1>>;
     using InputType = std::decay_t<typename Derived::InputType>;
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
@@ -325,10 +335,11 @@ struct PartialDerivative<Derived_, 1> : public ScalarBase<Derived_::StaticInputS
 };
 
 template <typename Derived_>
-struct PartialDerivative<Derived_, 2> : public ScalarBase<Derived_::StaticInputSize, PartialDerivative<Derived_, 2>> {
+struct PartialDerivative<Derived_, 2> :
+    public ScalarFieldBase<Derived_::StaticInputSize, PartialDerivative<Derived_, 2>> {
     using Derived = Derived_;
     template <typename T> using Meta = PartialDerivative<T, 2>;
-    using Base = ScalarBase<Derived::StaticInputSize, PartialDerivative<Derived, 2>>;
+    using Base = ScalarFieldBase<Derived::StaticInputSize, PartialDerivative<Derived, 2>>;
     using InputType = std::decay_t<typename Derived::InputType>;
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
@@ -379,13 +390,13 @@ struct PartialDerivative<Derived_, 2> : public ScalarBase<Derived_::StaticInputS
     double h_ = 1e-3;
 };
 
-template <int Size, typename Derived> struct ScalarBase {
-    constexpr ScalarBase() = default;
+template <int Size, typename Derived> struct ScalarFieldBase {
+    constexpr ScalarFieldBase() = default;
   
     constexpr const Derived& derived() const { return static_cast<const Derived&>(*this); }
     constexpr Derived& derived() { return static_cast<Derived&>(*this); }
     constexpr auto operator-() const {   // unary minus
-        return ScalarUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return -x; })>(derived());
+        return ScalarFieldUnaryOp<Derived, decltype([](typename Derived::Scalar x) { return -x; })>(derived());
     }
     // differential quantities
     constexpr void set_step(double step) { step_ = step; }
@@ -403,7 +414,7 @@ template <int Size, typename Derived> struct ScalarBase {
     // vector case transparently)
     static constexpr int Rows = 1;
     static constexpr int Cols = 1;
-    template <typename Rhs> constexpr auto dot(const ScalarBase<Size, Rhs>& rhs) const;
+    template <typename Rhs> constexpr auto dot(const ScalarFieldBase<Size, Rhs>& rhs) const;
    protected:
     double step_ = 1e-3;   // step size used in derivative approximation
 };
@@ -413,7 +424,7 @@ namespace internals {
 // for type Functor_ having just a call operator, xpr_wrap<Xpr_, Functor_> makes Functor_ a valid expression type to be
 // stored inside Xpr_
 template <int StaticInputSize_, typename Functor_, int Bits_ = 0>
-class xpr_scalar_wrap : ScalarBase<StaticInputSize_, xpr_scalar_wrap<StaticInputSize_, Functor_, Bits_>> {
+class xpr_scalar_wrap : ScalarFieldBase<StaticInputSize_, xpr_scalar_wrap<StaticInputSize_, Functor_, Bits_>> {
     using FunctorType = std::decay_t<Functor_>;
     using fn_traits = fn_ptr_traits<&FunctorType::operator()>;
     fdapde_static_assert(std::tuple_size_v<typename fn_traits::ArgsType> == 1, FUNCTOR_MUST_ACCEPT_A_SINGLE_ARGUMENT);

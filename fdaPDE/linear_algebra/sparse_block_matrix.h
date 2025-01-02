@@ -117,11 +117,11 @@ struct SparseBlockMatrix :
         for (Eigen::Index i = 0; i < Cols_; ++i) { outer_offset_[i + 1] = (i + 1) * blk_cols; }
     }
     // read/write access to individual blocks
-    const SpMatrix<double>& block(Eigen::Index row, Eigen::Index col) const {
+    const Eigen::SparseMatrix<double>& block(Eigen::Index row, Eigen::Index col) const {
         fdapde_assert(row >= 0 && row < Rows_ && col >= 0 && col < Cols_);
         return blocks_[row * Cols_ + col];
     }
-    SpMatrix<double>& block(Eigen::Index row, Eigen::Index col) {
+    Eigen::SparseMatrix<double>& block(Eigen::Index row, Eigen::Index col) {
         fdapde_assert(row >= 0 && row < Rows_ && col >= 0 && col < Cols_);
         return blocks_[row * Cols_ + col];
     }
@@ -213,7 +213,7 @@ struct SparseBlockMatrix :
     Eigen::Index cols_ = 0, rows_ = 0;                      // matrix dimensions
 };
 
-SpMatrix<double> ZeroBlk(int n_rows, int n_cols) { return SpMatrix<double>(n_rows, n_cols); }
+Eigen::SparseMatrix<double> ZeroBlk(int n_rows, int n_cols) { return Eigen::SparseMatrix<double>(n_rows, n_cols); }
 
 }   // namespace fdapde
 

@@ -33,7 +33,7 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
     static constexpr int embed_dim = TriangulationType::embed_dim;
 
     class EdgeType : public Base::EdgeType {
-        DVector<int> dofs_;
+        Eigen::Matrix<int, Dynamic, 1> dofs_;
         const DofHandler* dof_handler_;
        public:
         EdgeType() = default;
@@ -63,14 +63,14 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
         }
     };
     class FaceType : public Base::FaceType {
-        DVector<int> dofs_;
+        Eigen::Matrix<int, Dynamic, 1> dofs_;
         const DofHandler* dof_handler_;
        public:
         FaceType() = default;
         FaceType(int face_id, const DofHandler* dof_handler) :
             Base::FaceType(face_id, dof_handler->triangulation()), dof_handler_(dof_handler) {
             // if you query a DofTetrahedron for its face, most likely you want to access its dofs. compute and cache
-            dofs_ = DVector<int>(
+            dofs_ = Eigen::Matrix<int, Dynamic, 1>(
               dof_handler_->n_dofs_per_node() * TriangulationType::n_nodes_per_face +
               dof_handler_->n_dofs_per_edge() * TriangulationType::n_edges_per_face + dof_handler_->n_dofs_per_face());
             int j = 0;
@@ -86,8 +86,8 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
                 dofs_[j++] = dof_handler_->edge_to_dofs().at(this->id())[k];
             }
         }
-        const DVector<int>& dofs() const { return dofs_; }
-        DVector<short> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
+        const Eigen::Matrix<int, Dynamic, 1>& dofs() const { return dofs_; }
+        Eigen::Matrix<int, Dynamic, 1> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
         BinaryVector<fdapde::Dynamic> boundary_dofs() const {
             BinaryVector<fdapde::Dynamic> boundary(dofs_.size());
             int i = 0;
@@ -102,10 +102,10 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
     DofTetrahedron() = default;
     DofTetrahedron(int cell_id, const DofHandler* dof_handler) :
         Base(cell_id, dof_handler->triangulation()), dof_handler_(dof_handler) { }
-    DVector<int> dofs() const { return dof_handler_->active_dofs(Base::id()); }
-    DVector<short> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
+    Eigen::Matrix<int, Dynamic, 1> dofs() const { return dof_handler_->active_dofs(Base::id()); }
+    Eigen::Matrix<int, Dynamic, 1> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
     BinaryVector<fdapde::Dynamic> boundary_dofs() const {
-        DVector<int> tmp = dofs();
+        Eigen::Matrix<int, Dynamic, 1> tmp = dofs();
         BinaryVector<fdapde::Dynamic> boundary(tmp.size());
         int i = 0;
         for (int dof : tmp) {

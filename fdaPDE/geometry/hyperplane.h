@@ -24,51 +24,49 @@
 
 namespace fdapde {
 
-// orthogonal projection of vector v over u
-template <int N> constexpr SVector<N> orthogonal_project(const SVector<N>& v, const SVector<N>& u) {
-    return (v.dot(u) / u.squaredNorm() * u.array()).matrix();
-}
-
 // a template class representing an M-dimensional plane embedded in an N-dimensional space
-template <int M, int N> class HyperPlane {
-    static_assert(M <= N);
-   private:
-    // let x_1, x_2, \ldots, x_{N+1} be a set of N+1 points through which the plane passes
-    SMatrix<N, M> basis_;   // matrix [x2 - x1, x3 - x1, \ldots, x_{N+1} - x1] of vectors generating the plane
-    double offset_;         // hyperplane's intercept (the d in the equation ax + by + cz + d = 0)
-    SVector<N> normal_;     // normal vector to the hyperplane
-    SVector<N> p_;          // point through which the plane is guaranteed to pass
+template <int LocalDim, int EmbedDim> class HyperPlane {
+    static_assert(LocalDim <= EmbedDim);
    public:
-    // constructor
+    static constexpr int embed_dim = EmbedDim;
+    static constexpr int local_dim = LocalDim;
     HyperPlane() = default;
     // constructs a hyperplane passing through 2 points, e.g. a line
-    HyperPlane(const SVector<N>& x1, const SVector<N>& x2) : p_(x1) {
-        fdapde_static_assert(M == 1, THIS_METHOD_IS_ONLY_FOR_LINES);
-	SVector<N> tmp = x2 - x1;
+    HyperPlane(const Eigen::Matrix<double, embed_dim, 1>& x1, const Eigen::Matrix<double, embed_dim, 1>& x2) : p_(x1) {
+        fdapde_static_assert(local_dim == 1, THIS_METHOD_IS_ONLY_FOR_LINES);
+	Eigen::Matrix<double, embed_dim, 1> tmp = x2 - x1;
         basis_.col(0) = tmp.normalized();
-        if constexpr (N == 2) normal_ << -tmp[0], tmp[1];
-        if constexpr (N == 3) normal_ << -tmp[0], tmp[1], 0;   // one of the (infintely-many) normals to a 3D line
+        if constexpr (embed_dim == 2) normal_ << -tmp[0], tmp[1];
+        if constexpr (embed_dim == 3) normal_ << -tmp[0], tmp[1], 0;   // one of the (infintely-many) normals to 3D line
         normal_.normalized();
         offset_ = -x1.dot(normal_);
     }
     // constructs an hyperplane passing through 3 (non-collinear) points, e.g. a plane
-    HyperPlane(const SVector<N>& x1, const SVector<N>& x2, const SVector<N> x3) : p_(x1) {
-        fdapde_static_assert(M == 2, THIS_METHOD_IS_ONLY_FOR_PLANES);
+    HyperPlane(
+      const Eigen::Matrix<double, embed_dim, 1>& x1, const Eigen::Matrix<double, embed_dim, 1>& x2,
+      const Eigen::Matrix<double, embed_dim, 1>& x3) :
+        p_(x1) {
+        fdapde_static_assert(local_dim == 2, THIS_METHOD_IS_ONLY_FOR_PLANES);
         basis_.col(0) = (x2 - x1).normalized();
-        basis_.col(1) = ((x3 - x1) - orthogonal_project(SVector<N>(x3 - x1), SVector<N>(basis_.col(0)))).normalized();
-	normal_ = ((x2 - x1).cross(x3 - x1)).normalized();
-	offset_ = -x1.dot(normal_);
+        basis_.col(1) = ((x3 - x1) - orthogonal_project(
+                                       Eigen::Matrix<double, embed_dim, 1>(x3 - x1),
+                                       Eigen::Matrix<double, embed_dim, 1>(basis_.col(0))))
+                          .normalized();
+        normal_ = ((x2 - x1).cross(x3 - x1)).normalized();
+        offset_ = -x1.dot(normal_);
     }
     // constructors from matrix coordinates
-    HyperPlane(const SMatrix<N, 2>& coords) requires (M == 1) : HyperPlane(coords.col(0), coords.col(1)) { }
-    HyperPlane(const SMatrix<N, 3>& coords) requires (M == 2) :
+    HyperPlane(const Eigen::Matrix<double, embed_dim, 2>& coords) requires(local_dim == 1) :
+      HyperPlane(coords.col(0), coords.col(1)) { }
+    HyperPlane(const Eigen::Matrix<double, embed_dim, 3>& coords) requires (local_dim == 2) :
       HyperPlane(coords.col(0), coords.col(1), coords.col(2)) { }
     // general hyperplane constructor
-    HyperPlane(const SMatrix<N, M + 1>& coords) requires(M > 2) : p_(coords.col(0)) {
-        basis_ = coords.rightCols(M).colwise() - coords.col(0);
+    HyperPlane(const Eigen::Matrix<double, embed_dim, local_dim + 1>& coords) requires(local_dim > 2) :
+        p_(coords.col(0)) {
+        basis_ = coords.rightCols(local_dim).colwise() - coords.col(0);
 	// basis orthonormalization via modified Gram-Schmidt method
         basis_.col(0) /= basis_.col(0).norm();
-        for (int i = 1; i < M; ++i) {
+        for (int i = 1; i < local_dim; ++i) {
             for (int j = 0; j < i; ++j) {
                 basis_.col(i) = basis_.col(i) - orthogonal_project(basis_.col(i), basis_.col(j));
             }
@@ -78,33 +76,48 @@ template <int M, int N> class HyperPlane {
         offset_ = -coords.col(0).dot(normal_);
     }
     // projection
-    SVector<M> project_onto(const SVector<N>& x) {
-        if constexpr (M == N) {
+    Eigen::Matrix<double, local_dim, 1> project_onto(const Eigen::Matrix<double, embed_dim, 1>& x) {
+        if constexpr (local_dim == embed_dim) {
             return x;
         } else {
             // build the projection onto the space spanned by basis_
-            SVector<M> proj;
-            for (int i = 0; i < M; ++i) { proj[i] = (x - p_).dot(basis_.col(i)); }
+            Eigen::Matrix<double, local_dim, 1> proj;
+            for (int i = 0; i < local_dim; ++i) { proj[i] = (x - p_).dot(basis_.col(i)); }
             return proj;
         }
     }
-    SVector<N> project(const SVector<N>& x) const {
-        if constexpr (M == N) {
+    Eigen::Matrix<double, embed_dim, 1> project(const Eigen::Matrix<double, embed_dim, 1>& x) const {
+        if constexpr (local_dim == embed_dim) {
             return x;
         } else {
             return basis_ * basis_.transpose() * (x - p_) + p_;
         }
     }
-    double distance(const SVector<N>& x) { return (x - project(x)).norm(); }   // point-plane euclidean distance
-    double eval(const SVector<N>& coeffs) const { return normal_.dot(coeffs) + offset_; }
-    SVector<N> operator()(const SVector<M>& coeffs) const {
-        SVector<N> res = p_;
-        for (int i = 0; i < M; ++i) res += coeffs[i] * basis_.col(i);
+    double distance(const Eigen::Matrix<double, embed_dim, 1>& x) {
+        return (x - project(x)).norm();
+    }   // point-plane distance
+    double eval(const Eigen::Matrix<double, embed_dim, 1>& coeffs) const { return normal_.dot(coeffs) + offset_; }
+    Eigen::Matrix<double, embed_dim, 1> operator()(const Eigen::Matrix<double, local_dim, 1>& coeffs) const {
+        Eigen::Matrix<double, embed_dim, 1> res = p_;
+        for (int i = 0; i < local_dim; ++i) { res += coeffs[i] * basis_.col(i); }
         return res;
     }
-    const SVector<N>& normal() const { return normal_; }   // normal direction to the hyperplane
-    const SVector<N>& point() const { return p_; }         // a point belonging to the plane
-    const SMatrix<N, M>& basis() const { return basis_; }
+    const Eigen::Matrix<double, embed_dim, 1>& normal() const { return normal_; }   // plane normal direction
+    const Eigen::Matrix<double, embed_dim, 1>& point() const { return p_; }         // a point belonging to the plane
+    const Eigen::Matrix<double, embed_dim, local_dim>& basis() const { return basis_; }
+   private:
+    // let x_1, x_2, \ldots, x_{N+1} be a set of N+1 points through which the plane passes
+    Eigen::Matrix<double, embed_dim, local_dim> basis_;   // matrix [x2 - x1, x3 - x1, \ldots, x_{N+1} - x1]
+    Eigen::Matrix<double, embed_dim, 1> normal_;         // normal vector to the hyperplane
+    Eigen::Matrix<double, embed_dim, 1> p_;              // point through which the plane is guaranteed to pass
+    double offset_;   // hyperplane's intercept (the d in the equation ax + by + cz + d = 0)
+
+    // orthogonal projection of vector v over u
+    template <int N>
+    constexpr Eigen::Matrix<double, N, 1>
+    orthogonal_project(const Eigen::Matrix<double, N, 1>& v, const Eigen::Matrix<double, N, 1>& u) {
+        return (v.dot(u) / u.squaredNorm() * u.array()).matrix();
+    }
 };
 
 }   // namespace fdapde

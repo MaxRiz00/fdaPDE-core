@@ -96,8 +96,8 @@ class fe_bilinear_form_assembly_loop :
         fdapde_assert(test_dof_handler()->n_dofs() != 0 && trial_dof_handler()->n_dofs() != 0);
     }
 
-    SpMatrix<double> assemble() const {
-        SpMatrix<double> assembled_mat(test_dof_handler()->n_dofs(), trial_dof_handler()->n_dofs());
+    Eigen::SparseMatrix<double> assemble() const {
+        Eigen::SparseMatrix<double> assembled_mat(test_dof_handler()->n_dofs(), trial_dof_handler()->n_dofs());
         std::vector<Eigen::Triplet<double>> triplet_list;
 	assemble(triplet_list);
 	// linearity of the integral is implicitly used here, as duplicated triplets are summed up (see Eigen docs)
@@ -113,8 +113,8 @@ class fe_bilinear_form_assembly_loop :
 	Eigen::Matrix<int, Dynamic, 1> test_active_dofs, trial_active_dofs;
         MdArray<double, MdExtents<n_test_basis,  n_quadrature_nodes, local_dim, n_test_components >> test_grads;
         MdArray<double, MdExtents<n_trial_basis, n_quadrature_nodes, local_dim, n_trial_components>> trial_grads;
-        cexpr::Matrix<double, n_test_basis , n_quadrature_nodes> test_divs;
-        cexpr::Matrix<double, n_trial_basis, n_quadrature_nodes> trial_divs;
+        Matrix<double, n_test_basis , n_quadrature_nodes> test_divs;
+        Matrix<double, n_trial_basis, n_quadrature_nodes> trial_divs;
         MdArray<double, MdExtents<n_test_basis,  n_quadrature_nodes, n_test_components,  local_dim, local_dim>>
 	  test_hess;
         MdArray<double, MdExtents<n_trial_basis, n_quadrature_nodes, n_trial_components, local_dim, local_dim>>
@@ -222,8 +222,8 @@ template <typename DofHandler, typename FeType> class scalar_fe_grad_grad_assemb
     static constexpr int n_components = FeType::n_components;
     fdapde_static_assert(n_components == 1, THIS_CLASS_IS_FOR_SCALAR_FINITE_ELEMENTS_ONLY);
     // compile-time evaluation of \nabla{\psi_i}(q_j), i = 1, ..., n_basis, j = 1, ..., n_quadrature_nodes
-    static constexpr std::array<cexpr::Matrix<double, local_dim, n_quadrature_nodes>, n_basis> shape_grad_ {[]() {
-        std::array<cexpr::Matrix<double, local_dim, n_quadrature_nodes>, n_basis> shape_grad_ {};
+    static constexpr std::array<Matrix<double, local_dim, n_quadrature_nodes>, n_basis> shape_grad_ {[]() {
+        std::array<Matrix<double, local_dim, n_quadrature_nodes>, n_basis> shape_grad_ {};
         BasisType basis {cell_dof_descriptor().dofs_phys_coords()};
         for (int i = 0; i < n_basis; ++i) {
             // evaluation of \nabla{\psi_i} at q_j, j = 1, ..., n_quadrature_nodes
@@ -232,7 +232,7 @@ template <typename DofHandler, typename FeType> class scalar_fe_grad_grad_assemb
                 auto grad = basis[i].gradient()(Quadrature::nodes.row(k).transpose());
                 for (int j = 0; j < local_dim; ++j) { grad_eval_[j * n_quadrature_nodes + k] = grad[j]; }
             }
-            shape_grad_[i] = cexpr::Matrix<double, local_dim, n_quadrature_nodes>(grad_eval_);
+            shape_grad_[i] = Matrix<double, local_dim, n_quadrature_nodes>(grad_eval_);
         }
         return shape_grad_;
     }()};
@@ -240,14 +240,14 @@ template <typename DofHandler, typename FeType> class scalar_fe_grad_grad_assemb
    public:
     scalar_fe_grad_grad_assembly_loop() = default;
     scalar_fe_grad_grad_assembly_loop(DofHandler& dof_handler) : dof_handler_(&dof_handler) { }
-    SpMatrix<double> assemble() {
+    Eigen::SparseMatrix<double> assemble() {
         if (!dof_handler_) dof_handler_->enumerate(FeType {});
         int n_dofs = dof_handler_->n_dofs();
-        SpMatrix<double> assembled_mat(n_dofs, n_dofs);
+        Eigen::SparseMatrix<double> assembled_mat(n_dofs, n_dofs);
         // prepare assembly loop
         std::vector<Eigen::Triplet<double>> triplet_list;
-        DVector<int> active_dofs;
-        std::array<cexpr::Matrix<double, local_dim, n_quadrature_nodes>, n_basis> shape_grad;
+        Eigen::Matrix<int, Dynamic, 1> active_dofs;
+        std::array<Matrix<double, local_dim, n_quadrature_nodes>, n_basis> shape_grad;
         for (typename DofHandler::cell_iterator it = dof_handler_->cells_begin(); it != dof_handler_->cells_end();
              ++it) {
             active_dofs = it->dofs();
@@ -255,8 +255,7 @@ template <typename DofHandler, typename FeType> class scalar_fe_grad_grad_assemb
             for (int i = 0; i < n_basis; ++i) {
                 for (int j = 0; j < n_quadrature_nodes; ++j) {
                     shape_grad[i].col(j) =
-                      cexpr::Map<const double, local_dim, embed_dim>(it->invJ().data()).transpose() *
-                      shape_grad_[i].col(j);
+                      Map<const double, local_dim, embed_dim>(it->invJ().data()).transpose() * shape_grad_[i].col(j);
                 }
             }
             for (int i = 0; i < BasisType::n_basis; ++i) {

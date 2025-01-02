@@ -292,7 +292,7 @@ struct FSPAI {
         fdapde_assert(L_.rows() == other.rows());
         MatrixL(L_).solveInPlace(other);
     }
-    template <typename Other> DVector<Scalar> solve(const Eigen::MatrixBase<Other>& other) const {
+    template <typename Other> Eigen::Matrix<Scalar, Dynamic, 1> solve(const Eigen::MatrixBase<Other>& other) const {
         fdapde_assert(L_.rows() == other.rows());
         return MatrixL(L_).solve(other);
     }

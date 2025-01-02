@@ -21,9 +21,8 @@
 #include "../utils/symbols.h"
 
 namespace fdapde {
-namespace cexpr {
-
-  // visitors, rowwise, colwwise iterators, sum, max, min, ...
+  
+  // visitors, rowwise, colwwise, coeffwise iterators, sum, max, min, ...
   
 template <int Rows, int Cols, typename Derived> struct MatrixBase;
 
@@ -836,7 +835,6 @@ class Map : public MatrixBase<Rows_, Cols_, Map<Scalar_, Rows_, Cols_, StorageOr
     int inner_stride_ = 1;   // increment between two consecutive entries within a row (RowMajor) or column (ColMajor)
 };
   
-}   // namespace cexpr
 }   // namespace fdapde
 
 #endif   // _CONSTEXPR_MATRIX_H__

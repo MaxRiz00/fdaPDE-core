@@ -85,7 +85,7 @@ template <typename GeoFrame_> struct areal_layer {
         return m;
     }
     // random sample points in areal layer
-    DMatrix<double> sample(int n_samples, int seed = fdapde::random_seed) const {
+    Eigen::Matrix<double, Dynamic, Dynamic> sample(int n_samples, int seed = fdapde::random_seed) const {
         if (n_regions() == 1) { return geometry(0).sample(n_samples, seed); }
         // set up random number generation
         int seed_ = (seed == fdapde::random_seed) ? std::random_device()() : seed;
@@ -93,7 +93,7 @@ template <typename GeoFrame_> struct areal_layer {
         // probability of random sampling a region equals (measure of region)/(measure of layer)
         std::vector<double> weights = measures();
         std::discrete_distribution<int> rand_region(weights.begin(), weights.end());
-        DMatrix<double> coords(n_samples, embed_dim);
+        Eigen::Matrix<double, Dynamic, Dynamic> coords(n_samples, embed_dim);
         for (int i = 0; i < n_samples; ++i) {
             // generate random point in randomly selected region
             coords.row(i) = geometry(rand_region(rng)).sample(1, seed + i).row(0);

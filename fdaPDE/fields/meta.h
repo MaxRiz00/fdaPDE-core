@@ -19,15 +19,15 @@
 
 namespace fdapde {
 
-template <int Size, typename Derived> struct ScalarBase;
-template <int Size, typename Derived> struct MatrixBase;
+template <int Size, typename Derived> struct ScalarFieldBase;
+template <int Size, typename Derived> struct MatrixFieldBase;
   
 namespace internals {
 
 template <typename Xpr> struct is_scalar_field {
     static constexpr bool value = []() {
         if constexpr (requires(Xpr lhs) { Xpr::StaticInputSize; }) {
-            return std::is_base_of_v<ScalarBase<Xpr::StaticInputSize, Xpr>, Xpr>;
+            return std::is_base_of_v<ScalarFieldBase<Xpr::StaticInputSize, Xpr>, Xpr>;
         } else {
             return false;
         }
@@ -37,7 +37,7 @@ template <typename Xpr> static constexpr bool is_scalar_field_v = is_scalar_fiel
 template <typename Xpr> struct is_matrix_field {
     static constexpr bool value = []() {
         if constexpr (requires(Xpr lhs) { Xpr::StaticInputSize; }) {
-            return std::is_base_of_v<MatrixBase<Xpr::StaticInputSize, Xpr>, Xpr>;
+            return std::is_base_of_v<MatrixFieldBase<Xpr::StaticInputSize, Xpr>, Xpr>;
         } else {
             return false;
         }

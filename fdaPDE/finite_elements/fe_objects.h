@@ -25,9 +25,10 @@ namespace internals {
 
 // scalar finite element support
 template <typename FeSpace_>
-struct fe_scalar_test_function_impl : public ScalarBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>> {
-    // ScalarBase interface
-    using Base = ScalarBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>>;
+struct fe_scalar_test_function_impl :
+    public ScalarFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>> {
+    // ScalarFieldBase interface
+    using Base = ScalarFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>>;
     using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = FeSpace_::local_dim;
@@ -42,8 +43,8 @@ struct fe_scalar_test_function_impl : public ScalarBase<FeSpace_::local_dim, Tes
 
     // first partial derivative functor
     template <typename Derived_>
-    struct FirstPartialDerivative : ScalarBase<FeSpace_::local_dim, FirstPartialDerivative<Derived_>> {
-        using Base = ScalarBase<FeSpace_::local_dim, FirstPartialDerivative<Derived_>>;
+    struct FirstPartialDerivative : ScalarFieldBase<FeSpace_::local_dim, FirstPartialDerivative<Derived_>> {
+        using Base = ScalarFieldBase<FeSpace_::local_dim, FirstPartialDerivative<Derived_>>;
         using Derived = Derived_;
         template <typename T> using Meta = FirstPartialDerivative<T>;
         using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
@@ -67,8 +68,8 @@ struct fe_scalar_test_function_impl : public ScalarBase<FeSpace_::local_dim, Tes
     };
     // second mixed partial derivative functor
     template <typename Derived_>
-    struct MixedPartialDerivative : ScalarBase<FeSpace_::local_dim, MixedPartialDerivative<Derived_>> {
-        using Base = ScalarBase<FeSpace_::local_dim, MixedPartialDerivative<Derived_>>;
+    struct MixedPartialDerivative : ScalarFieldBase<FeSpace_::local_dim, MixedPartialDerivative<Derived_>> {
+        using Base = ScalarFieldBase<FeSpace_::local_dim, MixedPartialDerivative<Derived_>>;
         using Derived = Derived_;
         template <typename T> using Meta = MixedPartialDerivative<T>;
         using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
@@ -98,9 +99,10 @@ struct fe_scalar_test_function_impl : public ScalarBase<FeSpace_::local_dim, Tes
 };
 
 template <typename FeSpace_>
-struct fe_scalar_trial_function_impl : public ScalarBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>> {
-    // ScalarBase interface
-    using Base = ScalarBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>>;
+struct fe_scalar_trial_function_impl :
+    public ScalarFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>> {
+    // ScalarFieldBase interface
+    using Base = ScalarFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>>;
     using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = FeSpace_::local_dim;
@@ -115,8 +117,8 @@ struct fe_scalar_trial_function_impl : public ScalarBase<FeSpace_::local_dim, Tr
 
     // first partial derivative functor
     template <typename Derived_>
-    struct FirstPartialDerivative : ScalarBase<FeSpace_::local_dim, FirstPartialDerivative<Derived_>> {
-        using Base = ScalarBase<FeSpace_::local_dim, FirstPartialDerivative<Derived_>>;
+    struct FirstPartialDerivative : ScalarFieldBase<FeSpace_::local_dim, FirstPartialDerivative<Derived_>> {
+        using Base = ScalarFieldBase<FeSpace_::local_dim, FirstPartialDerivative<Derived_>>;
         using Derived = Derived_;
         template <typename T> using Meta = FirstPartialDerivative<T>;
         using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
@@ -140,8 +142,8 @@ struct fe_scalar_trial_function_impl : public ScalarBase<FeSpace_::local_dim, Tr
     };
     // second mixed partial derivative functor
     template <typename Derived_>
-    struct MixedPartialDerivative : ScalarBase<FeSpace_::local_dim, MixedPartialDerivative<Derived_>> {
-        using Base = ScalarBase<FeSpace_::local_dim, MixedPartialDerivative<Derived_>>;
+    struct MixedPartialDerivative : ScalarFieldBase<FeSpace_::local_dim, MixedPartialDerivative<Derived_>> {
+        using Base = ScalarFieldBase<FeSpace_::local_dim, MixedPartialDerivative<Derived_>>;
         using Derived = Derived_;
         template <typename T> using Meta = MixedPartialDerivative<T>;
         using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
@@ -172,9 +174,10 @@ struct fe_scalar_trial_function_impl : public ScalarBase<FeSpace_::local_dim, Tr
 
 // vector finite element support
 template <typename FeSpace_>
-struct fe_vector_test_function_impl : public MatrixBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>> {
-    // MatrixBase interface
-    using Base = MatrixBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>>;
+struct fe_vector_test_function_impl :
+    public MatrixFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>> {
+    // MatrixFieldBase interface
+    using Base = MatrixFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>>;
     using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = FeSpace_::local_dim;
@@ -193,8 +196,8 @@ struct fe_vector_test_function_impl : public MatrixBase<FeSpace_::local_dim, Tes
         return fe_packet.test_value(i);
     }  
 
-    template <typename Derived__> struct Jacobian : MatrixBase<FeSpace_::local_dim, Jacobian<Derived__>> {
-        using Base = MatrixBase<FeSpace_::local_dim, Jacobian<Derived__>>;
+    template <typename Derived__> struct Jacobian : MatrixFieldBase<FeSpace_::local_dim, Jacobian<Derived__>> {
+        using Base = MatrixFieldBase<FeSpace_::local_dim, Jacobian<Derived__>>;
         using Derived = Derived__;
         template <typename T> using Meta = Jacobian<T>;
         using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
@@ -219,8 +222,8 @@ struct fe_vector_test_function_impl : public MatrixBase<FeSpace_::local_dim, Tes
        protected:
         Derived xpr_;
     };
-    template <typename Derived__> struct Divergence : ScalarBase<FeSpace_::local_dim, Divergence<Derived__>> {
-        using Base = ScalarBase<FeSpace_::local_dim, Divergence<Derived__>>;
+    template <typename Derived__> struct Divergence : ScalarFieldBase<FeSpace_::local_dim, Divergence<Derived__>> {
+        using Base = ScalarFieldBase<FeSpace_::local_dim, Divergence<Derived__>>;
         using Derived = Derived__;
         template <typename T> using Meta = Divergence<T>;
         using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
@@ -247,9 +250,10 @@ struct fe_vector_test_function_impl : public MatrixBase<FeSpace_::local_dim, Tes
 };
 
 template <typename FeSpace_>
-struct fe_vector_trial_function_impl : public MatrixBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>> {
-    // MatrixBase interface
-    using Base = MatrixBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>>;
+struct fe_vector_trial_function_impl :
+    public MatrixFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>> {
+    // MatrixFieldBase interface
+    using Base = MatrixFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>>;
     using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = FeSpace_::local_dim;
@@ -268,8 +272,8 @@ struct fe_vector_trial_function_impl : public MatrixBase<FeSpace_::local_dim, Tr
         return fe_packet.trial_value(i);
     }  
 
-    template <typename Derived__> struct Jacobian : MatrixBase<FeSpace_::local_dim, Jacobian<Derived__>> {
-        using Base = MatrixBase<FeSpace_::local_dim, Jacobian<Derived__>>;
+    template <typename Derived__> struct Jacobian : MatrixFieldBase<FeSpace_::local_dim, Jacobian<Derived__>> {
+        using Base = MatrixFieldBase<FeSpace_::local_dim, Jacobian<Derived__>>;
         using Derived = Derived__;
         template <typename T> using Meta = Jacobian<T>;
         using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
@@ -294,8 +298,8 @@ struct fe_vector_trial_function_impl : public MatrixBase<FeSpace_::local_dim, Tr
        protected:
         Derived xpr_;
     };
-    template <typename Derived__> struct Divergence : ScalarBase<FeSpace_::local_dim, Divergence<Derived__>> {
-        using Base = ScalarBase<FeSpace_::local_dim, Divergence<Derived__>>;
+    template <typename Derived__> struct Divergence : ScalarFieldBase<FeSpace_::local_dim, Divergence<Derived__>> {
+        using Base = ScalarFieldBase<FeSpace_::local_dim, Divergence<Derived__>>;
         using Derived = Derived__;
         template <typename T> using Meta = Divergence<T>;
         using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
@@ -443,14 +447,14 @@ constexpr auto div(const TrialFunction<FeSpace_, finite_element>& xpr) {
 template <typename FeSpace_>
 class FeFunction :
     public std::conditional_t<
-      FeSpace_::n_components == 1, fdapde::ScalarBase<FeSpace_::local_dim, FeFunction<FeSpace_>>,
-      fdapde::MatrixBase<FeSpace_::local_dim, FeFunction<FeSpace_>>> {
+      FeSpace_::n_components == 1, ScalarFieldBase<FeSpace_::local_dim, FeFunction<FeSpace_>>,
+      MatrixFieldBase<FeSpace_::local_dim, FeFunction<FeSpace_>>> {
     using Triangulation = typename FeSpace_::Triangulation;
    public:
     using FeSpace = std::decay_t<FeSpace_>;
     using Base = std::conditional_t<
-      FeSpace::n_components == 1, fdapde::ScalarBase<FeSpace::local_dim, FeFunction<FeSpace>>,
-      fdapde::MatrixBase<FeSpace::local_dim, FeFunction<FeSpace>>>;
+      FeSpace::n_components == 1, ScalarFieldBase<FeSpace::local_dim, FeFunction<FeSpace>>,
+      MatrixFieldBase<FeSpace::local_dim, FeFunction<FeSpace>>>;
     using DofHandlerType = typename FeSpace::DofHandlerType;
     using InputType = Eigen::Matrix<double, FeSpace::embed_dim, 1>;
     using Scalar = double;
@@ -466,9 +470,9 @@ class FeFunction :
 
     FeFunction() = default;
     explicit FeFunction(FeSpace_& fe_space) : fe_space_(&fe_space) {
-        coeff_ = DVector<double>::Zero(fe_space_->n_dofs());
+        coeff_ = Eigen::Matrix<double, Dynamic, 1>::Zero(fe_space_->n_dofs());
     }
-    FeFunction(FeSpace_& fe_space, const DVector<double>& coeff) : fe_space_(&fe_space), coeff_(coeff) {
+    FeFunction(FeSpace_& fe_space, const Eigen::Matrix<double, Dynamic, 1>& coeff) : fe_space_(&fe_space), coeff_(coeff) {
         fdapde_assert(coeff.size() > 0 && coeff.size() == fe_space_->n_dofs());
     }
     OutputType operator()(const InputType& p) const {
@@ -477,7 +481,7 @@ class FeFunction :
         // map p to reference cell and evaluate
         typename DofHandlerType::CellType cell = fe_space_->dof_handler().cell(e_id);
         InputType ref_p = cell.invJ() * (p - cell.node(0));
-        DVector<int> active_dofs = cell.dofs();
+        Eigen::Matrix<int, Dynamic, 1> active_dofs = cell.dofs();
         OutputType value;
         if constexpr (FeSpace::n_components == 1) {
             value = 0;
@@ -496,7 +500,7 @@ class FeFunction :
         // map p to reference cell and evaluate
         typename DofHandlerType::CellType cell = fe_space_->dof_handler().cell(e_id);
         InputType ref_p = cell.invJ() * (p - cell.node(0));
-        DVector<int> active_dofs = cell.dofs();
+        Eigen::Matrix<int, Dynamic, 1> active_dofs = cell.dofs();
         Scalar value = 0;
         for (int j = 0, n = fe_space_->n_shape_functions(); j < n; ++j) {
             value += coeff_[active_dofs[j]] * fe_space_->eval_shape_value(j, ref_p)[i];
@@ -506,7 +510,7 @@ class FeFunction :
     Scalar eval(int i, [[maybe_unused]] int j, const InputType& p) const { return eval(i, p); }
 
     // i-th component of vector fe_function
-    struct VectorFeFunctionComponent : public fdapde::ScalarBase<StaticInputSize, VectorFeFunctionComponent> {
+    struct VectorFeFunctionComponent : public ScalarFieldBase<StaticInputSize, VectorFeFunctionComponent> {
         using Derived = FeFunction<FeSpace_>;
         using InputType = internals::fe_assembler_packet<FeSpace::local_dim>;
         using Scalar = double;
@@ -541,13 +545,13 @@ class FeFunction :
     double h1_norm() const { return std::sqrt(h1_squared_norm()); }
 
     // getters
-    const DVector<double>& coeff() const { return coeff_; }
+    const Eigen::Matrix<double, Dynamic, 1>& coeff() const { return coeff_; }
     constexpr FeSpace& function_space() { return *fe_space_; }
     constexpr const FeSpace& function_space() const { return *fe_space_; }
     constexpr int rows() const { return Rows; }
     constexpr int cols() const { return Cols; }
     constexpr int input_size() const { return StaticInputSize; }
-    void set_coeff(const DVector<double>& coeff) { coeff_ = coeff; }
+    void set_coeff(const Eigen::Matrix<double, Dynamic, 1>& coeff) { coeff_ = coeff; }
     // linear algebra between fe functions
     friend constexpr FeFunction<FeSpace_> operator+(FeFunction<FeSpace_>& lhs, FeFunction<FeSpace_>& rhs) {
         return FeFunction<FeSpace_>(lhs.function_space(), lhs.coeff() + rhs.coeff());
@@ -556,13 +560,13 @@ class FeFunction :
         return FeFunction<FeSpace_>(lhs.function_space(), lhs.coeff() - rhs.coeff());
     }
     // assignment from expansion coefficient vector
-    FeFunction& operator=(const DVector<double>& coeff) {
+    FeFunction& operator=(const Eigen::Matrix<double, Dynamic, 1>& coeff) {
         fdapde_assert(coeff.size() > 0 && coeff.size() == fe_space_->n_dofs());
         coeff_ = coeff;
         return *this;
     }
    private:
-    DVector<double> coeff_;
+    Eigen::Matrix<double, Dynamic, 1> coeff_;
     FeSpace* fe_space_;
 };
 
@@ -571,8 +575,8 @@ class FeFunction :
 template <typename Derived_>
 struct FeMap :
     public std::conditional_t<
-      internals::is_scalar_field_v<Derived_>, ScalarBase<Derived_::StaticInputSize, FeMap<Derived_>>,
-      MatrixBase<Derived_::StaticInputSize, FeMap<Derived_>>> {
+      internals::is_scalar_field_v<Derived_>, ScalarFieldBase<Derived_::StaticInputSize, FeMap<Derived_>>,
+      MatrixFieldBase<Derived_::StaticInputSize, FeMap<Derived_>>> {
    private:
     static constexpr bool is_scalar = internals::is_scalar_field_v<Derived_>;
     using Derived = std::decay_t<Derived_>;
@@ -581,7 +585,7 @@ struct FeMap :
     using Scalar = double;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
     using Base = std::conditional_t<
-      is_scalar, ScalarBase<StaticInputSize, FeMap<Derived>>, MatrixBase<StaticInputSize, FeMap<Derived>>>;
+      is_scalar, ScalarFieldBase<StaticInputSize, FeMap<Derived>>, MatrixFieldBase<StaticInputSize, FeMap<Derived>>>;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = Derived::XprBits | int(fe_assembler_flags::compute_physical_quad_nodes);
     static constexpr int ReadOnly = 1;
@@ -642,10 +646,10 @@ struct FeMap :
 
 // FeMap specialization for FeFunction types
 template <typename FeSpace>
-class FeMap<FeFunction<FeSpace>> : public fdapde::ScalarBase<FeSpace::local_dim, FeMap<FeFunction<FeSpace>>> {
+class FeMap<FeFunction<FeSpace>> : public ScalarFieldBase<FeSpace::local_dim, FeMap<FeFunction<FeSpace>>> {
     using Derived = FeFunction<FeSpace>;
    public:
-    using Base = ScalarBase<Derived::StaticInputSize, FeMap<Derived>>;
+    using Base = ScalarFieldBase<Derived::StaticInputSize, FeMap<Derived>>;
     using InputType = internals::fe_assembler_packet<Derived::StaticInputSize>;
     using Scalar = double;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
@@ -685,8 +689,8 @@ class FeMap<FeFunction<FeSpace>> : public fdapde::ScalarBase<FeSpace::local_dim,
 
 template <typename Triangulation_>
 struct CellDiameterDescriptor :
-    fdapde::ScalarBase<Triangulation_::embed_dim, CellDiameterDescriptor<Triangulation_>> {
-    using Base = fdapde::ScalarBase<Triangulation_::embed_dim, CellDiameterDescriptor<Triangulation_>>;
+    ScalarFieldBase<Triangulation_::embed_dim, CellDiameterDescriptor<Triangulation_>> {
+    using Base = ScalarFieldBase<Triangulation_::embed_dim, CellDiameterDescriptor<Triangulation_>>;
     using Triangulation = std::decay_t<Triangulation_>;
     using InputType = internals::fe_assembler_packet<Triangulation::embed_dim>;
     using Scalar = double;

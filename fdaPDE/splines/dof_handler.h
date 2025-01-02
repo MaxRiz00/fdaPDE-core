@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BS_DOF_HANDLER_H__
-#define __BS_DOF_HANDLER_H__
+#ifndef __SP_DOF_HANDLER_H__
+#define __SP_DOF_HANDLER_H__
 
 #include "../geometry/triangulation.h"
 #include "../utils/symbols.h"
@@ -190,12 +190,12 @@ class DofHandler<1, 1, fdapde::bspline> {
         return boundary_dofs_iterator(n_dofs_, this, marker);
     }
 
-    template <typename BsType> void enumerate(BsType&& bs) {
-        n_dofs_ = bs.size();
-        order_ = bs.order();
+    template <typename SpType> void enumerate(SpType&& sp) {
+        n_dofs_ = sp.size();
+        order_ = sp.order();
         n_dofs_per_cell_ = order_ + 1;
         dofs_coords_.resize(n_dofs_);
-        for (int i = 0; i < n_dofs_; ++i) { dofs_coords_[i] = bs[i].knot(); }
+        for (int i = 0; i < n_dofs_; ++i) { dofs_coords_[i] = sp[i].knot(); }
         int n_cells = triangulation()->n_cells();
         for (int j = 0; j < n_cells; ++j) {
             dofs_.push_back(j);
@@ -222,4 +222,4 @@ class DofHandler<1, 1, fdapde::bspline> {
 
 }   // namespace fdapde
 
-#endif   // __BS_DOF_HANDLER_H__
+#endif   // __SP_DOF_HANDLER_H__

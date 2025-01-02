@@ -49,11 +49,11 @@ template <> struct fe_quadrature_simplex<1, 1> : public fe_quadrature_simplex_ba
     static constexpr int order  = 1;
     static constexpr int degree = 1;
 
-    static constexpr cexpr::Vector<double, order> nodes {
+    static constexpr Vector<double, order> nodes {
       std::array<double, order> {
 	0.500000000000000}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	1.000000000000000}
     };
@@ -65,11 +65,11 @@ template <> struct fe_quadrature_simplex<1, 2> : public fe_quadrature_simplex_ba
     static constexpr int order  = 2;
     static constexpr int degree = 3;
 
-    static constexpr cexpr::Vector<double, order> nodes {
+    static constexpr Vector<double, order> nodes {
       std::array<double, order> {
 	0.211324865405187, 0.788675134594812}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.500000000000000, 0.500000000000000}
     };
@@ -81,11 +81,11 @@ template <> struct fe_quadrature_simplex<1, 3> : public fe_quadrature_simplex_ba
     static constexpr int order  = 3;
     static constexpr int degree = 5;
 
-    static constexpr cexpr::Vector<double, order> nodes {
+    static constexpr Vector<double, order> nodes {
       std::array<double, order> {
 	0.112701665379258, 0.500000000000000, 0.887298334620741}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.277777777777778, 0.444444444444444, 0.277777777777778}
     };
@@ -97,11 +97,11 @@ template <> struct fe_quadrature_simplex<1, 4> : public fe_quadrature_simplex_ba
     static constexpr int order  = 4;
     static constexpr int degree = 7;
 
-    static constexpr cexpr::Vector<double, order> nodes {
+    static constexpr Vector<double, order> nodes {
       std::array<double, order> {
 	0.069431844202973, 0.330009478207571, 0.669990521792428, 0.930568155797026}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.173927422568726, 0.326072577431273, 0.326072577431273, 0.173927422568726}
     };
@@ -114,11 +114,11 @@ template <> struct fe_quadrature_simplex<2, 1> : public fe_quadrature_simplex_ba
     static constexpr int order  = 1;
     static constexpr int degree = 1;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.333333333333333, 0.333333333333333}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	1.000000000000000}
     };
@@ -130,12 +130,12 @@ template <> struct fe_quadrature_simplex<2, 3> : public fe_quadrature_simplex_ba
     static constexpr int order  = 3;
     static constexpr int degree = 2;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.166666666666667, 0.166666666666667, 0.666666666666667, 0.166666666666667, 0.166666666666667,
 	0.666666666666667}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.333333333333333, 0.333333333333333, 0.333333333333333}
     };
@@ -147,12 +147,12 @@ template <> struct fe_quadrature_simplex<2, 4> : public fe_quadrature_simplex_ba
     static constexpr int order  = 4;
     static constexpr int degree = 3;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.333333333333333, 0.333333333333333, 0.600000000000000, 0.200000000000000, 0.200000000000000,
 	0.600000000000000, 0.200000000000000, 0.200000000000000}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
        -0.562500000000000, 0.520833333333333, 0.520833333333333, 0.520833333333333}
     };
@@ -164,13 +164,13 @@ template <> struct fe_quadrature_simplex<2, 6> : public fe_quadrature_simplex_ba
     static constexpr int order  = 6;
     static constexpr int degree = 4;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.445948490915965, 0.445948490915965, 0.445948490915965, 0.108103018168070, 0.108103018168070,
 	0.445948490915965, 0.091576213509771, 0.091576213509771, 0.091576213509771, 0.816847572980459,
 	0.816847572980459, 0.091576213509771}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.223381589678011, 0.223381589678011, 0.223381589678011, 0.109951743655322, 0.109951743655322,
 	0.109951743655322}
@@ -183,13 +183,13 @@ template <> struct fe_quadrature_simplex<2, 7> : public fe_quadrature_simplex_ba
     static constexpr int order  = 7;
     static constexpr int degree = 5;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.333333333333333, 0.333333333333333, 0.101286507323456, 0.101286507323456, 0.101286507323456,
 	0.797426985353087, 0.797426985353087, 0.101286507323456, 0.470142064105115, 0.470142064105115,
 	0.470142064105115, 0.059715871789770, 0.059715871789770, 0.470142064105115}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.225000000000000, 0.125939180544827, 0.125939180544827, 0.125939180544827, 0.132394152788506,
 	0.132394152788506, 0.132394152788506}
@@ -202,7 +202,7 @@ template <> struct fe_quadrature_simplex<2, 12> : public fe_quadrature_simplex_b
     static constexpr int order  = 12;
     static constexpr int degree = 6;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.873821971016996, 0.063089014491502, 0.063089014491502, 0.873821971016996, 0.063089014491502,
 	0.063089014491502, 0.501426509658179, 0.249286745170910, 0.249286745170910, 0.501426509658179,
@@ -210,7 +210,7 @@ template <> struct fe_quadrature_simplex<2, 12> : public fe_quadrature_simplex_b
 	0.053145049844816, 0.310352451033785, 0.636502499121399, 0.310352451033785, 0.053145049844816,
 	0.053145049844816, 0.636502499121399, 0.053145049844816, 0.310352451033785}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.050844906370207, 0.050844906370207, 0.050844906370207, 0.116786275726379, 0.116786275726379,
 	0.116786275726379, 0.082851075618374, 0.082851075618374, 0.082851075618374, 0.082851075618374,
@@ -225,11 +225,11 @@ template <> struct fe_quadrature_simplex<3, 1> : public fe_quadrature_simplex_ba
     static constexpr int order = 1;
     static constexpr int degree = 1;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.250000000000000, 0.250000000000000, 0.250000000000000}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	1.000000000000000}
     };
@@ -241,13 +241,13 @@ template <> struct fe_quadrature_simplex<3, 4> : public fe_quadrature_simplex_ba
     static constexpr int order = 4;
     static constexpr int degree = 2;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.585410196624969, 0.138196601125011, 0.138196601125011, 0.138196601125011, 0.138196601125011,
 	0.138196601125011, 0.138196601125011, 0.138196601125011, 0.585410196624969, 0.138196601125011,
 	0.585410196624969, 0.138196601125011}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.250000000000000, 0.250000000000000, 0.250000000000000, 0.250000000000000}
     };
@@ -259,13 +259,13 @@ template <> struct fe_quadrature_simplex<3, 5> : public fe_quadrature_simplex_ba
     static constexpr int order = 5;
     static constexpr int degree = 3;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.250000000000000, 0.250000000000000, 0.250000000000000, 0.500000000000000, 0.166666666666667,
 	0.166666666666667, 0.166666666666667, 0.500000000000000, 0.166666666666667, 0.166666666666667,
 	0.166666666666667, 0.500000000000000, 0.166666666666667, 0.166666666666667, 0.166666666666667}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
         -0.80000000000000, 0.450000000000000, 0.450000000000000, 0.450000000000000, 0.450000000000000}
     };
@@ -277,7 +277,7 @@ template <> struct fe_quadrature_simplex<3, 11> : public fe_quadrature_simplex_b
     static constexpr int order = 11;
     static constexpr int degree = 4;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.250000000000000, 0.250000000000000, 0.250000000000000, 0.785714285714285, 0.071428571428571,
 	0.071428571428571, 0.071428571428571, 0.071428571428571, 0.071428571428571, 0.071428571428571,
@@ -287,7 +287,7 @@ template <> struct fe_quadrature_simplex<3, 11> : public fe_quadrature_simplex_b
 	0.100596423833200, 0.100596423833200, 0.100596423833200, 0.399403576166799, 0.100596423833200,
 	0.100596423833200, 0.100596423833200, 0.399403576166799}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
        -0.078933333333333, 0.045733333333333, 0.045733333333333, 0.045733333333333, 0.045733333333333,
 	0.149333333333333, 0.149333333333333, 0.149333333333333, 0.149333333333333, 0.149333333333333,
@@ -301,7 +301,7 @@ template <> struct fe_quadrature_simplex<3, 15> : public fe_quadrature_simplex_b
     static constexpr int order = 15;
     static constexpr int degree = 5;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.250000000000000, 0.250000000000000, 0.250000000000000, 0.000000000000000, 0.333333333333333,
 	0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333, 0.333333333333333,
@@ -313,7 +313,7 @@ template <> struct fe_quadrature_simplex<3, 15> : public fe_quadrature_simplex_b
 	0.433449846426335, 0.066550153573664, 0.433449846426335, 0.433449846426335, 0.433449846426335,
 	0.066550153573664, 0.433449846426335, 0.433449846426335, 0.433449846426335, 0.066550153573664}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.181702068582535, 0.036160714285714, 0.036160714285714, 0.036160714285714, 0.036160714285714,
 	0.069871494516173, 0.069871494516173, 0.069871494516173, 0.069871494516173, 0.065694849368318,
@@ -327,7 +327,7 @@ template <> struct fe_quadrature_simplex<3, 24> : public fe_quadrature_simplex_b
     static constexpr int order = 24;
     static constexpr int degree = 6;
 
-    static constexpr cexpr::Matrix<double, order, local_dim> nodes {
+    static constexpr Matrix<double, order, local_dim> nodes {
       std::array<double, order * local_dim> {
 	0.356191386222544, 0.214602871259151, 0.214602871259151, 0.214602871259151, 0.214602871259151,
 	0.214602871259151, 0.214602871259151, 0.214602871259151, 0.356191386222544, 0.214602871259151,
@@ -345,7 +345,7 @@ template <> struct fe_quadrature_simplex<3, 24> : public fe_quadrature_simplex_b
 	0.269672331458315, 0.269672331458315, 0.063661001875017, 0.603005664791649, 0.603005664791649,
 	0.269672331458315, 0.063661001875017}
     };
-    static constexpr cexpr::Vector<double, order> weights {
+    static constexpr Vector<double, order> weights {
       std::array<double, order> {
 	0.039922750258167, 0.039922750258167, 0.039922750258167, 0.039922750258167, 0.010077211055320,
 	0.010077211055320, 0.010077211055320, 0.010077211055320, 0.055357181543654, 0.055357181543654,

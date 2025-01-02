@@ -23,12 +23,12 @@
 
 namespace fdapde {
 
-template <typename Derived_> class Jacobian : public fdapde::MatrixBase<Derived_::StaticInputSize, Jacobian<Derived_>> {
+template <typename Derived_> class Jacobian : public MatrixFieldBase<Derived_::StaticInputSize, Jacobian<Derived_>> {
     fdapde_static_assert(Derived_::Cols == 1, JACOBIAN_OPERATOR_IS_FOR_VECTOR_FIELDS_ONLY);
    public:
     using Derived = Derived_;
     template <typename T> using Meta = Jacobian<T>;
-    using Base = MatrixBase<Derived::StaticInputSize, Jacobian<Derived>>;
+    using Base = MatrixFieldBase<Derived::StaticInputSize, Jacobian<Derived>>;
     using FunctorType = PartialDerivative<
       internals::xpr_or_scalar_wrap_t<
         Derived, Derived::StaticInputSize,

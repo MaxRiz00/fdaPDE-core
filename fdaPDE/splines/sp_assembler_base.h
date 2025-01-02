@@ -14,16 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BS_ASSEMBLER_BASE_H__
-#define __BS_ASSEMBLER_BASE_H__
+#ifndef __SP_ASSEMBLER_BASE_H__
+#define __SP_ASSEMBLER_BASE_H__
 
-#include "bs_integration.h"
+#include "sp_integration.h"
 
 namespace fdapde{
 
-template <typename Derived_> struct BsMap;
+template <typename Derived_> struct SpMap;
   
-enum class bs_assembler_flags {
+enum class sp_assembler_flags {
     compute_shape_values        = 0x0001,
     compute_shape_dx            = 0x0002,
     compute_shape_ddx           = 0x0004,
@@ -34,11 +34,11 @@ enum class bs_assembler_flags {
 namespace internals {
 
 // informations sent from the assembly loop to the integrated forms
-template <int LocalDim> struct bs_assembler_packet {
+template <int LocalDim> struct sp_assembler_packet {
     static constexpr int local_dim = LocalDim;
-    bs_assembler_packet() = default;
-    bs_assembler_packet(bs_assembler_packet&&) noexcept = default;
-    bs_assembler_packet(const bs_assembler_packet&) noexcept = default;
+    sp_assembler_packet() = default;
+    sp_assembler_packet(sp_assembler_packet&&) noexcept = default;
+    sp_assembler_packet(const sp_assembler_packet&) noexcept = default;
 
     // geometric informations
     int quad_node_id;       // active physical quadrature node index
@@ -53,21 +53,21 @@ template <int LocalDim> struct bs_assembler_packet {
 
 // base class for spline-based assembly loops
 template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
-struct bs_assembler_base {
-    fdapde_static_assert(sizeof...(Quadrature_) < 2, YOU_CAN_SUPPLY_AT_MOST_ONE_QUADRATURE_RULE_TO_A_BS_ASSEMBLY_LOOP);
+struct sp_assembler_base {
+    fdapde_static_assert(sizeof...(Quadrature_) < 2, YOU_CAN_SUPPLY_AT_MOST_ONE_QUADRATURE_RULE_TO_A_SP_ASSEMBLY_LOOP);
     // detect test space (since a test function is always present in a weak form)
     using TestSpace = test_space_t<Form_>;
     using Form =
-      std::decay_t<decltype(xpr_wrap<BsMap, decltype([]<typename Xpr>() {
+      std::decay_t<decltype(xpr_wrap<SpMap, decltype([]<typename Xpr>() {
 	    return !(
-	        std::is_invocable_v<Xpr, bs_assembler_packet<Xpr::StaticInputSize>>);
+	        std::is_invocable_v<Xpr, sp_assembler_packet<Xpr::StaticInputSize>>);
 	  })>(std::declval<Form_>()))>;
     using Triangulation = typename std::decay_t<Triangulation_>;
     static constexpr int local_dim = Triangulation::local_dim;
     static constexpr int embed_dim = Triangulation::embed_dim;
     static constexpr int Options = Options_;
     using FunctionSpace = TestSpace;
-    using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::bspline>;
+    using DofHandlerType = DofHandler<local_dim, embed_dim, typename FunctionSpace::space_category>;
     using Quadrature = decltype([]() {
         if constexpr (sizeof...(Quadrature_) == 0) {
             return void();   // quadrature selcted at run-time provided the actual order of spline basis
@@ -78,13 +78,12 @@ struct bs_assembler_base {
     using geo_iterator = typename Triangulation::cell_iterator;
     using dof_iterator = typename DofHandlerType::cell_iterator;
 
-    bs_assembler_base() = default;
-    bs_assembler_base(
+    sp_assembler_base() = default;
+    sp_assembler_base(
       const Form_& form, const geo_iterator& begin, const geo_iterator& end, const Quadrature_&... quadrature)
-        requires(sizeof...(quadrature) <= 1)
-        :
-        form_(xpr_wrap<BsMap, decltype([]<typename Xpr>() {
-                                 return !(std::is_invocable_v<Xpr, bs_assembler_packet<Xpr::StaticInputSize>>);
+        requires(sizeof...(quadrature) <= 1) :
+        form_(xpr_wrap<SpMap, decltype([]<typename Xpr>() {
+                                 return !(std::is_invocable_v<Xpr, sp_assembler_packet<Xpr::StaticInputSize>>);
                              })>(form)),
         dof_handler_(std::addressof(internals::test_space(form_).dof_handler())),
         test_space_ (std::addressof(internals::test_space(form_))),
@@ -103,7 +102,7 @@ struct bs_assembler_base {
                 for (int j = 0; j < local_dim; ++j) { quad_nodes__(i, j) = quad_rule.nodes(i, j); }
 	    }
         } else {
-            internals::get_bs_quadrature(test_space_->order(), quad_nodes__, quad_weights_);
+            internals::get_sp_quadrature(test_space_->order(), quad_nodes__, quad_weights_);
         }
 	// build grid of quadrature nodes on reference domain
 	n_quadrature_nodes_ = quad_nodes__.rows();
@@ -168,7 +167,7 @@ struct bs_assembler_base {
         eval_shape_derivative(basis, active_dofs, cell, dst, /* order = */ 2);
     }
     void distribute_quadrature_nodes(
-      std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>>& bs_map_buff, dof_iterator begin,
+      std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>>& sp_map_buff, dof_iterator begin,
       dof_iterator end) {
         Eigen::Matrix<double, Dynamic, Dynamic> quad_nodes;
         quad_nodes.resize(n_quadrature_nodes_ * (end_.index() - begin_.index()), embed_dim);
@@ -187,8 +186,8 @@ struct bs_assembler_base {
               return;
           }),
           decltype([]<typename Xpr_>() {
-              return requires(Xpr_ xpr) { xpr.init(bs_map_buff, quad_nodes, begin, end); };
-          })>(form_, bs_map_buff, quad_nodes, begin, end);
+              return requires(Xpr_ xpr) { xpr.init(sp_map_buff, quad_nodes, begin, end); };
+          })>(form_, sp_map_buff, quad_nodes, begin, end);
         return;
     }
 
@@ -204,4 +203,4 @@ struct bs_assembler_base {
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __BS_ASSEMBLER_BASE_H__
+#endif   // __SP_ASSEMBLER_BASE_H__

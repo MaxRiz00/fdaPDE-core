@@ -23,27 +23,27 @@
 
 namespace fdapde {
 
-class Spline : public ScalarBase<1, Spline> {
+class Spline : public ScalarFieldBase<1, Spline> {
    public:
-    using Base = ScalarBase<1, Spline>;
+    using Base = ScalarFieldBase<1, Spline>;
     static constexpr int StaticInputSize = 1;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = 0;
     static constexpr int Order = Dynamic;
     using Scalar = double;
-    using InputType = cexpr::Vector<Scalar, StaticInputSize>;
+    using InputType = Vector<Scalar, StaticInputSize>;
    private:
     // order k derivative functor
-    class Derivative : public ScalarBase<1, Derivative> {
+    class Derivative : public ScalarFieldBase<1, Derivative> {
        private:
         std::vector<double> knots_ {};
         int i_ = 0;
         int order_ = 0;
         int n_ = 1;
        public:
-        using Base = ScalarBase<1, Derivative>;
+        using Base = ScalarFieldBase<1, Derivative>;
         using Scalar = double;
-        using InputType = cexpr::Vector<Scalar, StaticInputSize>;
+        using InputType = Vector<Scalar, StaticInputSize>;
 
         constexpr Derivative() = default;
         constexpr Derivative(const std::vector<double>& knots, int i, int order, int n) :

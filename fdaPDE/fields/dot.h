@@ -22,9 +22,10 @@
 
 namespace fdapde {
 
-template <int StaticInputSize, typename Derived> struct MatrixBase;
+template <int StaticInputSize, typename Derived> struct MatrixFieldBase;
 
-template <typename Lhs, typename Rhs> class DotProduct : public ScalarBase<Lhs::StaticInputSize, DotProduct<Lhs, Rhs>> {
+template <typename Lhs, typename Rhs>
+class DotProduct : public ScalarFieldBase<Lhs::StaticInputSize, DotProduct<Lhs, Rhs>> {
     fdapde_static_assert(
       (Lhs::StaticInputSize == Dynamic || Rhs::StaticInputSize == Dynamic ||
        Lhs::StaticInputSize == Rhs::StaticInputSize) &&
@@ -41,7 +42,7 @@ template <typename Lhs, typename Rhs> class DotProduct : public ScalarBase<Lhs::
     using LhsDerived = Lhs;
     using RhsDerived = Rhs;
     template <typename T1, typename T2> using Meta = DotProduct<T1, T2>;
-    using Base = ScalarBase<LhsDerived::StaticInputSize, DotProduct<Lhs, Rhs>>;
+    using Base = ScalarFieldBase<LhsDerived::StaticInputSize, DotProduct<Lhs, Rhs>>;
     using InputType = typename LhsDerived::InputType;
     using Scalar = decltype(std::declval<typename LhsDerived::Scalar>() * std::declval<typename RhsDerived::Scalar>());
     static constexpr int StaticInputSize = LhsDerived::StaticInputSize;
@@ -91,18 +92,18 @@ template <typename Lhs, typename Rhs> class DotProduct : public ScalarBase<Lhs::
 };
 
 template <typename Lhs, typename Rhs>
-constexpr DotProduct<Lhs, Rhs> dot(
-  const fdapde::ScalarBase<Lhs::StaticInputSize, Lhs>& lhs, const fdapde::ScalarBase<Rhs::StaticInputSize, Rhs>& rhs) {
+constexpr DotProduct<Lhs, Rhs>
+dot(const ScalarFieldBase<Lhs::StaticInputSize, Lhs>& lhs, const ScalarFieldBase<Rhs::StaticInputSize, Rhs>& rhs) {
     return DotProduct<Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 template <int Size, typename Derived>
 template <typename Rhs>
-constexpr auto ScalarBase<Size, Derived>::dot(const ScalarBase<Size, Rhs>& rhs) const {
+constexpr auto ScalarFieldBase<Size, Derived>::dot(const ScalarFieldBase<Size, Rhs>& rhs) const {
     return DotProduct<Derived, Rhs>(derived(), rhs.derived());
 }
 template <typename Lhs, typename Rhs>
 constexpr DotProduct<Lhs, Rhs> dot(
-  const fdapde::MatrixBase<Lhs::StaticInputSize, Lhs>& lhs, const fdapde::MatrixBase<Rhs::StaticInputSize, Rhs>& rhs) {
+  const fdapde::MatrixFieldBase<Lhs::StaticInputSize, Lhs>& lhs, const fdapde::MatrixFieldBase<Rhs::StaticInputSize, Rhs>& rhs) {
     return DotProduct<Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 
@@ -111,7 +112,7 @@ constexpr DotProduct<Lhs, Rhs> dot(
 namespace internals {
 
 template <typename Lhs, typename Rhs, typename FieldType_ = std::conditional_t<is_eigen_dense_v<Lhs>, Rhs, Lhs>>
-class dot_product_eigen_impl : public ScalarBase<FieldType_::StaticInputSize, dot_product_eigen_impl<Lhs, Rhs>> {
+class dot_product_eigen_impl : public ScalarFieldBase<FieldType_::StaticInputSize, dot_product_eigen_impl<Lhs, Rhs>> {
     using FieldType = std::conditional_t<is_eigen_dense_v<Lhs>, Rhs, Lhs>;
     using EigenType = std::conditional_t<is_eigen_dense_v<Lhs>, Lhs, Rhs>;
     static constexpr bool is_field_lhs = std::is_same_v<FieldType, Lhs>;
@@ -127,7 +128,7 @@ class dot_product_eigen_impl : public ScalarBase<FieldType_::StaticInputSize, do
     using LhsDerived = Lhs;
     using RhsDerived = Rhs;
     template <typename T1, typename T2> using Meta = dot_product_eigen_impl<T1, T2>;
-    using Base = ScalarBase<FieldType::StaticInputSize, dot_product_eigen_impl<Lhs, Rhs>>;
+    using Base = ScalarFieldBase<FieldType::StaticInputSize, dot_product_eigen_impl<Lhs, Rhs>>;
     using InputType = typename FieldType::InputType;
     using Scalar = decltype(std::declval<typename FieldType::Scalar>() * std::declval<typename EigenType::Scalar>());
     static constexpr int StaticInputSize = FieldType::StaticInputSize;
@@ -178,12 +179,12 @@ struct DotProduct<Eigen::MatrixBase<Lhs>, Rhs> : public internals::dot_product_e
 
 template <typename Lhs, typename Rhs>
 constexpr DotProduct<Lhs, Eigen::MatrixBase<Rhs>>
-dot(const fdapde::MatrixBase<Lhs::StaticInputSize, Lhs>& lhs, const Eigen::MatrixBase<Rhs>& rhs) {
+dot(const fdapde::MatrixFieldBase<Lhs::StaticInputSize, Lhs>& lhs, const Eigen::MatrixBase<Rhs>& rhs) {
     return DotProduct<Lhs, Eigen::MatrixBase<Rhs>>(lhs.derived(), rhs.derived());
 }
 template <typename Lhs, typename Rhs>
 constexpr DotProduct<Eigen::MatrixBase<Lhs>, Rhs>
-dot(const Eigen::MatrixBase<Lhs>& lhs, const fdapde::MatrixBase<Rhs::StaticInputSize, Rhs>& rhs) {
+dot(const Eigen::MatrixBase<Lhs>& lhs, const fdapde::MatrixFieldBase<Rhs::StaticInputSize, Rhs>& rhs) {
     return DotProduct<Eigen::MatrixBase<Lhs>, Rhs>(lhs.derived(), rhs.derived());
 }
 

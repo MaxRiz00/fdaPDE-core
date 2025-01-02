@@ -33,14 +33,14 @@ class DofTriangle : public Triangle<typename DofHandler::TriangulationType> {
     static constexpr int embed_dim = TriangulationType::embed_dim;
   
     class EdgeType : public Base::EdgeType {
-        DVector<int> dofs_;
+        Eigen::Matrix<int, Dynamic, 1> dofs_;
         const DofHandler* dof_handler_;
        public:
         EdgeType() = default;
         EdgeType(int edge_id, const DofHandler* dof_handler) :
             Base::EdgeType(edge_id, dof_handler->triangulation()), dof_handler_(dof_handler) {
             // if you query a DofTriangle for its edge, most likely you want to access its dofs. compute and cache
-            dofs_ = DVector<int>(
+            dofs_ = Eigen::Matrix<int, Dynamic, 1>(
               (TriangulationType::n_nodes_per_edge + dof_handler_->n_dofs_per_edge()) *
               dof_handler_->dof_multiplicity());
             int j = 0;
@@ -52,8 +52,8 @@ class DofTriangle : public Triangle<typename DofHandler::TriangulationType> {
                 }
             }
         }
-        const DVector<int>& dofs() const { return dofs_; }
-        DVector<short> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
+        const Eigen::Matrix<int, Dynamic, 1>& dofs() const { return dofs_; }
+        Eigen::Matrix<int, Dynamic, 1> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
         BinaryVector<fdapde::Dynamic> boundary_dofs() const {
             BinaryVector<fdapde::Dynamic> boundary(dofs_.size());
             int i = 0;
@@ -68,10 +68,10 @@ class DofTriangle : public Triangle<typename DofHandler::TriangulationType> {
     DofTriangle() = default;
     DofTriangle(int cell_id, const DofHandler* dof_handler) :
         Base(cell_id, dof_handler->triangulation()), dof_handler_(dof_handler) { }
-    DVector<int> dofs() const { return dof_handler_->active_dofs(Base::id()); }
-    DVector<short> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
+    Eigen::Matrix<int, Dynamic, 1> dofs() const { return dof_handler_->active_dofs(Base::id()); }
+    Eigen::Matrix<int, Dynamic, 1> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
     BinaryVector<fdapde::Dynamic> boundary_dofs() const {
-        DVector<int> tmp = dofs();
+        Eigen::Matrix<int, Dynamic, 1> tmp = dofs();
         BinaryVector<fdapde::Dynamic> boundary(tmp.size());
         int i = 0;
         for (int dof : tmp) {

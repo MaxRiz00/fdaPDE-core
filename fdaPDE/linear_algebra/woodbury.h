@@ -14,36 +14,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SMW_H__
-#define __SMW_H__
-
-#include <Eigen/LU>
+#ifndef __WOODBURY_H__
+#define __WOODBURY_H__
 
 #include "../utils/symbols.h"
 
 namespace fdapde {
 
 // linear system solver based on the Sherman–Morrison–Woodbury formula
-struct SMW {
+template <typename MatrixType>
+    requires(is_eigen_dense_v<MatrixType>)
+struct Woodbury {
     // solves linear system (A + U*C^{-1}*V)x = b, given already computed inversion of dense matrix C
     template <typename SparseSolver>
-    DMatrix<double> solve(
-      const SparseSolver& invA, const DMatrix<double>& U, const DMatrix<double>& invC, const DMatrix<double>& V,
-      const DMatrix<double>& b) {
-        DMatrix<double> y = invA.solve(b);   // y = A^{-1}b
-        // Y = A^{-1}U. Heavy step of the method. SMW is more and more efficient as q gets smaller and smaller
-        DMatrix<double> Y = invA.solve(U);
-        // compute dense matrix G = C^{-1} + V*A^{-1}*U = C^{-1} + V*y
-        DMatrix<double> G = invC + V * Y;
-        Eigen::PartialPivLU<DMatrix<double>> invG;
+    MatrixType solve(
+      const SparseSolver& invA, const MatrixType& U, const MatrixType& invC, const MatrixType& V, const MatrixType& b) {
+        MatrixType y = invA.solve(b);   // y = A^{-1}b
+        MatrixType Y = invA.solve(U);   // Y = A^{-1}U. Heavy step of the method. solver is more efficient for small q
+        MatrixType G = invC + V * Y;    // compute dense matrix G = C^{-1} + V*A^{-1}*U = C^{-1} + V*y
+        Eigen::PartialPivLU<MatrixType> invG;
         invG.compute(G);   // factorize qxq dense matrix G
-        DMatrix<double> t = invG.solve(V * y);
+        MatrixType t = invG.solve(V * y);
         // v = A^{-1}*U*t = A^{-1}*U*(C^{-1} + V*A^{-1}*U)^{-1}*V*A^{-1}*b by solving linear system A*v = U*t
-        DMatrix<double> v = invA.solve(U * t);
+        MatrixType v = invA.solve(U * t);
         return y - v;   // return system solution
     }
 };
 
 }   // namespace fdapde
 
-#endif   // _SMW_H__
+#endif   // __WOODBURY_H__

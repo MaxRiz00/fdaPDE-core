@@ -36,10 +36,10 @@ class DofSegment : public Segment<typename DofHandler::TriangulationType> {
     DofSegment() = default;
     DofSegment(int cell_id, const DofHandler* dof_handler) :
         Base(cell_id, dof_handler->triangulation()), dof_handler_(dof_handler) { }
-    DVector<int> dofs() const { return dof_handler_->active_dofs(Base::id()); }
-    DVector<short> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
+    Eigen::Matrix<int, Dynamic, 1> dofs() const { return dof_handler_->active_dofs(Base::id()); }
+    Eigen::Matrix<int, Dynamic, 1> dofs_markers() const { return dof_handler_->dof_markers()(dofs()); }
     BinaryVector<fdapde::Dynamic> boundary_dofs() const {
-        DVector<int> tmp = dofs();
+        Eigen::Matrix<int, Dynamic, 1> tmp = dofs();
         BinaryVector<fdapde::Dynamic> boundary(tmp.size());
         int i = 0;
         for (int dof : tmp) {

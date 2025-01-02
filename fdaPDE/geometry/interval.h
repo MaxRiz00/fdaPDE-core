@@ -24,7 +24,7 @@
 namespace fdapde {
   
 // template specialization for 1D meshes (bounded intervals)
-template <int M, int N> class Triangulation;
+template <int LocalDim, int EmbedDim> class Triangulation;
 template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangulation<1, 1>> {
    public:
     using Base = TriangulationBase<1, 1, Triangulation<1, 1>>;
@@ -63,7 +63,7 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
         Base::boundary_markers_.set(n_nodes_ - 1);
     };
     // construct from interval's bounds [a, b] and the number of equidistant nodes n used to split [a, b]
-    Triangulation(double a, double b, int n) : Triangulation(DVector<double>::LinSpaced(n, a, b)) { }
+    Triangulation(double a, double b, int n) : Triangulation(Eigen::Matrix<double, Dynamic, 1>::LinSpaced(n, a, b)) { }
     // static constructors
     static Triangulation<1, 1> Interval(double a, double b, int n_nodes) { return Triangulation<1, 1>(a, b, n_nodes); }
     static Triangulation<1, 1> UnitInterval(int n_nodes) { return Triangulation<1, 1>::Interval(0.0, 1.0, n_nodes); }
@@ -94,7 +94,7 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
     }
     // point location
     template <int Rows, int Cols>
-    std::conditional_t<Rows == Dynamic || Cols == Dynamic, DVector<int>, int>
+    std::conditional_t<Rows == Dynamic || Cols == Dynamic, Eigen::Matrix<int, Dynamic, 1>, int>
     locate(const Eigen::Matrix<double, Rows, Cols>& p) const {
         fdapde_static_assert(
           (Cols == 1 && Rows == 1) || (Cols == Dynamic && Rows == Dynamic),
@@ -103,7 +103,7 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
             return locate_(p[0]);
         } else {
             fdapde_assert(p.rows() > 0 && p.cols() == 1);
-            DVector<int> result;
+            Eigen::Matrix<int, Dynamic, 1> result;
             result.resize(p.rows());
             // start search
             for (int i = 0; i < p.rows(); ++i) { result[i] = locate_(p(i, 0)); }

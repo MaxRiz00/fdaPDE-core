@@ -21,14 +21,15 @@
 
 namespace fdapde {
 
-template <typename Derived_> class Divergence : public ScalarBase<Derived_::StaticInputSize, Divergence<Derived_>> {
+template <typename Derived_>
+class Divergence : public ScalarFieldBase<Derived_::StaticInputSize, Divergence<Derived_>> {
     fdapde_static_assert(
       Derived_::Cols == 1 && (Derived_::StaticInputSize == Dynamic || Derived_::StaticInputSize == Derived_::Rows),
       DIVERGENCE_OPERATOR_IS_FOR_VECTOR_FIELDS_ONLY);  
    public:
     using Derived = std::decay_t<Derived_>;
     template <typename T> using Meta = Divergence<T>;
-    using Base = ScalarBase<Derived::StaticInputSize, Divergence<Derived>>;
+    using Base = ScalarFieldBase<Derived::StaticInputSize, Divergence<Derived>>;
     using InputType = typename Derived::InputType;
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;

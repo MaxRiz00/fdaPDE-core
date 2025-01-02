@@ -23,7 +23,7 @@ namespace fdapde {
 
 // a SpaceTimeField is a ScalarField with an implicit time dimension
 template <int Size, typename FunctorType_ = std::function<double(static_dynamic_vector_selector_t<Size>, double)>>
-class SpaceTimeField : public ScalarBase<Size, SpaceTimeField<Size, FunctorType_>> {
+class SpaceTimeField : public ScalarFieldBase<Size, SpaceTimeField<Size, FunctorType_>> {
     using FunctorType = std::decay_t<FunctorType_>;
     using traits = fn_ptr_traits<&FunctorType::operator()>;
     using TimeCoordinateType = std::tuple_element_t<1, typename traits::ArgsType>;
@@ -31,7 +31,7 @@ class SpaceTimeField : public ScalarBase<Size, SpaceTimeField<Size, FunctorType_
       traits::n_args == 2 && std::is_arithmetic_v<TimeCoordinateType>,
       PROVIDED_FUNCTOR_MUST_ACCEPT_EXACTLY_TWO_ARGUMENTS_OR_TIME_DIMENSION_IS_NOT_OF_ARITHMETIC_TYPE);
    public:
-    using Base = ScalarBase<Size, ScalarField<Size, FunctorType>>;
+    using Base = ScalarFieldBase<Size, ScalarField<Size, FunctorType>>;
     using InputType = std::tuple_element_t<0, typename traits::ArgsType>;
     using Scalar = typename std::invoke_result<FunctorType, InputType, TimeCoordinateType>::type;
     static constexpr int StaticInputSize = Size;

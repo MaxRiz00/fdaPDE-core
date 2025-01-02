@@ -26,8 +26,10 @@ namespace fdapde {
 // implementation of the Broyden–Fletcher–Goldfarb–Shanno algorithm for unconstrained nonlinear optimization
 template <int N, typename... Args> class BFGS {
    private:
-    using VectorType = typename std::conditional<N == Dynamic, DVector<double>, SVector<N>>::type;
-    using MatrixType = typename std::conditional<N == Dynamic, DMatrix<double>, SMatrix<N>>::type;
+    using VectorType =
+      typename std::conditional<N == Dynamic, Eigen::Matrix<double, Dynamic, 1>, Eigen::Matrix<double, N, 1>>::type;
+    using MatrixType = typename std::conditional<
+      N == Dynamic, Eigen::Matrix<double, Dynamic, Dynamic>, Eigen::Matrix<double, N, N>>::type;
     int max_iter_;     // maximum number of iterations before forced stop
     int n_iter_ = 0;   // current iteration number
     double tol_;       // tolerance on error before forced stop

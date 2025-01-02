@@ -599,10 +599,10 @@ template <int Rows, int Cols, typename XprType> class BinMtxBase {
     inline int count() const { return visit_apply_<count_visitor<XprType>, linear_bit_visit>(); }
     // selection on eigen expressions
     template <typename ExprType>
-    DMatrix<typename ExprType::Scalar> select(const Eigen::MatrixBase<ExprType>& mtx) const {
+    Eigen::Matrix<typename ExprType::Scalar, Dynamic, Dynamic> select(const Eigen::MatrixBase<ExprType>& mtx) const {
         fdapde_assert(n_rows_ == mtx.rows() && n_cols_ == mtx.cols());
         using Scalar_ = typename ExprType::Scalar;
-        DMatrix<Scalar_> masked_mtx = mtx;   // assign to dense storage
+	Eigen::Matrix<Scalar_, Dynamic, Dynamic> masked_mtx = mtx;   // assign to dense storage
         for (int i = 0; i < mtx.rows(); ++i)
             for (int j = 0; j < mtx.cols(); ++j) {
                 if (!get().operator()(i, j)) masked_mtx(i, j) = 0;
@@ -610,12 +610,12 @@ template <int Rows, int Cols, typename XprType> class BinMtxBase {
         return masked_mtx;
     }
     template <typename ExprType>
-    SpMatrix<typename ExprType::Scalar> select(const Eigen::SparseMatrixBase<ExprType>& mtx) const {
+    Eigen::SparseMatrix<typename ExprType::Scalar> select(const Eigen::SparseMatrixBase<ExprType>& mtx) const {
         fdapde_assert(n_rows_ == mtx.rows() && n_cols_ == mtx.cols());
         using Scalar_ = typename ExprType::Scalar;
-        SpMatrix<Scalar_> masked_mtx = mtx;   // assign to sparse storage
+	Eigen::SparseMatrix<Scalar_> masked_mtx = mtx;   // assign to sparse storage
         for (int k = 0; k < masked_mtx.outerSize(); ++k)
-            for (typename SpMatrix<Scalar_>::InnerIterator it(masked_mtx, k); it; ++it) {
+            for (typename Eigen::SparseMatrix<Scalar_>::InnerIterator it(masked_mtx, k); it; ++it) {
                 if (!get().operator()(it.row(), it.col())) { it.valueRef() = 0; }
             }
         return masked_mtx;

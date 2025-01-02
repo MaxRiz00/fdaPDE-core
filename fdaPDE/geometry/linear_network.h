@@ -17,13 +17,13 @@
 #ifndef __LINEAR_NETWORK_H__
 #define __LINEAR_NETWORK_H__
 
-#include "segment.h"
 #include "../linear_algebra/binary_matrix.h"
+#include "segment.h"
 
 namespace fdapde {
   
 // template specialization for 1D meshes (bounded intervals)
-template <int M, int N> class Triangulation;
+template <int LocalDim, int EmbedDim> class Triangulation;
 template <> class Triangulation<1, 2> {
    public:
     static constexpr int local_dim = 1;
@@ -31,7 +31,7 @@ template <> class Triangulation<1, 2> {
     static constexpr int n_nodes_per_cell = 2;
     static constexpr int n_neighbors_per_cell = Dynamic;
     static constexpr bool is_manifold = true;
-    using VertexType = SVector<2>;
+    using NodeType = Eigen::Matrix<double, 2, 1>;
     using LocationPolicy = TreeSearch<Triangulation<1, 2>>;
 
     struct CellType : public Segment<Triangulation<1, 2>> {
@@ -43,10 +43,10 @@ template <> class Triangulation<1, 2> {
         CellType() = default;
         CellType(int id, const Triangulation* mesh) : Segment<Triangulation<1, 2>>(id, mesh) { }
 
-        DVector<int> neighbors() const {
+        Eigen::Matrix<int, Dynamic, 1> neighbors() const {
             const auto& v1 = mesh_->node_to_cells().at(mesh_->cells()(id_, 0));
             const auto& v2 = mesh_->node_to_cells().at(mesh_->cells()(id_, 1));
-            DVector<int> result(v1.size() + v2.size());
+            Eigen::Matrix<int, Dynamic, 1> result(v1.size() + v2.size());
             int i = 0;
             for (; i < v1.size(); ++i) result[i] = v1[i];
             for (; i < v1.size() + v2.size(); ++i) result[i] = v2[i];
@@ -55,7 +55,9 @@ template <> class Triangulation<1, 2> {
     };
 
     Triangulation() = default;
-    Triangulation(const DMatrix<double>& nodes, const DMatrix<int>& cells, const DMatrix<int>& boundary) :
+    Triangulation(
+      const Eigen::Matrix<double, Dynamic, Dynamic>& nodes, const Eigen::Matrix<int, Dynamic, Dynamic>& cells,
+      const Eigen::Matrix<int, Dynamic, Dynamic>& boundary) :
         nodes_(nodes), cells_(cells), nodes_markers_(boundary) {
         // store number of nodes and number of elements
         n_nodes_ = nodes_.rows();
@@ -70,7 +72,7 @@ template <> class Triangulation<1, 2> {
 	  node_to_cells_[cells_(i, 1)].push_back(i);
 	}
 	// recover adjacency matrix
-	SpMatrix<short> adjoint_neighbors;
+	Eigen::SparseMatrix<int> adjoint_neighbors;
 	std::vector<Eigen::Triplet<int>> triplet_list;
 	for (const auto& [node, edges] : node_to_cells_) {
 	  for (int i = 0; i < edges.size(); ++i) {
@@ -84,19 +86,20 @@ template <> class Triangulation<1, 2> {
 
     // getters
     CellType cell(int id) const { return CellType(id, this); }
-    VertexType node(int id) const { return nodes_.row(id); }
+    NodeType node(int id) const { return nodes_.row(id); }
     bool is_node_on_boundary(int id) const { return nodes_markers_[id]; }
-    const DMatrix<double>& nodes() const { return nodes_; }
-    const DMatrix<int, Eigen::RowMajor>& cells() const { return cells_; }
-    const SpMatrix<short>& neighbors() const { return neighbors_; }
+    const Eigen::Matrix<double, Dynamic, Dynamic>& nodes() const { return nodes_; }
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cells() const { return cells_; }
+    const Eigen::SparseMatrix<int>& neighbors() const { return neighbors_; }
     const BinaryVector<fdapde::Dynamic>& boundary() const { return nodes_markers_; }
     int n_cells() const { return n_cells_; }
     int n_nodes() const { return n_nodes_; }
-    SVector<2> range() const { return range_; }
+    Eigen::Matrix<double, 2, 1> range() const { return range_; }
+    const std::unordered_map<int, std::vector<int>>& node_to_cells() const { return node_to_cells_; }
 
     // iterators support
-    class cell_iterator : public index_based_iterator<cell_iterator, CellType> {
-        using Base = index_based_iterator<cell_iterator, CellType>;
+    class cell_iterator : public internals::index_iterator<cell_iterator, CellType> {
+        using Base = internals::index_iterator<cell_iterator, CellType>;
         using Base::index_;
         friend Base;
         const Triangulation* mesh_;
@@ -113,19 +116,24 @@ template <> class Triangulation<1, 2> {
     cell_iterator cells_end() const { return cell_iterator(n_cells_, this); }
 
     // point location
-    DVector<int> locate(const DMatrix<double>& points) const {
-        if (!location_policy_.has_value()) location_policy_ = LocationPolicy(this);
-        return location_policy_->locate(points);
+    template <int Rows, int Cols>
+    std::conditional_t<Rows == Dynamic || Cols == Dynamic, Eigen::Matrix<int, Dynamic, 1>, int>
+    locate(const Eigen::Matrix<double, Rows, Cols>& p) const {
+        fdapde_static_assert(
+          (Cols == 1 && Rows == embed_dim) || (Cols == Dynamic && Rows == Dynamic),
+          YOU_PASSED_A_MATRIX_OF_POINTS_TO_LOCATE_OF_WRONG_DIMENSIONS);
+        if (!location_policy_.has_value()) { location_policy_ = LocationPolicy(this); }
+        return location_policy_->locate(p);
     }
     // the set of cells which have node id as vertex
     std::vector<int> node_patch(int id) const { return node_to_cells_.at(id); }
    protected:
-    DMatrix<double> nodes_;                            // physical coordinates of mesh's vertices
-    DMatrix<int, Eigen::RowMajor> cells_ {};           // nodes (as row indexes in nodes_ matrix) composing each cell
-    SpMatrix<short> neighbors_ {};                     // ids of faces adjacent to a given face (-1 if no adjacent face)
+    Eigen::Matrix<double, Dynamic, Dynamic> nodes_;                    // physical coordinates of mesh's vertices
+    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> cells_ {};   // nodes composing each cell
+    Eigen::SparseMatrix<int> neighbors_ {};            // ids of faces adjacent to a given face (-1 if no adjacent face)
     BinaryVector<fdapde::Dynamic> nodes_markers_ {};   // j-th element is 1 \iff node j is on boundary
     std::unordered_map<int, std::vector<int>> node_to_cells_;   // for each node, the ids of cells sharing it
-    SVector<2> range_ {};                                       // mesh bounding box (min and max coordinates)
+    Eigen::Matrix<double, 2, 1> range_ {};                      // mesh bounding box (min and max coordinates)
     int n_nodes_ = 0, n_cells_ = 0;
     mutable std::optional<LocationPolicy> location_policy_ {};
 };

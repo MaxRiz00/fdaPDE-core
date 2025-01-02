@@ -43,7 +43,7 @@ class fe_mass_assembly_loop {
     static constexpr int n_lhs_basis = LhsBasisType::n_basis;
     static constexpr int n_rhs_basis = RhsBasisType::n_basis;
     // compile-time evaluation of integral \int_{\hat K} \psi_i \psi_j on reference element \hat K
-    static constexpr cexpr::Matrix<double, n_lhs_basis, n_rhs_basis> int_table_ {[]() {
+    static constexpr Matrix<double, n_lhs_basis, n_rhs_basis> int_table_ {[]() {
         std::array<double, n_lhs_basis * n_rhs_basis> int_table_ {};
         LhsBasisType lhs_basis {lhs_cell_dof_descriptor().dofs_phys_coords()};
         RhsBasisType rhs_basis {rhs_cell_dof_descriptor().dofs_phys_coords()};
@@ -82,14 +82,14 @@ class fe_mass_assembly_loop {
     fe_mass_assembly_loop(const DofHandler& dof_handler) :
         lhs_dof_handler_(&dof_handler), rhs_dof_handler_(&dof_handler) { }
 
-    SpMatrix<double> assemble() const {
+    Eigen::SparseMatrix<double> assemble() const {
         if (!lhs_dof_handler_) lhs_dof_handler_->enumerate(LhsFeSpace {});
         if (!rhs_dof_handler_) rhs_dof_handler_->enumerate(RhsFeSpace {});
 
-        SpMatrix<double> assembled_mat(lhs_dof_handler_->n_dofs(), rhs_dof_handler_->n_dofs());
+        Eigen::SparseMatrix<double> assembled_mat(lhs_dof_handler_->n_dofs(), rhs_dof_handler_->n_dofs());
         std::vector<Eigen::Triplet<double>> triplet_list;
-        DVector<int> lhs_active_dofs;
-        DVector<int> rhs_active_dofs;
+        Eigen::Matrix<int, Dynamic, 1> lhs_active_dofs;
+        Eigen::Matrix<int, Dynamic, 1> rhs_active_dofs;
         for (typename LhsFeSpace::DofHandlerType::cell_iterator it = lhs_dof_handler_->cells_begin();
              it != lhs_dof_handler_->cells_end(); ++it) {
             lhs_active_dofs = it->dofs();

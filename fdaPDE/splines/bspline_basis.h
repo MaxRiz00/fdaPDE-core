@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SPLINE_BASIS_H__
-#define __SPLINE_BASIS_H__
+#ifndef __BSPLINE_BASIS_H__
+#define __BSPLINE_BASIS_H__
 
 #include "../geometry/interval.h"
 #include "../fields/spline.h"
@@ -24,7 +24,7 @@ namespace fdapde {
 
 // given vector of knots u_1, u_2, ..., u_N, this class represents the set of N + order - 1 spline basis functions
 // {l_1(x), l_2(x), ..., l_{N + order - 1}(x)} centered at knots u_1, u_2, ..., u_N
-class SplineBasis {
+class BSplineBasis {
    private:
     int order_;
     std::vector<Spline> basis_ {};
@@ -33,14 +33,14 @@ class SplineBasis {
     static constexpr int StaticInputSize = 1;
     static constexpr int Order = Dynamic;
     // constructors
-    constexpr SplineBasis() : order_(0) { }
+    constexpr BSplineBasis() : order_(0) { }
     // constructor from user defined knot vector
     template <typename KnotsVectorType>
         requires(requires(KnotsVectorType knots, int i) {
                     { knots[i] } -> std::convertible_to<double>;
                     { knots.size() } -> std::convertible_to<std::size_t>;
                 })
-    SplineBasis(KnotsVectorType&& knots, int order) : order_(order) {
+    BSplineBasis(KnotsVectorType&& knots, int order) : order_(order) {
         fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
         int n = knots.size();
         knots_.resize(n);
@@ -50,7 +50,7 @@ class SplineBasis {
         for (int i = 0; i < n - order_ - 1; ++i) { basis_.emplace_back(knots_, i, order_); }
     }
     // constructor from geometric interval (no repeated knots)
-    SplineBasis(const Triangulation<1, 1>& interval, int order) : order_(order) {
+    BSplineBasis(const Triangulation<1, 1>& interval, int order) : order_(order) {
         // construct knots vector
         Eigen::Matrix<double, Dynamic, 1> knots = interval.nodes();
         fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end() FDAPDE_COMMA std::less_equal<double>()));
@@ -82,4 +82,4 @@ class SplineBasis {
 
 } // namespace fdapde
 
-#endif // __SPLINE_BASIS_H__
+#endif // __BSPLINE_BASIS_H__

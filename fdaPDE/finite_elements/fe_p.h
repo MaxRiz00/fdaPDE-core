@@ -34,12 +34,12 @@ template <int LocalDim, int Order, int NComponents> struct vector_fe_p_basis_typ
     static constexpr int n_basis = LagrangeBasis<LocalDim, Order>::n_basis * NComponents;
 
     // implements \boldsymbol{\psi}_i = \psi_{i_ % n_components} \iff i == (i \ n_components), 0 otherwise
-    struct PolynomialType : public fdapde::MatrixBase<LocalDim, PolynomialType> {
+    struct PolynomialType : public MatrixFieldBase<LocalDim, PolynomialType> {
        private:
         // the i-th component of the basis vector
-        struct Component : public fdapde::ScalarBase<LocalDim, Component> {
+        struct Component : public ScalarFieldBase<LocalDim, Component> {
             using Scalar = double;
-            using InputType = cexpr::Vector<Scalar, LocalDim>;
+            using InputType = Vector<Scalar, LocalDim>;
             static constexpr int StaticInputSize = LocalDim;
             static constexpr int NestAsRef = 0;
             static constexpr int XprBits = 0;
@@ -53,9 +53,9 @@ template <int LocalDim, int Order, int NComponents> struct vector_fe_p_basis_typ
             const PolynomialType* xpr_;
         };
        public:
-        using Base = MatrixBase<LocalDim, PolynomialType>;
+        using Base = MatrixFieldBase<LocalDim, PolynomialType>;
         using Scalar = double;
-        using InputType = cexpr::Vector<Scalar, LocalDim>;
+        using InputType = Vector<Scalar, LocalDim>;
         static constexpr int StaticInputSize = LocalDim;
         static constexpr int NestAsRef = 1;
         static constexpr int XprBits = 0;
@@ -66,7 +66,7 @@ template <int LocalDim, int Order, int NComponents> struct vector_fe_p_basis_typ
         constexpr PolynomialType() = default;
         template <int n_nodes>
             requires(n_nodes == LagrangeBasis<LocalDim, Order>::n_basis)
-        constexpr PolynomialType(const cexpr::Matrix<double, n_nodes, LocalDim>& nodes, int i) :
+        constexpr PolynomialType(const Matrix<double, n_nodes, LocalDim>& nodes, int i) :
             basis_(nodes), i_(i) { }
         constexpr Component operator[](int i) const { return Component(this, i); }
         constexpr Scalar eval(int i, [[maybe_unused]] int j, const InputType& p) const {
@@ -87,7 +87,7 @@ template <int LocalDim, int Order, int NComponents> struct vector_fe_p_basis_typ
     constexpr vector_fe_p_basis_type() = default;
     template <int n_nodes>
         requires(n_nodes == LagrangeBasis<LocalDim FDAPDE_COMMA Order>::n_basis)
-    constexpr explicit vector_fe_p_basis_type(const cexpr::Matrix<double, n_nodes, LocalDim>& nodes) : basis_() {
+    constexpr explicit vector_fe_p_basis_type(const Matrix<double, n_nodes, LocalDim>& nodes) : basis_() {
         for (int i = 0; i < n_basis; ++i) { basis_[i] = PolynomialType(nodes, i); }
     }
     // getters
@@ -136,7 +136,7 @@ template <int Order, int NComponents> struct FeP {
         constexpr dof_descriptor() : dofs_phys_coords_(), dofs_bary_coords_() {
             // compute dofs physical coordinates on reference cell
             constexpr int n_nodes = local_dim + 1;
-            cexpr::Matrix<double, local_dim, n_nodes> reference_simplex;
+            Matrix<double, local_dim, n_nodes> reference_simplex;
             reference_simplex.setZero();
             for (int i = 0; i < local_dim; ++i) { reference_simplex(i, i + 1) = 1; }
             dofs_phys_coords_.template topRows<n_nodes>() = reference_simplex.transpose();
@@ -145,7 +145,7 @@ template <int Order, int NComponents> struct FeP {
             auto edge_enumerate = [&, this]() {
                 std::vector<bool> bitmask(n_nodes, 0);
                 std::fill_n(bitmask.begin(), 2, 1);
-                cexpr::Matrix<double, local_dim, 2> edge_coords;
+                Matrix<double, local_dim, 2> edge_coords;
                 for (int i = 0; i < ReferenceCell::n_edges; ++i) {
                     for (int k = 0, h = 0; k < n_nodes; ++k) {
 		      if (bitmask[k]) { edge_coords.col(h++) = reference_simplex.col(k); }
@@ -171,7 +171,7 @@ template <int Order, int NComponents> struct FeP {
                     double step = 1.0 / Order;
                     for (int k = 0; k < Order - 2; ++k) {
                         for (int h = 0; h < Order - 2 - k; ++h) {
-                            dofs_phys_coords_.row(j++) = cexpr::Matrix<double, 1, 2>(step * (k + 1), step * (h + 1));
+                            dofs_phys_coords_.row(j++) = Matrix<double, 1, 2>(step * (k + 1), step * (h + 1));
                         }
                     }
                 }
@@ -182,20 +182,20 @@ template <int Order, int NComponents> struct FeP {
                     // add triangle of equidistant nodes having Order - 2 nodes per side
                     double step = 1.0 / Order;
 		    // compute barycentric coordinates of nodes to insert on faces
-                    cexpr::Matrix<double, n_dofs_per_face, 2> bary_coords;
+                    Matrix<double, n_dofs_per_face, 2> bary_coords;
                     for (int k = 0, r = 0; k < Order - 2; ++k) {
                         for (int h = 0; h < Order - 2 - k; ++h) {
-                            bary_coords.row(r++) = cexpr::Matrix<double, 1, 2>(step * (k + 1), step * (h + 1));
+                            bary_coords.row(r++) = Matrix<double, 1, 2>(step * (k + 1), step * (h + 1));
                         }
                     }
                     std::vector<bool> bitmask(n_nodes, 0);
                     std::fill_n(bitmask.begin(), ReferenceCell::n_nodes_per_face, 1);
-                    cexpr::Matrix<double, local_dim, 3> face_coords;
+                    Matrix<double, local_dim, 3> face_coords;
                     for (int i = 0; i < ReferenceCell::n_faces; ++i) {
                         for (int k = 0, h = 0; k < n_nodes; ++k) {
                             if (bitmask[k]) face_coords.col(h++) = reference_simplex.col(k);
                         }
-                        cexpr::Matrix<double, local_dim, 2> J;
+                        Matrix<double, local_dim, 2> J;
                         for (int k = 0; k < 2; ++k) { J.col(k) = face_coords.col(k + 1) - face_coords.col(0); }
                         for (int k = 0; k < n_dofs_per_face; ++k) {
                             dofs_phys_coords_.row(j++) =
@@ -211,7 +211,7 @@ template <int Order, int NComponents> struct FeP {
                         for (int k = 0; k < Order - 3 - l; ++k) {
                             for (int h = 0; h < Order - 3 - k; ++h) {
                                 dofs_phys_coords_.row(j++) =
-                                  cexpr::Matrix<double, 1, 3>(step * (k + 1), step * (h + 1), step * (l + 1));
+                                  Matrix<double, 1, 3>(step * (k + 1), step * (h + 1), step * (l + 1));
                             }
                         }
                     }
@@ -235,8 +235,8 @@ template <int Order, int NComponents> struct FeP {
         constexpr const auto& dofs_phys_coords() const { return dofs_phys_coords_; }
         constexpr const auto& dofs_bary_coords() const { return dofs_bary_coords_; }
        private:
-        cexpr::Matrix<double, n_dofs_per_cell, local_dim> dofs_phys_coords_;       // dofs physical coordinates
-        cexpr::Matrix<double, n_dofs_per_cell, local_dim + 1> dofs_bary_coords_;   // dofs barycentric coordinates
+        Matrix<double, n_dofs_per_cell, local_dim> dofs_phys_coords_;       // dofs physical coordinates
+        Matrix<double, n_dofs_per_cell, local_dim + 1> dofs_bary_coords_;   // dofs barycentric coordinates
     };
     // template specialization for boundary integration of 1D elements
     template <typename dummy> struct dof_descriptor<0, dummy> {
@@ -294,11 +294,11 @@ template <int NComponents> struct FeP<0, NComponents> {
         constexpr dof_descriptor() : dofs_phys_coords_(), dofs_bary_coords_() {
             // compute dofs physical coordinates on reference cell
             constexpr int n_nodes = local_dim + 1;
-            cexpr::Matrix<double, local_dim, n_nodes> reference_simplex;
+            Matrix<double, local_dim, n_nodes> reference_simplex;
             reference_simplex.setZero();
             for (int i = 0; i < local_dim; ++i) { reference_simplex(i, i + 1) = 1; }
 	    // the unique dof is the simplex barycenter
-            if constexpr (local_dim == 1) { dofs_phys_coords_.row(0) = cexpr::Vector<double, 1>(0.5); }
+            if constexpr (local_dim == 1) { dofs_phys_coords_.row(0) = Vector<double, 1>(0.5); }
             if constexpr (local_dim == 2) {
                 dofs_phys_coords_.row(0) =
                   (reference_simplex.col(1) + reference_simplex.col(2)).transpose() * 1.0 / (local_dim + 1);
@@ -322,8 +322,8 @@ template <int NComponents> struct FeP<0, NComponents> {
         constexpr const auto& dofs_phys_coords() const { return dofs_phys_coords_; }
         constexpr const auto& dofs_bary_coords() const { return dofs_bary_coords_; }
        private:
-        cexpr::Matrix<double, n_dofs_per_cell, local_dim> dofs_phys_coords_;       // dofs physical coordinates
-        cexpr::Matrix<double, n_dofs_per_cell, local_dim + 1> dofs_bary_coords_;   // dofs barycentric coordinates
+        Matrix<double, n_dofs_per_cell, local_dim> dofs_phys_coords_;       // dofs physical coordinates
+        Matrix<double, n_dofs_per_cell, local_dim + 1> dofs_bary_coords_;   // dofs barycentric coordinates
     };
     template <int LocalDim>
     struct select_cell_quadrature : std::type_identity<internals::fe_quadrature_simplex<LocalDim, 1>> { };

@@ -26,8 +26,9 @@ namespace fdapde {
 // searches for the point in a given grid minimizing a given nonlinear objective
 template <int N, typename... Args> class Grid {
    private:
-    using VectorType = typename std::conditional_t<N == Dynamic, DVector<double>, SVector<N>>;
-    using GridType = Eigen::Matrix<double, Eigen::Dynamic, N>;   // equivalent to DMatrix<double> for N == Dynamic
+    using VectorType =
+      typename std::conditional<N == Dynamic, Eigen::Matrix<double, Dynamic, 1>, Eigen::Matrix<double, N, 1>>::type;
+    using GridType = Eigen::Matrix<double, Eigen::Dynamic, N>;
     std::tuple<Args...> callbacks_ {};
     VectorType optimum_;
     double value_;   // objective value at optimum

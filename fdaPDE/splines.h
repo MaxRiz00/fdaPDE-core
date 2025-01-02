@@ -17,26 +17,26 @@
 #ifndef __FDAPDE_SPLINES_MODULE_H__
 #define __FDAPDE_SPLINES_MODULE_H__
 
-#ifndef __FDAPDE_PDE_MODULE_H__
-#define __FDAPDE_PDE_MODULE_H__
+// include required modules
+#ifndef __FDAPDE_FIELDS_MODULE_H__
 
-#include "pde/pde.h"
-#include "pde/differential_operators.h"
-#include "pde/differential_expressions.h"
+#    include "fields.h"
 
-#include "utils/integration/integrator.h"
-#include "utils/integration/integrator_tables.h"
+#endif   // __FDAPDE_FIELDS_MODULE_H__
 
-#endif
+#ifndef __FDAPDE_GEOMETRY_MODULE_H__
 
-#include "splines/spline_symbols.h"
-#include "splines/spline_assembler.h"
-#include "splines/basis/spline.h"
-#include "splines/basis/spline_basis.h"
-#include "splines/solvers/spline_solver_base.h"
-#include "splines/solvers/spline_solver_selector.h"
-#include "splines/solvers/spline_linear_elliptic_solver.h"
-#include "splines/operators/reaction.h"
-#include "splines/operators/bilaplacian.h"
+#    include "geometry.h"
+
+#endif   // __FDAPDE_GEOMETRY_MODULE_H__
+
+#include "splines/bs_assembler_base.h"
+#include "splines/bs_bilinear_form_assembler.h"
+#include "splines/bs_linear_form_assembler.h"
+#include "splines/bs_integration.h"
+#include "splines/bs_objects.h"
+#include "splines/bs_space.h"
+#include "splines/dof_handler.h"
+#include "splines/spline_basis.h"
 
 #endif   // __FDAPDE_SPLINES_MODULE_H__

@@ -54,14 +54,14 @@ class Tetrahedron : public Simplex<Triangulation::local_dim, Triangulation::embe
         int edge_id_;
         const Triangulation* mesh_;
        public:
-        using CoordsType = SMatrix<Triangulation::embed_dim, 2>;
+        using CoordsType = Eigen::Matrix<double, Triangulation::embed_dim, 2>;
         EdgeType() = default;
         EdgeType(int edge_id, const Triangulation* mesh) : edge_id_(edge_id), mesh_(mesh) {
             for (int i = 0; i < Base::n_nodes; ++i) { Base::coords_.col(i) = mesh_->node(mesh_->edges()(edge_id_, i)); }
             this->initialize();
         }
         bool on_boundary() const { return mesh_->is_edge_on_boundary(edge_id_); }
-        DVector<int> node_ids() const { return mesh_->edges().row(edge_id_); }
+        Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->edges().row(edge_id_); }
         int id() const { return edge_id_; }
         const std::unordered_set<int>& adjacent_cells() const { return mesh_->edge_to_cells().at(edge_id_); }
         int marker() const {   // mesh edge's marker
@@ -74,18 +74,18 @@ class Tetrahedron : public Simplex<Triangulation::local_dim, Triangulation::embe
         int face_id_;
         const Triangulation* mesh_;
        public:
-        using CoordsType = SMatrix<Triangulation::embed_dim, 3>;
+        using CoordsType = Eigen::Matrix<double, Triangulation::embed_dim, 3>;
         FaceType() = default;
         FaceType(int face_id, const Triangulation* mesh) : face_id_(face_id), mesh_(mesh) {
             for (int i = 0; i < Base::n_nodes; ++i) { Base::coords_.col(i) = mesh_->node(mesh_->faces()(face_id_, i)); }
             this->initialize();
         }
         bool on_boundary() const { return mesh_->is_face_on_boundary(face_id_); }
-        DVector<int> node_ids() const { return mesh_->faces().row(face_id_); }
-        DVector<int> edge_ids() const { return mesh_->face_to_edges().row(face_id_); }
+        Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->faces().row(face_id_); }
+        Eigen::Matrix<int, Dynamic, 1> edge_ids() const { return mesh_->face_to_edges().row(face_id_); }
         int id() const { return face_id_; }
         EdgeType edge(int n) const { return EdgeType(mesh_->face_to_edges()(face_id_, n), mesh_); }
-        DVector<int> adjacent_cells() const { return mesh_->face_to_cells().row(face_id_); }
+        Eigen::Matrix<int, Dynamic, 1> adjacent_cells() const { return mesh_->face_to_cells().row(face_id_); }
         int marker() const {   // mesh face's marker
             return mesh_->faces_markers().size() > face_id_ ? mesh_->faces_markers()[face_id_] : Unmarked;
         }
@@ -93,8 +93,8 @@ class Tetrahedron : public Simplex<Triangulation::local_dim, Triangulation::embe
 
     // getters
     int id() const { return id_; }
-    DVector<int> neighbors() const { return mesh_->neighbors().row(id_); }
-    DVector<int> node_ids() const { return mesh_->cells().row(id_); }
+    Eigen::Matrix<int, Dynamic, 1> neighbors() const { return mesh_->neighbors().row(id_); }
+    Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->cells().row(id_); }
     bool on_boundary() const { return boundary_; }
     operator bool() const { return mesh_ != nullptr; }
     EdgeType edge(int n) const { return EdgeType(edge_ids_[n], mesh_); }

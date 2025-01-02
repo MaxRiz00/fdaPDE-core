@@ -22,18 +22,18 @@
 namespace fdapde {
 
 template <int Order, typename Derived_, int PowerFlag = 0>
-class MatrixNorm : public ScalarBase<Derived_::StaticInputSize, MatrixNorm<Order, Derived_, PowerFlag>> {
+class MatrixFieldNorm : public ScalarFieldBase<Derived_::StaticInputSize, MatrixFieldNorm<Order, Derived_, PowerFlag>> {
    public:
     using Derived = Derived_;
-    template <typename T> using Meta = MatrixNorm<Order, T, PowerFlag>;
-    using Base = ScalarBase<Derived::StaticInputSize, MatrixNorm<Order, Derived, PowerFlag>>;
+    template <typename T> using Meta = MatrixFieldNorm<Order, T, PowerFlag>;
+    using Base = ScalarFieldBase<Derived::StaticInputSize, MatrixFieldNorm<Order, Derived, PowerFlag>>;
     using InputType = typename Derived::InputType;
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = Derived::XprBits;
 
-    explicit constexpr MatrixNorm(const Derived& xpr) : Base(), xpr_(xpr) { }
+    explicit constexpr MatrixFieldNorm(const Derived& xpr) : Base(), xpr_(xpr) { }
     constexpr Scalar operator()(const InputType& p) const {
         if constexpr (StaticInputSize == Dynamic) fdapde_assert(p.size() == xpr_.input_size());
         Scalar norm_ = 0;

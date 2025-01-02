@@ -707,14 +707,14 @@ template <typename MdArray, int... Slicers> class MdArraySlice {
         if constexpr (Order == 2) {
             constexpr int rows = MdArray::static_extents[free_extents_idxs_[0]];
             constexpr int cols = MdArray::static_extents[free_extents_idxs_[1]];
-            cexpr::Matrix<Scalar, rows, cols> mtx {};
+            Matrix<Scalar, rows, cols> mtx {};
             for (size_t i = 0, n = rows; i < n; ++i) {
                 for (size_t j = 0, n = cols; j < n; ++j) { mtx(i, j) = operator()(i, j); }
             }
             return mtx;
         } else {
             constexpr int rows = MdArray::static_extents[free_extents_idxs_[0]];
-            cexpr::Vector<Scalar, rows> vec {};
+            Vector<Scalar, rows> vec {};
             for (size_t i = 0, n = rows; i < n; ++i) { vec[i] = operator()(i); }
             return vec;
         }
@@ -1075,11 +1075,11 @@ template <typename Scalar_, typename Extents_, typename LayoutPolicy_ = internal
         fdapde_static_assert(Order == 2 || Order == 1, THIS_METHOD_IS_ONLY_FOR_ORDER_TWO_OR_ORDER_ONE_MDARRAY);
         if constexpr (Order == 1) {
             static_assert(static_extents[0] != Dynamic);
-            return cexpr::Map<const Scalar, static_extents[0], 1, RowMajor>(data());
+            return Map<const Scalar, static_extents[0], 1, RowMajor>(data());
         }
         if constexpr (Order == 2) {
             static_assert(static_extents[0] != Dynamic && static_extents[1] != Dynamic);
-            return cexpr::Map<const Scalar, static_extents[0], static_extents[1], RowMajor>(data());
+            return Map<const Scalar, static_extents[0], static_extents[1], RowMajor>(data());
         }
     }
    private:

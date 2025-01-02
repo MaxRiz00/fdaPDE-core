@@ -14,26 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BS_LINEAR_FORM_ASSEMBLER_H__
-#define __BS_LINEAR_FORM_ASSEMBLER_H__
+#ifndef __SP_LINEAR_FORM_ASSEMBLER_H__
+#define __SP_LINEAR_FORM_ASSEMBLER_H__
 
 #include <unordered_map>
 
-#include "bs_assembler_base.h"
+#include "sp_assembler_base.h"
 
 namespace fdapde {
 namespace internals {
   
 // galerkin and petrov-galerkin spline assembly loop
 template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
-class bs_linear_form_assembly_loop :
-    public bs_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
-    public assembly_xpr_base<bs_linear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
+class sp_linear_form_assembly_loop :
+    public sp_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
+    public assembly_xpr_base<sp_linear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
     // detect trial and test spaces from bilinear form
     using TrialSpace = trial_space_t<Form_>;
     using TestSpace  = test_space_t <Form_>;
     static_assert(TrialSpace::local_dim == TestSpace::local_dim && TrialSpace::embed_dim == TestSpace::embed_dim);
-    using Base = bs_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
+    using Base = sp_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
     using Form = typename Base::Form;
     using DofHandlerType = typename Base::DofHandlerType;
     static constexpr int local_dim = Base::local_dim;
@@ -41,13 +41,13 @@ class bs_linear_form_assembly_loop :
     using Base::form_;
     using Base::dof_handler_;
    public:
-    bs_bilinear_form_assembly_loop() = default;
-    bs_bilinear_form_assembly_loop(
+    sp_linear_form_assembly_loop() = default;
+    sp_linear_form_assembly_loop(
       const Form_& form, typename Base::geo_iterator begin, typename Base::geo_iterator end,
       const Quadrature_&... quadrature) requires(sizeof...(quadrature) <= 1)
         : Base(form, begin, end, quadrature...) { }
 
-    SpMatrix<double> assemble() const {
+    Eigen::SparseMatrix<double> assemble() const {
         Eigen::Matrix<double, Dynamic, 1> assembled_vec(dof_handler_->n_dofs());
         assembled_vec.setZero();
         assemble(assembled_vec);
@@ -63,29 +63,29 @@ class bs_linear_form_assembly_loop :
         int q = Base::n_quadrature_nodes_;
         MdArray<double, MdExtents<Dynamic, Dynamic>> shape_values(n, q);
 
-        std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>> bs_map_buff;
-        if constexpr (Form::XprBits & int(bs_assembler_flags::compute_physical_quad_nodes)) {
+        std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>> sp_map_buff;
+        if constexpr (Form::XprBits & int(sp_assembler_flags::compute_physical_quad_nodes)) {
             Base::distribute_quadrature_nodes(
-              bs_map_buff, begin, end);   // distribute quadrature nodes on physical mesh (if required)
+              sp_map_buff, begin, end);   // distribute quadrature nodes on physical mesh (if required)
         }
 	// start assembly loop
-        internals::bs_assembler_packet<local_dim> bs_packet {};
+        internals::sp_assembler_packet<local_dim> sp_packet {};
         int local_cell_id = 0;
         for (iterator it = begin; it != end; ++it) {
             active_dofs = it->dofs();
             // update fe_packet content based on form requests
-            bs_packet.cell_measure = it->measure();
+            sp_packet.cell_measure = it->measure();
             Base::eval_shape_values(Base::test_space_->basis(), active_dofs, it, shape_values);
 
             // perform integration of weak form for (i, j)-th basis pair
             for (int i = 0; i < n; ++i) {
                 double value = 0;
                 for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
-                    bs_packet.test_value = shape_values(i, q_k);
+                    sp_packet.test_value = shape_values(i, q_k);
                     if constexpr (Form::XprBits & int(fe_assembler_flags::compute_physical_quad_nodes)) {
-                        bs_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
+                        sp_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
                     }
-                    value += Base::quad_weights_(q_k, 0) * form_(bs_packet);
+                    value += Base::quad_weights_(q_k, 0) * form_(sp_packet);
                 }
                 assembled_vec[active_dofs[i]] += value * fe_packet.cell_measure;
             }
@@ -101,4 +101,4 @@ class bs_linear_form_assembly_loop :
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __BS_LINEAR_FORM_ASSEMBLER_H__
+#endif   // __SP_LINEAR_FORM_ASSEMBLER_H__

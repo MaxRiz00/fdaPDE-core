@@ -26,8 +26,10 @@ namespace fdapde {
 // implementation of the newton method for unconstrained nonlinear optimization
 template <int N, typename... Args> class Newton {
    private:
-    using VectorType = typename std::conditional<N == Dynamic, DVector<double>, SVector<N>>::type;
-    using MatrixType = typename std::conditional<N == Dynamic, DMatrix<double>, SMatrix<N>>::type;
+    using VectorType =
+      typename std::conditional<N == Dynamic, Eigen::Matrix<double, Dynamic, 1>, Eigen::Matrix<double, N, 1>>::type;
+    using MatrixType = typename std::conditional<
+      N == Dynamic, Eigen::Matrix<double, Dynamic, Dynamic>, Eigen::Matrix<double, N, N>>::type;
     int max_iter_;     // maximum number of iterations before forced stop
     double tol_;       // tolerance on error before forced stop
     double step_;      // update step

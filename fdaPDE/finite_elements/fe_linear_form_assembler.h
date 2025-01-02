@@ -46,13 +46,13 @@ class fe_linear_form_assembly_loop :
       const Quadrature_&... quadrature) requires(sizeof...(quadrature) <= 1)
         : Base(form, begin, end, quadrature...) { }
 
-    DVector<double> assemble() const {
-        DVector<double> assembled_vec(dof_handler_->n_dofs());
+    Eigen::Matrix<double, Dynamic, 1> assemble() const {
+        Eigen::Matrix<double, Dynamic, 1> assembled_vec(dof_handler_->n_dofs());
         assembled_vec.setZero();
         assemble(assembled_vec);
         return assembled_vec;
     }
-    void assemble(DVector<double>& assembled_vec) const {
+    void assemble(Eigen::Matrix<double, Dynamic, 1>& assembled_vec) const {
         using iterator = typename Base::fe_traits::dof_iterator;
         iterator begin(Base::begin_.index(), dof_handler_, Base::begin_.marker());
         iterator end  (Base::end_.index(),   dof_handler_, Base::end_.marker()  );

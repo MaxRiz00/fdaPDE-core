@@ -14,28 +14,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BS_BILINEAR_FORM_ASSEMBLER_H__
-#define __BS_BILINEAR_FORM_ASSEMBLER_H__
+#ifndef __SP_BILINEAR_FORM_ASSEMBLER_H__
+#define __SP_BILINEAR_FORM_ASSEMBLER_H__
 
 #include <unordered_map>
 
-#include "bs_assembler_base.h"
+#include "sp_assembler_base.h"
 
 namespace fdapde {
 namespace internals {
   
 // galerkin and petrov-galerkin spline assembly loop
 template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
-class bs_bilinear_form_assembly_loop :
-    public bs_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
-    public assembly_xpr_base<bs_bilinear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
+class sp_bilinear_form_assembly_loop :
+    public sp_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
+    public assembly_xpr_base<sp_bilinear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
     // detect trial and test spaces from bilinear form
     using TrialSpace = trial_space_t<Form_>;
     using TestSpace  = test_space_t <Form_>;
     static_assert(TrialSpace::local_dim == TestSpace::local_dim && TrialSpace::embed_dim == TestSpace::embed_dim);
     static constexpr bool is_galerkin = std::is_same_v<TrialSpace, TestSpace>;
     static constexpr bool is_petrov_galerkin = !is_galerkin;
-    using Base = bs_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
+    using Base = sp_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
     using Form = typename Base::Form;
     using DofHandlerType = typename Base::DofHandlerType;
     static constexpr int local_dim = Base::local_dim;
@@ -50,8 +50,8 @@ class bs_bilinear_form_assembly_loop :
     }
     const TrialSpace* trial_space_;
    public:
-    bs_bilinear_form_assembly_loop() = default;
-    bs_bilinear_form_assembly_loop(
+    sp_bilinear_form_assembly_loop() = default;
+    sp_bilinear_form_assembly_loop(
       const Form_& form, typename Base::geo_iterator begin, typename Base::geo_iterator end,
       const Quadrature_&... quadrature)
         requires(sizeof...(quadrature) <= 1)
@@ -63,15 +63,15 @@ class bs_bilinear_form_assembly_loop :
         if constexpr (sizeof...(Quadrature_) == 0) {
             // default to higher-order quadrature
             if (test_space_->order() != trial_space_->order()) {
-                internals::get_bs_quadrature(
+                internals::get_sp_quadrature(
                   test_space_->order() > trial_space_->order() ? test_space_->order() : trial_space_->order(),
                   Base::quad_nodes_, Base::quad_weights_);
             }
         }
     }
 
-    SpMatrix<double> assemble() const {
-        SpMatrix<double> assembled_mat(test_dof_handler()->n_dofs(), trial_dof_handler()->n_dofs());
+    Eigen::SparseMatrix<double> assemble() const {
+        Eigen::SparseMatrix<double> assembled_mat(test_dof_handler()->n_dofs(), trial_dof_handler()->n_dofs());
         std::vector<Eigen::Triplet<double>> triplet_list;
 	assemble(triplet_list);
 	// linearity of the integral is implicitly used here, as duplicated triplets are summed up (see Eigen docs)
@@ -91,31 +91,31 @@ class bs_bilinear_form_assembly_loop :
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_dx    (n1, q), trial_shape_dx    (n2, q);
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_ddx   (n1, q), trial_shape_ddx   (n2, q);
 
-        std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>> bs_map_buff;
-        if constexpr (Form::XprBits & int(bs_assembler_flags::compute_physical_quad_nodes)) {
+        std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>> sp_map_buff;
+        if constexpr (Form::XprBits & int(sp_assembler_flags::compute_physical_quad_nodes)) {
             Base::distribute_quadrature_nodes(
-              bs_map_buff, begin, end);   // distribute quadrature nodes on physical mesh (if required)
+              sp_map_buff, begin, end);   // distribute quadrature nodes on physical mesh (if required)
         }
 	// start assembly loop
-        internals::bs_assembler_packet<local_dim> bs_packet {};
+        internals::sp_assembler_packet<local_dim> sp_packet {};
         int local_cell_id = 0;
         for (iterator it = begin; it != end; ++it) {
             test_active_dofs = it->dofs();
             if constexpr (is_petrov_galerkin) { trial_active_dofs = trial_dof_handler()->active_dofs(it->id()); }
             // update fe_packet content based on form requests
-            bs_packet.cell_measure = it->measure();
-            if constexpr (Form::XprBits & int(bs_assembler_flags::compute_shape_values)) {
+            sp_packet.cell_measure = it->measure();
+            if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_values)) {
                 Base::eval_shape_values(test_space_->basis(), test_active_dofs, it, test_shape_values);
                 Base::eval_shape_values(
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
                   trial_shape_values);
             }
-            if constexpr (Form::XprBits & int(bs_assembler_flags::compute_shape_dx)) {
+            if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_dx)) {
                 Base::eval_shape_dx(test_space_->basis(), test_active_dofs, it, test_shape_dx);
                 Base::eval_shape_dx(
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it, trial_shape_dx);
             }
-            if constexpr (Form::XprBits & int(bs_assembler_flags::compute_shape_ddx)) {
+            if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_ddx)) {
                 Base::eval_shape_ddx(test_space_->basis(), test_active_dofs, it, test_shape_ddx);
                 Base::eval_shape_ddx(
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
@@ -127,26 +127,26 @@ class bs_bilinear_form_assembly_loop :
                 for (int j = 0; j < n1; ++j) {
                     double value = 0;
                     for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
-                        if constexpr (Form::XprBits & int(bs_assembler_flags::compute_shape_values)) {
-                            bs_packet.trial_value = trial_shape_values(i, q_k);
-                            bs_packet.test_value  = test_shape_values (j, q_k);
+                        if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_values)) {
+                            sp_packet.trial_value = trial_shape_values(i, q_k);
+                            sp_packet.test_value  = test_shape_values (j, q_k);
                         }
-                        if constexpr (Form::XprBits & int(bs_assembler_flags::compute_shape_dx)) {
-                            bs_packet.trial_dx = trial_shape_dx(i, q_k);
-                            bs_packet.test_dx  = test_shape_dx (j, q_k);
+                        if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_dx)) {
+                            sp_packet.trial_dx = trial_shape_dx(i, q_k);
+                            sp_packet.test_dx  = test_shape_dx (j, q_k);
                         }
-                        if constexpr (Form::XprBits & int(bs_assembler_flags::compute_shape_ddx)) {
-                            bs_packet.trial_ddx = trial_shape_ddx(i, q_k);
-                            bs_packet.test_ddx  = test_shape_ddx (j, q_k);
+                        if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_ddx)) {
+                            sp_packet.trial_ddx = trial_shape_ddx(i, q_k);
+                            sp_packet.test_ddx  = test_shape_ddx (j, q_k);
                         }
-                        if constexpr (Form::XprBits & int(fe_assembler_flags::compute_physical_quad_nodes)) {
-                            bs_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
+                        if constexpr (Form::XprBits & int(sp_assembler_flags::compute_physical_quad_nodes)) {
+                            sp_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
                         }
-                        value += Base::quad_weights_(q_k, 0) * form_(bs_packet);
+                        value += Base::quad_weights_(q_k, 0) * form_(sp_packet);
                     }
                     triplet_list.emplace_back(
                       test_active_dofs[j], is_galerkin ? test_active_dofs[i] : trial_active_dofs[i],
-                      value * bs_packet.cell_measure);
+                      value * sp_packet.cell_measure);
                 }
             }
 	    local_cell_id++;
@@ -162,4 +162,4 @@ class bs_bilinear_form_assembly_loop :
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __BS_BILINEAR_FORM_ASSEMBLER_H__
+#endif   // __SP_BILINEAR_FORM_ASSEMBLER_H__

@@ -22,11 +22,11 @@
 
 namespace fdapde {
 
-template <typename Derived_> class Hessian : public fdapde::MatrixBase<Derived_::StaticInputSize, Hessian<Derived_>> {
+template <typename Derived_> class Hessian : public MatrixFieldBase<Derived_::StaticInputSize, Hessian<Derived_>> {
    public:
     using Derived = std::decay_t<Derived_>;
     template <typename T> using Meta = Hessian<T>;
-    using Base = MatrixBase<Derived::StaticInputSize, Hessian<Derived>>;
+    using Base = MatrixFieldBase<Derived::StaticInputSize, Hessian<Derived>>;
     using FunctorType =
       PartialDerivative<internals::xpr_or_scalar_wrap_t<Derived, Derived::StaticInputSize, Derived>, 2>;
     using InputType = typename Derived::InputType;
@@ -60,7 +60,7 @@ template <typename Derived_> class Hessian : public fdapde::MatrixBase<Derived_:
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    private:
     MatrixField<StaticInputSize, Rows, Cols, FunctorType> data_;
-    MatrixSymmetricView<MatrixField<StaticInputSize, Rows, Cols, FunctorType>, fdapde::Lower> xpr_;
+    MatrixFieldSymmetricView<MatrixField<StaticInputSize, Rows, Cols, FunctorType>, fdapde::Lower> xpr_;
     typename internals::ref_select<Derived>::type derived_;
 };
 

@@ -25,7 +25,8 @@ namespace fdapde {
 // a type-erasure wrapper for an optimization algorithm optimizing F
 template <typename F> struct Optimizer__ {
     static constexpr int N = F::DomainDimension;
-    using VectorType = typename std::conditional<N == Dynamic, DVector<double>, SVector<N>>::type;
+    using VectorType =
+      typename std::conditional<N == Dynamic, Eigen::Matrix<double, Dynamic, 1>, Eigen::Matrix<double, N, 1>>::type;
     template <typename O> using fn_ptrs = fdapde::mem_fn_ptrs<&O::template optimize<F>, &O::optimum, &O::value>;
     // forwards
     template <typename T> VectorType optimize(F& objective, const T& x0) {

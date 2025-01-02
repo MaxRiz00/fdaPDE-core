@@ -66,8 +66,8 @@ template <typename T> class CSVFile {
     CSVFile(const std::string& filename, bool index_col, bool skip_quote = true, std::size_t chunksize = 4) :
         CSVFile(filename.c_str(), index_col, skip_quote, chunksize) { }
 
-    Eigen::Map<const DMatrix<T, Eigen::RowMajor>> as_matrix() const {
-        return Eigen::Map<const DMatrix<T, Eigen::RowMajor>>(data_.data(), n_rows_, n_cols_);
+    Eigen::Map<const Eigen::Matrix<T, Dynamic, Dynamic, Eigen::RowMajor>> as_matrix() const {
+        return Eigen::Map<const Eigen::Matrix<T, Dynamic, Dynamic, Eigen::RowMajor>>(data_.data(), n_rows_, n_cols_);
     }
     // modifiers
     void set_na_values(const std::vector<std::string>& na_values) { na_values_ = na_values; }

@@ -22,7 +22,6 @@
 #include "../linear_algebra/constexpr_matrix.h"
 
 namespace fdapde {
-namespace cexpr {
 
 // factorial function n!
 constexpr int factorial(const int n) {
@@ -66,7 +65,6 @@ array_sum(std::array<Scalar, Size> array) {
     return result;
 }
 
-}   // namespace cexpr
 }   // namespace fdapde
 
 #endif   // _CONSTEXPR_H__

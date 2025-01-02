@@ -23,11 +23,11 @@
 
 namespace fdapde {
 
-template <typename Derived_> class Gradient : public fdapde::MatrixBase<Derived_::StaticInputSize, Gradient<Derived_>> {
+template <typename Derived_> class Gradient : public MatrixFieldBase<Derived_::StaticInputSize, Gradient<Derived_>> {
    public:
-  using Derived = std::decay_t<Derived_>;
+    using Derived = std::decay_t<Derived_>;
     template <typename T> using Meta = Gradient<T>;
-    using Base = MatrixBase<Derived::StaticInputSize, Gradient<Derived>>;
+    using Base = MatrixFieldBase<Derived::StaticInputSize, Gradient<Derived>>;
     using FunctorType =
       PartialDerivative<internals::xpr_or_scalar_wrap_t<Derived, Derived::StaticInputSize, Derived>, 1>;
     using InputType = typename FunctorType::InputType;

@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __PROJECT_H__
-#define __PROJECT_H__
+#ifndef __PROJECTION_H__
+#define __PROJECTION_H__
 
 #include "kd_tree.h"
 #include "../utils/symbols.h"
@@ -30,12 +30,14 @@ template <typename TriangulationType> class Projection {
     Projection() = default;
     explicit Projection(const TriangulationType& mesh) : mesh_(&mesh) { }
 
-    DMatrix<double> operator()(const DMatrix<double>& points, tag_exact) const {
-        DVector<double> best = DVector<double>::Constant(points.rows(), std::numeric_limits<double>::max());
-        DMatrix<double> proj(points.rows(), TriangulationType::embed_dim);
+    Eigen::Matrix<double, Dynamic, Dynamic>
+    operator()(const Eigen::Matrix<double, Dynamic, Dynamic>& points, tag_exact) const {
+        Eigen::Matrix<double, Dynamic, 1> best =
+          Eigen::Matrix<double, Dynamic, 1>::Constant(points.rows(), std::numeric_limits<double>::max());
+        Eigen::Matrix<double, Dynamic, Dynamic> proj(points.rows(), TriangulationType::embed_dim);
         for (typename TriangulationType::cell_iterator it = mesh_->cells_begin(); it != mesh_->cells_end(); ++it) {
             for (int i = 0; i < points.rows(); ++i) {
-                SVector<TriangulationType::embed_dim> proj_point = it->nearest(points.row(i));
+                Eigen::Matrix<double, TriangulationType::embed_dim, 1> proj_point = it->nearest(points.row(i));
                 double dist = (proj_point - points.row(i).transpose()).norm();
                 if (dist < best[i]) {
                     best[i] = dist;
@@ -46,8 +48,9 @@ template <typename TriangulationType> class Projection {
         return proj;
     }
 
-    DMatrix<double> operator()(const DMatrix<double>& points, tag_not_exact) const {
-        DMatrix<double> proj(points.rows(), TriangulationType::embed_dim);
+    Eigen::Matrix<double, Dynamic, Dynamic>
+    operator()(const Eigen::Matrix<double, Dynamic, Dynamic>& points, tag_not_exact) const {
+        Eigen::Matrix<double, Dynamic, Dynamic> proj(points.rows(), TriangulationType::embed_dim);
         // build kdtree of mesh nodes for fast nearest neighborhood searches
         if (!tree_.has_value()) tree_ = KDTree<TriangulationType::embed_dim>(mesh_->nodes());
         for (int i = 0; i < points.rows(); ++i) {
@@ -56,7 +59,8 @@ template <typename TriangulationType> class Projection {
             // search nearest element in the node patch
             double best = std::numeric_limits<double>::max();
             for (int j : mesh_->node_patch(*it)) {
-                SVector<TriangulationType::embed_dim> proj_point = mesh_->cell(j).nearest(points.row(i));
+                Eigen::Matrix<double, TriangulationType::embed_dim, 1> proj_point =
+                  mesh_->cell(j).nearest(points.row(i));
                 double dist = (proj_point - points.row(i).transpose()).norm();
                 if (dist < best) {
                     best = dist;
@@ -66,9 +70,11 @@ template <typename TriangulationType> class Projection {
         }
         return proj;
     }
-    DMatrix<double> operator()(const DMatrix<double>& points) const { return operator()(points, fdapde::NotExact); }
+    Eigen::Matrix<double, Dynamic, Dynamic> operator()(const Eigen::Matrix<double, Dynamic, Dynamic>& points) const {
+        return operator()(points, fdapde::NotExact);
+    }
 };
 
 }   // namespace fdapde
 
-#endif // __PROJECT_H__
+#endif // __PROJECTION_H__

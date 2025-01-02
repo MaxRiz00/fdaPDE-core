@@ -78,7 +78,7 @@ template <int K> class KDTree {
     iterator end() { return kdtree_.end(); }
 
     // returns an iterator to the nearest neighbor of p. Average O(log(n)) complexity (worst case is O(n))
-    iterator nn_search(const DVector<double>& p) const {
+    iterator nn_search(const Eigen::Matrix<double, Dynamic, 1>& p) const {
         fdapde_assert(p.size() == K);
         if (kdtree_.empty()) return kdtree_.cend();   // nothing to search
         const data_type& data = data_;
@@ -118,7 +118,7 @@ template <int K> class KDTree {
 
     // solves a (rectangular) range query in a K-dimensional euclidean space
     struct RangeType {
-        SVector<K> ll, ur;   // lower-left and upper-right corner
+        Eigen::Matrix<double, K, 1> ll, ur;   // lower-left and upper-right corner
     };
     // returns a set of iterators to the nodes contained in the query
     std::unordered_set<int> range_search(const RangeType& query) const {

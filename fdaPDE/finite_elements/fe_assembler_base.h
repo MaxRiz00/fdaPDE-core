@@ -265,7 +265,7 @@ struct fe_assembler_base {
 
     void
     distribute_quadrature_nodes(typename fe_traits::dof_iterator begin, typename fe_traits::dof_iterator end) const {
-        DMatrix<double> quad_nodes;
+        Eigen::Matrix<double, Dynamic, Dynamic> quad_nodes;
         Eigen::Map<const Eigen::Matrix<
           double, n_quadrature_nodes, Quadrature::local_dim,
           Quadrature::local_dim != 1 ? Eigen::RowMajor : Eigen::ColMajor>>
@@ -299,10 +299,11 @@ struct fe_assembler_base {
             for (int j = 0; j < n_quadrature_nodes_; ++j) {
                 // get i-th reference basis gradient evaluted at j-th quadrature node
                 auto ref_grad = ref_grads.template slice<0, 1>(i, j).matrix();
-                cexpr::Matrix<double, local_dim, n_components_> mapped_grad;
+		fdapde::Matrix<double, local_dim, n_components_> mapped_grad;
                 for (int k = 0; k < n_components_; ++k) {
                     mapped_grad.col(k) =
-                      (ref_grad.row(k) * cexpr::Map<const double, local_dim, embed_dim>(it->invJ().data())).transpose();
+                      (ref_grad.row(k) * fdapde::Map<const double, local_dim, embed_dim>(it->invJ().data()))
+                        .transpose();
                 }
                 dst.template slice<0, 1>(i, j).assign_inplace_from(mapped_grad.data());
             }
@@ -324,7 +325,7 @@ struct fe_assembler_base {
 		double div_ = 0;
                 for (int k = 0; k < n_components_; ++k) {
                     div_ +=
-                      ref_grad.row(k).dot(cexpr::Map<const double, local_dim, embed_dim>(it->invJ().data()).col(k));
+                      ref_grad.row(k).dot(fdapde::Map<const double, local_dim, embed_dim>(it->invJ().data()).col(k));
                 }
                 dst(i, j) = div_;
             }
@@ -339,10 +340,10 @@ struct fe_assembler_base {
         constexpr int n_components_ = SrcMdArray::static_extents[2];
         for (int i = 0; i < n_basis_; ++i) {
             for (int j = 0; j < n_quadrature_nodes_; ++j) {
-                cexpr::Matrix<double, local_dim, local_dim> mapped_hess;
+                fdapde::Matrix<double, local_dim, local_dim> mapped_hess;
                 for (int k = 0; k < n_components_; ++k) {
                     // move i-th reference basis hessian evaluted at j-th quadrature node on physical cell
-                    mapped_hess = cexpr::Map<const double, local_dim, embed_dim>(it->invJ().data()).transpose() *
+                    mapped_hess = fdapde::Map<const double, local_dim, embed_dim>(it->invJ().data()).transpose() *
                                   ref_hess.template slice<0, 1, 2>(i, j, k).matrix();
                     dst.template slice<0, 1, 2>(i, j, k).assign_inplace_from(mapped_hess.data());
                 }

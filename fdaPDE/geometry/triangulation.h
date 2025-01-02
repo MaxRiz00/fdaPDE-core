@@ -45,11 +45,11 @@ template <typename Triangulation> struct BoundaryIterator : public Triangulation
         Triangulation::boundary_iterator(index, mesh, marker) { }
 };
   
-template <int M, int N> class Triangulation;
-template <int M, int N, typename Derived> class TriangulationBase {
+template <int LocalDim, int EmbedDim> class Triangulation;
+template <int LocalDim, int EmbedDim, typename Derived> class TriangulationBase {
    public:
-    static constexpr int local_dim = M;
-    static constexpr int embed_dim = N;
+    static constexpr int local_dim = LocalDim;
+    static constexpr int embed_dim = EmbedDim;
     static constexpr int n_nodes_per_cell = local_dim + 1;
     static constexpr int n_neighbors_per_cell = local_dim + 1;
     static constexpr bool is_manifold = !(local_dim == embed_dim);
@@ -70,7 +70,8 @@ template <int M, int N, typename Derived> class TriangulationBase {
 
     TriangulationBase() = default;
     TriangulationBase(
-      const DMatrix<double>& nodes, const DMatrix<int>& cells, const DMatrix<int>& boundary, int flags) :
+      const Eigen::Matrix<double, Dynamic, Dynamic>& nodes, const Eigen::Matrix<int, Dynamic, Dynamic>& cells,
+      const Eigen::Matrix<int, Dynamic, Dynamic>& boundary, int flags) :
         nodes_(nodes), cells_(cells), boundary_markers_(boundary), flags_(flags) {
         fdapde_assert(
           nodes.rows() > 0 && nodes.cols() == embed_dim && cells.rows() > 0 && cells.cols() == n_nodes_per_cell &&
@@ -82,9 +83,11 @@ template <int M, int N, typename Derived> class TriangulationBase {
         range_.row(0) = nodes_.colwise().minCoeff();
         range_.row(1) = nodes_.colwise().maxCoeff();
         // -1 in neighbors_'s column i implies no neighbor adjacent to the edge opposite to vertex i
-        neighbors_ = DMatrix<int>::Constant(n_cells_, n_neighbors_per_cell, -1);
+        neighbors_ = Eigen::Matrix<int, Dynamic, Dynamic>::Constant(n_cells_, n_neighbors_per_cell, -1);
     }
-    TriangulationBase(const DMatrix<double>& nodes, const DMatrix<int>& cells, const DMatrix<int>& boundary) :
+    TriangulationBase(
+      const Eigen::Matrix<double, Dynamic, Dynamic>& nodes, const Eigen::Matrix<int, Dynamic, Dynamic>& cells,
+      const Eigen::Matrix<int, Dynamic, Dynamic>& boundary) :
         TriangulationBase(nodes, cells, boundary, /*flags = */ 0) { }
     // getters
     Eigen::Matrix<double, embed_dim, 1> node(int id) const { return nodes_.row(id); }
@@ -206,7 +209,7 @@ template <int M, int N, typename Derived> class TriangulationBase {
     }
     const std::vector<int>& nodes_markers() const { return nodes_markers_; }
     // random sample points in triangulation
-    DMatrix<double> sample(int n_samples, int seed = fdapde::random_seed) const {
+    Eigen::Matrix<double, Dynamic, Dynamic> sample(int n_samples, int seed = fdapde::random_seed) const {
         // set up random number generation
         int seed_ = (seed == fdapde::random_seed) ? std::random_device()() : seed;
         std::mt19937 rng(seed_);
@@ -215,7 +218,7 @@ template <int M, int N, typename Derived> class TriangulationBase {
         for (cell_iterator it = cells_begin(); it != cells_end(); ++it) { weights[it->id()] = it->measure(); }
         std::discrete_distribution<int> rand_cell(weights.begin(), weights.end());
         std::uniform_real_distribution<double> rand_real(0, 1);
-        DMatrix<double> coords(n_samples, embed_dim);
+        Eigen::Matrix<double, Dynamic, Dynamic> coords(n_samples, embed_dim);
         for (int i = 0; i < n_samples; ++i) {
             // generate random cell
             int cell_id = rand_cell(rng);
@@ -240,11 +243,11 @@ template <int M, int N, typename Derived> class TriangulationBase {
         return {one_ring.begin(), one_ring.end()};
     }
    protected:
-    DMatrix<double> nodes_ {};                     // physical coordinates of mesh's vertices
-    DMatrix<int, Eigen::RowMajor> cells_ {};       // nodes (as row indexes in nodes_ matrix) composing each cell
-    DMatrix<int, Eigen::RowMajor> neighbors_ {};   // ids of cells adjacent to a given cell (-1 if no adjacent cell)
+    Eigen::Matrix<double, Dynamic, Dynamic> nodes_ {};                     // physical coordinates of mesh's vertices
+    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> cells_ {};       // nodes composing each cell
+    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> neighbors_ {};   // adjacent cells ids (-1: no adjacent cell)
     BinaryVector<fdapde::Dynamic> boundary_markers_ {};   // j-th element is 1 \iff node j is on boundary
-    SMatrix<2, embed_dim> range_ {};                      // mesh bounding box (column i maps to the i-th dimension)
+    Eigen::Matrix<double, 2, embed_dim> range_ {};        // mesh bounding box (column i maps to the i-th dimension)
     int n_nodes_ = 0, n_cells_ = 0;
     int flags_ = 0;
     std::vector<int> cells_markers_;   // marker associated to the i-th cell
@@ -268,7 +271,8 @@ template <int N> class Triangulation<2, N> : public TriangulationBase<2, N, Tria
 
     Triangulation() = default;
     Triangulation(
-      const DMatrix<double>& nodes, const DMatrix<int>& cells, const DMatrix<int>& boundary, int flags = 0) :
+      const Eigen::Matrix<double, Dynamic, Dynamic>& nodes, const Eigen::Matrix<int, Dynamic, Dynamic>& cells,
+      const Eigen::Matrix<int, Dynamic, Dynamic>& boundary, int flags = 0) :
         Base(nodes, cells, boundary, flags) {
         if (Base::flags_ & cache_cells) {   // populate cache if cell caching is active
             cell_cache_.reserve(n_cells_);
@@ -279,7 +283,7 @@ template <int N> class Triangulation<2, N> : public TriangulationBase<2, N, Tria
         struct edge_info {
             int edge_id, face_id;   // for each edge, its ID and the ID of one of the cells insisting on it
         };
-        auto edge_pattern = cexpr::combinations<n_nodes_per_edge, Base::n_nodes_per_cell>();
+        auto edge_pattern = combinations<n_nodes_per_edge, Base::n_nodes_per_cell>();
         std::unordered_map<edge_t, edge_info, hash_t> edges_map;
 	std::vector<bool> boundary_edges;
         edge_t edge;
@@ -372,13 +376,15 @@ template <int N> class Triangulation<2, N> : public TriangulationBase<2, N, Tria
         }
     }
     bool is_edge_on_boundary(int id) const { return boundary_edges_[id]; }
-    Eigen::Map<const DMatrix<int, Eigen::RowMajor>> edges() const {
-        return Eigen::Map<const DMatrix<int, Eigen::RowMajor>>(edges_.data(), n_edges_, n_nodes_per_edge);
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> edges() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
+          edges_.data(), n_edges_, n_nodes_per_edge);
     }
-    Eigen::Map<const DMatrix<int, Eigen::RowMajor>> edge_to_cells() const {
-        return Eigen::Map<const DMatrix<int, Eigen::RowMajor>>(edge_to_cells_.data(), n_edges_, 2);
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> edge_to_cells() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
+          edge_to_cells_.data(), n_edges_, 2);
     }
-    const DMatrix<int, Eigen::RowMajor>& cell_to_edges() const { return cell_to_edges_; }
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cell_to_edges() const { return cell_to_edges_; }
     const BinaryVector<Dynamic>& boundary_edges() const { return boundary_edges_; }
     int n_edges() const { return n_edges_; }
     int n_boundary_edges() const { return boundary_edges_.count(); }
@@ -476,12 +482,12 @@ template <int N> class Triangulation<2, N> : public TriangulationBase<2, N, Tria
     }
     // point location
     template <int Rows, int Cols>
-    std::conditional_t<Rows == Dynamic || Cols == Dynamic, DVector<int>, int>
+    std::conditional_t<Rows == Dynamic || Cols == Dynamic, Eigen::Matrix<int, Dynamic, 1>, int>
     locate(const Eigen::Matrix<double, Rows, Cols>& p) const {
         fdapde_static_assert(
           (Cols == 1 && Rows == embed_dim) || (Cols == Dynamic && Rows == Dynamic),
           YOU_PASSED_A_MATRIX_OF_POINTS_TO_LOCATE_OF_WRONG_DIMENSIONS);
-        if (!location_policy_.has_value()) location_policy_ = LocationPolicy(this);
+        if (!location_policy_.has_value()) { location_policy_ = LocationPolicy(this); }
         return location_policy_->locate(p);
     }
     // the set of cells which have node id as vertex
@@ -492,7 +498,7 @@ template <int N> class Triangulation<2, N> : public TriangulationBase<2, N, Tria
    protected:
     std::vector<int> edges_ {};                        // nodes (as row indexes in nodes_ matrix) composing each edge
     std::vector<int> edge_to_cells_ {};                // for each edge, the ids of adjacent cells
-    DMatrix<int, Eigen::RowMajor> cell_to_edges_ {};   // ids of edges composing each cell
+    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> cell_to_edges_ {};   // ids of edges composing each cell
     BinaryVector<fdapde::Dynamic> boundary_edges_ {};   // j-th element is 1 \iff edge j is on boundary
     std::vector<int> edges_markers_ {};
     int n_edges_ = 0;
@@ -519,7 +525,8 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
 
     Triangulation() = default;
     Triangulation(
-      const DMatrix<double>& nodes, const DMatrix<int>& cells, const DMatrix<int>& boundary, int flags = 0) :
+      const Eigen::Matrix<double, Dynamic, Dynamic>& nodes, const Eigen::Matrix<int, Dynamic, Dynamic>& cells,
+      const Eigen::Matrix<int, Dynamic, Dynamic>& boundary, int flags = 0) :
         Base(nodes, cells, boundary, flags) {
         using face_t = std::array<int, n_nodes_per_face>;
         using edge_t = std::array<int, n_nodes_per_edge>;
@@ -527,8 +534,8 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
             int face_id, cell_id;   // for each face, its ID and the ID of one of the faces insisting on it
         };
 	typedef int edge_info;
-        auto face_pattern = cexpr::combinations<n_nodes_per_face, n_nodes_per_cell>();
-        auto edge_pattern = cexpr::combinations<n_nodes_per_edge, n_nodes_per_face>();
+        auto face_pattern = combinations<n_nodes_per_face, n_nodes_per_cell>();
+        auto edge_pattern = combinations<n_nodes_per_edge, n_nodes_per_face>();
         std::unordered_map<edge_t, edge_info, fdapde::std_array_hash<int, n_nodes_per_edge>> edges_map;
         std::unordered_map<face_t, face_info, fdapde::std_array_hash<int, n_nodes_per_face>> faces_map;
 	std::vector<bool> boundary_faces, boundary_edges;
@@ -664,19 +671,23 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
     }
     bool is_face_on_boundary(int id) const { return boundary_faces_[id]; }
     bool is_edge_on_boundary(int id) const { return boundary_edges_[id]; }
-    const DMatrix<int, Eigen::RowMajor>& neighbors() const { return neighbors_; }
-    Eigen::Map<const DMatrix<int, Eigen::RowMajor>> faces() const {
-        return Eigen::Map<const DMatrix<int, Eigen::RowMajor>>(faces_.data(), n_faces_, n_nodes_per_face);
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& neighbors() const { return neighbors_; }
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> faces() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
+          faces_.data(), n_faces_, n_nodes_per_face);
     }
-    Eigen::Map<const DMatrix<int, Eigen::RowMajor>> edges() const {
-        return Eigen::Map<const DMatrix<int, Eigen::RowMajor>>(edges_.data(), n_edges_, n_nodes_per_edge);
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> edges() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
+          edges_.data(), n_edges_, n_nodes_per_edge);
     }
-    const DMatrix<int, Eigen::RowMajor>& cell_to_faces() const { return cell_to_faces_; }
-    Eigen::Map<const DMatrix<int, Eigen::RowMajor>> face_to_edges() const {
-        return Eigen::Map<const DMatrix<int, Eigen::RowMajor>>(face_to_edges_.data(), n_faces_, n_edges_per_face);
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cell_to_faces() const { return cell_to_faces_; }
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> face_to_edges() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
+          face_to_edges_.data(), n_faces_, n_edges_per_face);
     }
-    Eigen::Map<const DMatrix<int, Eigen::RowMajor>> face_to_cells() const {
-        return Eigen::Map<const DMatrix<int, Eigen::RowMajor>>(face_to_cells_.data(), n_faces_, 2);
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> face_to_cells() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
+          face_to_cells_.data(), n_faces_, 2);
     }
     const std::unordered_map<int, std::unordered_set<int>>& edge_to_cells() const { return edge_to_cells_; }
     const BinaryVector<Dynamic>& boundary_faces() const { return boundary_faces_; }
@@ -847,7 +858,7 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
 
     // point location
     template <int Rows, int Cols>
-    std::conditional_t<Rows == Dynamic || Cols == Dynamic, DVector<int>, int>
+    std::conditional_t<Rows == Dynamic || Cols == Dynamic, Eigen::Matrix<int, Dynamic, 1>, int>
     locate(const Eigen::Matrix<double, Rows, Cols>& p) const {
         fdapde_static_assert(
           (Cols == 1 && Rows == embed_dim) || (Cols == Dynamic && Rows == Dynamic),
@@ -864,7 +875,7 @@ template <> class Triangulation<3, 3> : public TriangulationBase<3, 3, Triangula
     std::vector<int> faces_, edges_;   // nodes (as row indexes in nodes_ matrix) composing each face and edge
     std::vector<int> face_to_cells_;   // for each face, the ids of adjacent cells
     std::unordered_map<int, std::unordered_set<int>> edge_to_cells_;   // for each edge, the ids of insisting cells
-    DMatrix<int, Eigen::RowMajor> cell_to_faces_ {};            // ids of faces composing each cell
+    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> cell_to_faces_ {};   // ids of faces composing each cell
     std::vector<int> face_to_edges_;                            // ids of edges composing each face
     BinaryVector<fdapde::Dynamic> boundary_faces_ {};           // j-th element is 1 \iff face j is on boundary
     BinaryVector<fdapde::Dynamic> boundary_edges_ {};           // j-th element is 1 \iff edge j is on boundary

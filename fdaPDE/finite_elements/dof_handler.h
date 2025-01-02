@@ -49,13 +49,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
         triangulation_(&triangulation), dof_constraints_(static_cast<Derived&>(*this)) { }
     // getters
     CellType cell(int id) const { return CellType(id, static_cast<const Derived*>(this)); }
-    const DMatrix<int, Eigen::RowMajor>& dofs() const { return dofs_; }
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& dofs() const { return dofs_; }
     int n_dofs() const { return n_dofs_; }
     int n_unique_dofs() const { return n_unique_dofs_; }
     int n_dofs_per_cell() const { return n_dofs_per_cell_; }
     bool is_dof_on_boundary(int i) const { return boundary_dofs_[i]; }
-    Eigen::Map<const DVector<int>> dofs_markers() const {
-        return Eigen::Map<const DVector<int>>(dofs_markers_.data(), n_dofs_, 1);
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, 1>> dofs_markers() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, 1>>(dofs_markers_.data(), n_dofs_, 1);
     }
     int dof_marker(int dof) const { return dofs_markers_[dof]; }
     const TriangulationType* triangulation() const { return triangulation_; }
@@ -72,13 +72,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
         }
         return result;
     }
-    DVector<int> active_dofs(int cell_id) const { return dofs_.row(cell_id); }   // dofs located on cell with ID cell_id
+    Eigen::Matrix<int, Dynamic, 1> active_dofs(int cell_id) const { return dofs_.row(cell_id); }
     template <typename ContainerT> void active_dofs(int cell_id, ContainerT& dst) const {
         for (int i = 0, n = dofs_.cols(); i < n; ++i) { dst.push_back(dofs_(cell_id, i)); }
     }
     operator bool() const { return n_dofs_ != 0; }
-    Eigen::Map<const DVector<int>> dofs_to_cell() const {
-        return Eigen::Map<const DVector<int>>(dofs_to_cell_.data(), n_dofs_, 1);
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, 1>> dofs_to_cell() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, 1>>(dofs_to_cell_.data(), n_dofs_, 1);
     }
 
     // iterates over geometric cells coupled with dofs informations (possibly filtered by marker)
@@ -129,8 +129,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
         BoundaryDofType(int id, const Derived* dof_handler) : id_(id), dof_handler_(dof_handler) { }
         int id() const { return id_; }
         int marker() const { return dof_handler_->dofs_markers_[id_]; }
-        SVector<embed_dim> coord() const {
-	    int cell_id = dof_handler_->dofs_to_cell()[id_];   // id of cell containing this dof
+        Eigen::Matrix<double, embed_dim, 1> coord() const {
+            int cell_id = dof_handler_->dofs_to_cell()[id_];   // id of cell containing this dof
             int j = 0;   // local dof numbering
             for (; j < dof_handler_->n_dofs_per_cell() && dof_handler_->dofs()(cell_id, j) != id_; ++j);
             typename Derived::CellType cell = dof_handler_->cell(cell_id);
@@ -184,8 +184,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
     void enforce_constraints(SystemMatrix&& A, SystemRhs&& b) const {
         dof_constraints_.enforce_constraints(A, b);
     }
-    void enforce_constraints(SpMatrix<double>& A) const { dof_constraints_.enforce_constraints(A); }
-    void enforce_constraints(DVector<double>& b)  const { dof_constraints_.enforce_constraints(b); }
+    void enforce_constraints(Eigen::SparseMatrix<double>& A) const { dof_constraints_.enforce_constraints(A); }
+    void enforce_constraints(Eigen::Matrix<double, Dynamic, 1>& b) const { dof_constraints_.enforce_constraints(b); }
     Eigen::Matrix<double, Dynamic, Dynamic> dofs_coords() const {   // computes dofs physical coordinates
         // allocate space (just for unique dofs, i.e., without considering any dof multiplicity)
         Eigen::Matrix<double, Dynamic, Dynamic> coords;
@@ -338,7 +338,7 @@ class DofHandler<2, EmbedDim, fdapde::finite_element> :
         if constexpr (dof_descriptor::n_dofs_per_edge > 0 || dof_descriptor::n_dofs_internal > 0) {
             constexpr int n_edges_per_cell = TriangulationType::n_edges_per_cell;
             auto edge_pattern =
-              cexpr::combinations<TriangulationType::n_nodes_per_edge, TriangulationType::n_nodes_per_cell>();
+              combinations<TriangulationType::n_nodes_per_edge, TriangulationType::n_nodes_per_cell>();
 
             for (typename TriangulationType::cell_iterator it = triangulation_->cells_begin();
                  it != triangulation_->cells_end(); ++it) {
@@ -533,8 +533,8 @@ class DofHandler<3, 3, fdapde::finite_element> :
             constexpr int n_edges_per_cell = TriangulationType::n_edges_per_cell;
             constexpr int n_faces_per_cell = TriangulationType::n_faces_per_cell;
             auto edge_pattern =
-              cexpr::combinations<TriangulationType::n_nodes_per_edge, TriangulationType::n_nodes_per_cell>();
-	    
+              combinations<TriangulationType::n_nodes_per_edge, TriangulationType::n_nodes_per_cell>();
+
             for (typename TriangulationType::cell_iterator it = triangulation_->cells_begin();
                  it != triangulation_->cells_end(); ++it) {
                 int cell_id = it->id();
@@ -595,8 +595,8 @@ class DofHandler<3, 3, fdapde::finite_element> :
                                     int gt = local_face_id(jt->id(), cell_id);
                                     const typename TriangulationType::CellType& kt = triangulation_->cell(adj_cell);
                                     // compute physical dofs
-                                    std::array<cexpr::Vector<double, embed_dim>, dof_descriptor::n_dofs_per_face> f1_;
-                                    std::array<cexpr::Vector<double, embed_dim>, dof_descriptor::n_dofs_per_face> f2_;
+                                    std::array<Vector<double, embed_dim>, dof_descriptor::n_dofs_per_face> f1_;
+                                    std::array<Vector<double, embed_dim>, dof_descriptor::n_dofs_per_face> f2_;
                                     for (int j = 0; j < dof_descriptor::n_dofs_per_face; ++j) {
                                         // map dof coordinate from reference to physical cell
                                         f1_[j] = it->J() * reference_dofs_barycentric_coords_.rightCols(local_dim)
@@ -612,7 +612,7 @@ class DofHandler<3, 3, fdapde::finite_element> :
                                     // point on the reference cell when transitioning from physical to reference space
                                     for (int i = 0; i < dof_descriptor::n_dofs_per_face; ++i) {
                                         for (int j = 0; j < dof_descriptor::n_dofs_per_face; ++j) {
-                                            if (cexpr::almost_equal(f1_[i], f2_[j])) {
+                                            if (almost_equal(f1_[i], f2_[j])) {
                                                 // kt->J() sends j-th dof of face ht to i-th dof of face jt
                                                 // set j-th dof of face ht to i-th dof of face jt
                                                 dofs_(adj_cell, offset_ + ht * dof_descriptor::n_dofs_per_face + j) =

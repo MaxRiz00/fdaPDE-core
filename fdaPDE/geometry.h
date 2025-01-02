@@ -17,9 +17,17 @@
 #ifndef __FDAPDE_GEOMETRY_MODULE_H__
 #define __FDAPDE_GEOMETRY_MODULE_H__
 
+// include Eigen
+#include <Eigen/Dense>
+
+#include "geometry/dcel.h"
 #include "geometry/hyperplane.h"
 #include "geometry/interval.h"
 #include "geometry/kd_tree.h"
+#include "geometry/linear_network.h"
+#include "geometry/polygon.h"
+#include "geometry/primitives.h"
+#include "geometry/projection.h"
 #include "geometry/segment.h"
 #include "geometry/simplex.h"
 #include "geometry/tetrahedron.h"

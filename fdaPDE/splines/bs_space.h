@@ -18,19 +18,20 @@
 #define __BS_SPACE_H__
 
 #include "../utils/symbols.h"
-#include "bs_assembler_base.h"
+#include "sp_assembler_base.h"
 #include "dof_handler.h"
+#include "bspline_basis.h"
 
 namespace fdapde {
 
 // forward declarations
-template <typename BsSpace_> class BsFunction;
+template <typename SpSpace_> class SpFunction;
 namespace internals {
 
 template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
-class bs_bilinear_form_assembly_loop;
+class sp_bilinear_form_assembly_loop;
 template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
-class bs_linear_form_assembly_loop;
+class sp_linear_form_assembly_loop;
 
 }   // namespace internals
   
@@ -45,16 +46,16 @@ template <typename Triangulation_> class BsSpace {
     using Triangulation = std::decay_t<Triangulation_>;
     static constexpr int local_dim = Triangulation::local_dim;
     static constexpr int embed_dim = Triangulation::embed_dim;
-    using BasisType = SplineBasis;
+    using BasisType = BSplineBasis;
     using ShapeFunctionType = subscript_t<BasisType>;
     using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::bspline>;
     using space_category = fdapde::bspline;
     template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
     using bilinear_form_assembly_loop =
-      internals::bs_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
+      internals::sp_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
     template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
     using linear_form_assembler_loop =
-      internals::bs_linear_form_assembly_loop  <Triangulation__, Form__, Options__, Quadrature__...>;
+      internals::sp_linear_form_assembly_loop  <Triangulation__, Form__, Options__, Quadrature__...>;
 
     BsSpace() = default;
     BsSpace(const Triangulation_& interval, int order) :
@@ -116,10 +117,10 @@ template <typename Triangulation_> class BsSpace {
         if (p_ < triangulation_->range()[0] || p_ > triangulation_->range()[1]) {
             return std::numeric_limits<double>::quiet_NaN();   // return NaN if point lies outside domain
         }
-        return eval_shape_value(i, cexpr::Matrix<double, embed_dim, 1>(map_to_reference(p_)));
+        return eval_shape_value(i, fdapde::Matrix<double, embed_dim, 1>(map_to_reference(p_)));
     }
     // return i-th basis function on physical domain
-    BsFunction<BsSpace<Triangulation_>> operator[](int i) {
+    SpFunction<BsSpace<Triangulation_>> operator[](int i) {
         fdapde_assert(i < dof_handler_.n_dofs());
 	Eigen::Matrix<double, Dynamic, 1> coeff = Eigen::Matrix<double, Dynamic, 1>::Zero(dof_handler_.n_dofs());
 	coeff[i] = 1;

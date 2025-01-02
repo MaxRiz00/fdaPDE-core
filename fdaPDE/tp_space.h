@@ -316,7 +316,7 @@ class TpFunction :
     
     TpFunction() = default;
     explicit TpFunction(TpSpace_& tp_space) : tp_space_(&tp_space) {
-        coeff_ = DVector<double>::Zero(tp_space_->n_dofs());
+        coeff_ = Eigen::Matrix<double, Dynamic, 1>::Zero(tp_space_->n_dofs());
     }
     TpFunction(TpSpace_& tp_space, const Eigen::Matrix<double, Dynamic, 1>& coeff) :
         tp_space_(&tp_space), coeff_(coeff) {
@@ -413,7 +413,7 @@ class TpFunction :
     constexpr int rows() const { return Rows; }
     constexpr int cols() const { return Cols; }
     constexpr int input_size() const { return StaticInputSize; }
-    void set_coeff(const DVector<double>& coeff) { coeff_ = coeff; }
+    void set_coeff(const Eigen::Matrix<double, Dynamic, 1>& coeff) { coeff_ = coeff; }
     // linear algebra
     friend constexpr TpFunction<TpSpace_> operator+(TpFunction<TpSpace_>& lhs, TpFunction<TpSpace_>& rhs) {
         return TpFunction<TpSpace_>(lhs.tp_space(), lhs.coeff() + rhs.coeff());
@@ -422,7 +422,7 @@ class TpFunction :
         return TpFunction<TpSpace_>(lhs.tp_space(), lhs.coeff() - rhs.coeff());
     }
     // assignment from expansion coeff vector
-    TpFunction& operator=(const DVector<double>& coeff) {
+    TpFunction& operator=(const Eigen::Matrix<double, Dynamic, 1>& coeff) {
         fdapde_assert(coeff.size() > 0 && coeff.size() == tp_space_->n_dofs());
         coeff_ = coeff;
         return *this;
