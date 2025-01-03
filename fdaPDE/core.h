@@ -17,6 +17,10 @@
 #ifndef __FDAPDE_CORE_MODULE_H__
 #define __FDAPDE_CORE_MODULE_H__
 
+// include Eigen
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
+
 #include "utils.h"
 #include "fields.h"
 #include "geometry.h"
@@ -24,6 +28,5 @@
 #include "optimization.h"
 #include "finite_elements.h"
 #include "splines.h"
-#include "multithreading.h"
 
 #endif   // __FDAPDE_CORE_MODULE_H__

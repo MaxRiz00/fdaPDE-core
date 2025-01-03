@@ -155,8 +155,8 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
     bool operator()(int i, int j) const {   // access to (i,j)-th element
         return (data_[pack_of(i, j)] & BitPackType(1) << ((i * Base::n_cols_ + j) % PackSize)) != 0;
     }
-    template <int Cols_ = Cols>   // vector-like (subscript) access
-    typename std::enable_if<Cols_ == 1, bool>::type operator[](int i) const {
+    bool operator[](int i) const {   // vector-like (subscript) access
+        fdapde_static_assert(Cols == 1, THIS_METHOD_IS_ONLY_VECTORS);
         return operator()(i, 0);
     }
     BitPackType bitpack(int i) const { return data_[i]; }
@@ -537,6 +537,10 @@ template <int Rows, int Cols, typename XprType> class BinMtxBase {
     bool operator()(int i, int j) const {
         fdapde_assert(i < n_rows_ && j < n_cols_);
         return get().operator()(i, j);
+    }
+    bool operator[](int i) const {
+        fdapde_static_assert(Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        return get().operator()(i, 0);
     }
     // returns all the indices (in row-major order) having coefficients equal to b
     std::vector<int> which(bool b) const {

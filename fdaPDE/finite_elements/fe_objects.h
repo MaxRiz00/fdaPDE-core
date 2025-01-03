@@ -673,7 +673,7 @@ class FeMap<FeFunction<FeSpace>> : public ScalarFieldBase<FeSpace::local_dim, Fe
             Eigen::Matrix<int, Dynamic, 1> active_dofs = cell.dofs();
             Scalar value = 0;
             for (int i = 0, n = xpr_->function_space().n_shape_functions(); i < n; ++i) {
-                value += xpr_->coeff()[active_dofs[i]] * xpr_->function_space().eval(i, ref_node);
+                value += xpr_->coeff()[active_dofs[i]] * xpr_->function_space().eval_shape_value(i, ref_node);
             }
             map_(i, 0) = value;
         }

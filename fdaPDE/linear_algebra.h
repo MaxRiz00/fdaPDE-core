@@ -17,7 +17,8 @@
 #ifndef __FDAPDE_LINEAR_ALGEBRA_MODULE_H__
 #define __FDAPDE_LINEAR_ALGEBRA_MODULE_H__
 
-#include <Eigen/Core>
+// include Eigen
+#include <Eigen/Dense>
 #include <Eigen/Sparse>
 
 #include "linear_algebra/binary_matrix.h"
@@ -25,11 +26,7 @@
 #include "linear_algebra/fspai.h"
 #include "linear_algebra/kronecker.h"
 #include "linear_algebra/lumping.h"
-//#include "linear_algebra/nystrom.h"
-//#include "linear_algebra/rand_utils.h"
-//#include "linear_algebra/revd.h"
-//#include "linear_algebra/rsvd.h"
-#include "linear_algebra/smw.h"
 #include "linear_algebra/sparse_block_matrix.h"
+#include "linear_algebra/woodbury.h"
 
 #endif   // __FDAPDE_LINEAR_ALGEBRA_MODULE_H__

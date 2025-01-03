@@ -20,6 +20,13 @@
 // include Eigen
 #include <Eigen/Dense>
 
+// include required modules
+#ifndef __FDAPDE_LINEAR_ALGEBRA_MODULE_H__
+
+#    include "linear_algebra/binary_matrix.h"
+
+#endif   // __FDAPDE_LINEAR_ALGEBRA_MODULE_H__
+
 #include "geometry/dcel.h"
 #include "geometry/hyperplane.h"
 #include "geometry/interval.h"
