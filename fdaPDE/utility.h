@@ -20,6 +20,7 @@
 // clang-format off
 
 // STL includes
+#include <utility>
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -27,9 +28,11 @@
 #include <numeric>
 #include <limits>
 #include <memory>   // for std::shared_ptr
-#include <type_traits>
 #include <optional>
 #include <random>
+#include <type_traits>
+#include <typeindex>
+#include <string>
 // common STL containers
 #include <array>
 #include <queue>
@@ -39,19 +42,31 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <tuple>
 
 // utils include
-#include "utility/assert.h"
-#include "utility/xpr_helper.h" // move this in fields, and place ref here
-#include "utility/symbols.h"
-#include "utility/traits.h"
+#include "src/utility/assert.h"
+#include "src/utility/meta.h"
+#include "src/utility/misc.h"
 
-#include "utility/matrix.h"
-#include "utility/binary.h"
-#include "utility/mdarray.h"
-#include "utility/binary_tree.h"
-#include "utility/type_erasure.h"
-#include "utility/numeric.h"
+// define basic symbols
+namespace fdapde {
+
+[[maybe_unused]] constexpr int Dynamic     = -1;
+[[maybe_unused]] constexpr int random_seed = -1;
+
+// algorithm computation policies
+[[maybe_unused]] static struct tag_exact     { } Exact;
+[[maybe_unused]] static struct tag_not_exact { } NotExact;
+
+}   // namespace fdapde
+
+#include "src/utility/matrix.h"
+#include "src/utility/binary.h"
+#include "src/utility/mdarray.h"
+#include "src/utility/binary_tree.h"
+#include "src/utility/numeric.h"
+#include "src/utility/type_erasure.h"
 
 // clang-format on
 

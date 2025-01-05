@@ -20,7 +20,7 @@
 // clang-format off
 
 // include required modules
-#include "linear_algebra.h"    // pull-in Eigen first
+#include "linear_algebra.h"    // pull Eigen first
 #include "utility.h"
 #include "fields.h"
 #include "geometry.h"
@@ -32,19 +32,19 @@ struct spline_tag { };
 }   // namespace fdapde
 
 // dof management logic
-#include "splines/dof_handler.h"
+#include "src/splines/dof_handler.h"
 // quadrature rules
-#include "splines/sp_integration.h"
+#include "src/splines/sp_integration.h"
 // assembly logic
-#include "assembly.h"
-#include "splines/sp_assembler_base.h"
-#include "splines/sp_bilinear_form_assembler.h"
-#include "splines/sp_linear_form_assembler.h"
+#include "src/assembly.h"
+#include "src/splines/sp_assembler_base.h"
+#include "src/splines/sp_bilinear_form_assembler.h"
+#include "src/splines/sp_linear_form_assembler.h"
 // spline spaces
-#include "splines/bspline_basis.h"
-#include "splines/bs_space.h"
+#include "src/splines/bspline_basis.h"
+#include "src/splines/bs_space.h"
 // weak forms
-#include "splines/sp_objects.h"
+#include "src/splines/sp_objects.h"
 
 // clang-format on
 

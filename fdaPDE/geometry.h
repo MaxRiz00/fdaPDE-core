@@ -19,29 +19,29 @@
 
 // clang-format off
 
-// pull in required modules
-#include "linear_algebra.h"    // pull-in Eigen first
+// include required modules
+#include "linear_algebra.h"    // pull Eigen first
 #include "utility.h"
 
 // minimal geometric entites
-#include "geometry/utility.h"
-#include "geometry/primitives.h"
-#include "geometry/hyperplane.h"
-#include "geometry/simplex.h"
-#include "geometry/segment.h"
-#include "geometry/triangle.h"
-#include "geometry/tetrahedron.h"
+#include "src/geometry/utility.h"
+#include "src/geometry/primitives.h"
+#include "src/geometry/hyperplane.h"
+#include "src/geometry/simplex.h"
+#include "src/geometry/segment.h"
+#include "src/geometry/triangle.h"
+#include "src/geometry/tetrahedron.h"
 // algorithms
-#include "geometry/kd_tree.h"
-#include "geometry/tree_search.h"
-#include "geometry/walk_search.h"
-#include "geometry/projection.h"
+#include "src/geometry/kd_tree.h"
+#include "src/geometry/tree_search.h"
+#include "src/geometry/walk_search.h"
+#include "src/geometry/projection.h"
 // data structures
-#include "geometry/triangulation.h"
-#include "geometry/interval.h"
-#include "geometry/linear_network.h"
-#include "geometry/dcel.h"
-#include "geometry/polygon.h"
+#include "src/geometry/triangulation.h"
+#include "src/geometry/interval.h"
+#include "src/geometry/linear_network.h"
+#include "src/geometry/dcel.h"
+#include "src/geometry/polygon.h"
 
 // clang-format on
 

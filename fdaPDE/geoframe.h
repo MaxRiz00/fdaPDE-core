@@ -14,21 +14,43 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_CORE_MODULE_H__
-#define __FDAPDE_CORE_MODULE_H__
+#ifndef __FDAPDE_GEOFRAME_MODULE_H__
+#define __FDAPDE_GEOFRAME_MODULE_H__
 
 // clang-format off
 
-// include modules
+#include <charconv>
+#include <filesystem>
+#include <fstream>
+
+// include required modules
 #include "linear_algebra.h"    // pull Eigen first
 #include "utility.h"
-#include "fields.h"
 #include "geometry.h"
-#include "finite_elements.h"
-#include "splines.h"
-#include "optimization.h"
-#include "geoframe.h"
+
+// input/outupt
+#include "src/geoframe/batched_istream.h"
+#include "src/geoframe/parsing.h"
+#include "src/geoframe/csv.h"
+#include "src/geoframe/shp.h"
+
+// define basic symbols
+namespace fdapde {
+namespace layer_t {
+
+struct point_t { } point;
+struct areal_t { } areal;
+
+}   // namespace layer_t
+}   // namespace fdapde
+
+// data structure
+#include "src/geoframe/data_layer.h"
+#include "src/geoframe/areal_layer.h"
+#include "src/geoframe/point_layer.h"
+#include "src/geoframe/geoframe.h"
+
 
 // clang-format on
 
-#endif   // __FDAPDE_CORE_MODULE_H__
+#endif   // __FDAPDE_FIELDS_MODULE_H__

@@ -22,21 +22,22 @@
 // include required modules
 #include "utility.h"
 
-// scalar fields logic, as the matrix field one will depend on it
-#include "fields/scalar_field.h"
-#include "fields/divergence.h"
-#include "fields/dot.h"
-#include "fields/laplacian.h"
-#include "fields/norm.h"
-#include "fields/space_time_field.h"
+#include "src/fields/xpr_helper.h"
+// import scalar fields logic first, as matrix field will depend on it
+#include "src/fields/scalar_field.h"
+#include "src/fields/divergence.h"
+#include "src/fields/dot.h"
+#include "src/fields/laplacian.h"
+#include "src/fields/norm.h"
+#include "src/fields/space_time_field.h"
 // matrix field logic
-#include "fields/jacobian.h"
-#include "fields/matrix_field.h"
-#include "fields/gradient.h"
-#include "fields/hessian.h"
+#include "src/fields/jacobian.h"
+#include "src/fields/matrix_field.h"
+#include "src/fields/gradient.h"
+#include "src/fields/hessian.h"
 
-#include "fields/polynomial.h"
-#include "fields/spline.h"
+#include "src/fields/polynomial.h"
+#include "src/fields/spline.h"
 
 // clang-format on
 
