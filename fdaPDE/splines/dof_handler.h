@@ -14,22 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SP_DOF_HANDLER_H__
-#define __SP_DOF_HANDLER_H__
+#ifndef __FDAPDE_SP_DOF_HANDLER_H__
+#define __FDAPDE_SP_DOF_HANDLER_H__
 
-#include "../geometry/triangulation.h"
-#include "../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
 
-struct bspline { };
-
-template <int LocalDim, int EmbedDim, typename SpaceCategory> class DofHandler;
+template <int LocalDim, int EmbedDim, typename DiscretizationCategory> class DofHandler;
 template <>
 class DofHandler<1, 1, fdapde::bspline> {
    public:
     using TriangulationType = Triangulation<1, 1>;
-    using space_category = fdapde::bspline;
     static constexpr int local_dim = TriangulationType::local_dim;
     static constexpr int embed_dim = TriangulationType::embed_dim;
 
@@ -222,4 +218,4 @@ class DofHandler<1, 1, fdapde::bspline> {
 
 }   // namespace fdapde
 
-#endif   // __SP_DOF_HANDLER_H__
+#endif   // __FDAPDE_SP_DOF_HANDLER_H__

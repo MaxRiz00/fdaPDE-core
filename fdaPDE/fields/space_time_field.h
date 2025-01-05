@@ -14,15 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SPACE_TIME_FIELD_H__
-#define __SPACE_TIME_FIELD_H__
+#ifndef __FDAPDE_SPACE_TIME_FIELD_H__
+#define __FDAPDE_SPACE_TIME_FIELD_H__
 
-#include "scalar_field.h"
+#include "header_check.h"
 
 namespace fdapde {
 
 // a SpaceTimeField is a ScalarField with an implicit time dimension
-template <int Size, typename FunctorType_ = std::function<double(static_dynamic_vector_selector_t<Size>, double)>>
+template <
+  int Size,
+  typename FunctorType_ = std::function<double(internals::static_dynamic_eigen_vector_selector_t<Size>, double)>>
 class SpaceTimeField : public ScalarFieldBase<Size, SpaceTimeField<Size, FunctorType_>> {
     using FunctorType = std::decay_t<FunctorType_>;
     using traits = fn_ptr_traits<&FunctorType::operator()>;
@@ -80,4 +82,4 @@ class SpaceTimeField : public ScalarFieldBase<Size, SpaceTimeField<Size, Functor
 
 }   // namespace fdapde
 
-#endif   // __SPACE_TIME_FIELD_H__
+#endif   // __FDAPDE_SPACE_TIME_FIELD_H__

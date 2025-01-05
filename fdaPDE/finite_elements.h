@@ -17,30 +17,41 @@
 #ifndef __FDAPDE_FINITE_ELEMENTS_MODULE_H__
 #define __FDAPDE_FINITE_ELEMENTS_MODULE_H__
 
+// clang-format off
+
 // include required modules
-#ifndef __FDAPDE_FIELDS_MODULE_H__
+#include "linear_algebra.h"    // pull-in Eigen first
+#include "utility.h"
+#include "fields.h"
+#include "geometry.h"
 
-#    include "fields.h"
+namespace fdapde{
 
-#endif   // __FDAPDE_FIELDS_MODULE_H__
+struct finite_element_tag { };
 
-#ifndef __FDAPDE_GEOMETRY_MODULE_H__
+}   // namespace fdapde
 
-#    include "geometry.h"
-
-#endif   // __FDAPDE_GEOMETRY_MODULE_H__
-
-#include "assembly.h"
-#include "finite_elements/dof_handler.h"
+// dof management logic
 #include "finite_elements/dof_segment.h"
 #include "finite_elements/dof_tetrahedron.h"
 #include "finite_elements/dof_triangle.h"
-#include "finite_elements/fe_objects.h"
+#include "finite_elements/dof_constraints.h"
+#include "finite_elements/dof_handler.h"
+// quadrature rules
 #include "finite_elements/fe_integration.h"
+// assembly logic
+#include "assembly.h"
+#include "finite_elements/fe_assembler_base.h"
 #include "finite_elements/fe_bilinear_form_assembler.h"
 #include "finite_elements/fe_linear_form_assembler.h"
+#include "finite_elements/fe_mass_assembler.h"
+// finite element spaces
+#include "finite_elements/lagrange_basis.h"
 #include "finite_elements/fe_p.h"
 #include "finite_elements/fe_space.h"
-#include "finite_elements/lagrange_basis.h"
+// weak forms
+#include "finite_elements/fe_objects.h"
+
+// clang-format on
 
 #endif   // __FDAPDE_FINITE_ELEMENTS_MODULE_H__

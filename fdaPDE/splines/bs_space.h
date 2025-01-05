@@ -14,13 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BS_SPACE_H__
-#define __BS_SPACE_H__
+#ifndef __FDAPDE_BS_SPACE_H__
+#define __FDAPDE_BS_SPACE_H__
 
-#include "../utils/symbols.h"
-#include "sp_assembler_base.h"
-#include "dof_handler.h"
-#include "bspline_basis.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -49,7 +46,8 @@ template <typename Triangulation_> class BsSpace {
     using BasisType = BSplineBasis;
     using ShapeFunctionType = subscript_t<BasisType>;
     using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::bspline>;
-    using space_category = fdapde::bspline;
+    using discretization_category = spline_tag;
+    static constexpr int sobolev_regularity = 2;
     template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
     using bilinear_form_assembly_loop =
       internals::sp_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
@@ -139,4 +137,4 @@ template <typename Triangulation_> class BsSpace {
 
 }   // namespace fdapde
 
-#endif   // __BS_SPACE_H__
+#endif   // __FDAPDE_BS_SPACE_H__

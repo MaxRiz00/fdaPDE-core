@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __DOT_H__
-#define __DOT_H__
+#ifndef __FDAPDE_DOT_H__
+#define __FDAPDE_DOT_H__
 
-#include "scalar_field.h"
-#include "meta.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -111,10 +110,11 @@ constexpr DotProduct<Lhs, Rhs> dot(
   
 namespace internals {
 
-template <typename Lhs, typename Rhs, typename FieldType_ = std::conditional_t<is_eigen_dense_v<Lhs>, Rhs, Lhs>>
+template <
+  typename Lhs, typename Rhs, typename FieldType_ = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Rhs, Lhs>>
 class dot_product_eigen_impl : public ScalarFieldBase<FieldType_::StaticInputSize, dot_product_eigen_impl<Lhs, Rhs>> {
-    using FieldType = std::conditional_t<is_eigen_dense_v<Lhs>, Rhs, Lhs>;
-    using EigenType = std::conditional_t<is_eigen_dense_v<Lhs>, Lhs, Rhs>;
+    using FieldType = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Rhs, Lhs>;
+    using EigenType = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Lhs, Rhs>;
     static constexpr bool is_field_lhs = std::is_same_v<FieldType, Lhs>;
     fdapde_static_assert(
       (FieldType::Cols == 1 &&
@@ -162,8 +162,8 @@ class dot_product_eigen_impl : public ScalarFieldBase<FieldType_::StaticInputSiz
     constexpr const LhsDerived& lhs() const { return lhs_; }
     constexpr const RhsDerived& rhs() const { return rhs_; }
    protected:
-    std::conditional_t<is_eigen_dense_v<Lhs>, const Lhs, typename internals::ref_select<const Lhs>::type> lhs_;
-    std::conditional_t<is_eigen_dense_v<Rhs>, const Rhs, typename internals::ref_select<const Rhs>::type> rhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, const Lhs, internals::ref_select_t<const Lhs>> lhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Rhs>, const Rhs, internals::ref_select_t<const Rhs>> rhs_;
 };
 
 }   // namespace internals
@@ -190,4 +190,4 @@ dot(const Eigen::MatrixBase<Lhs>& lhs, const fdapde::MatrixFieldBase<Rhs::Static
 
 }   // namespace fdapde
 
-#endif   // __DOT_H__
+#endif   // __FDAPDE_DOT_H__

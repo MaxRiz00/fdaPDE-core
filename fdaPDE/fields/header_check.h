@@ -14,16 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_CORE_CONCEPTS_H__
-#define __FDAPDE_CORE_CONCEPTS_H__
-
-namespace fdapde {
-
-template <typename R, typename U, typename V>
-concept LessThanComparable = requires(R r, U u, V v) {
-    { r.operator()(u, v) } -> std::same_as<bool>;
-};
-
-}
-
-#endif   // __FDAPDE_CORE_CONCEPTS_H__
+#ifndef __FDAPDE_FIELDS_MODULE_H__
+#    error "Include fdaPDE/fields.h instead of including internal headers directly."
+#endif

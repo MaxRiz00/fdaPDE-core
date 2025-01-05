@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __NEWTON_H__
-#define __NEWTON_H__
+#ifndef __FDAPDE_NEWTON_H__
+#define __FDAPDE_NEWTON_H__
 
-#include "../fields.h"
-#include "../utils/symbols.h"
-#include "callbacks/callbacks.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -103,4 +101,4 @@ template <int N, typename... Args> class Newton {
 
 }   // namespace fdapde
 
-#endif   // __NEWTON_H__
+#endif   // __FDAPDE_NEWTON_H__

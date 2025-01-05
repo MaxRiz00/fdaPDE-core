@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FE_OBJECTS_H__
-#define __FE_OBJECTS_H__
+#ifndef __FDAPDE_FE_OBJECTS_H__
+#define __FDAPDE_FE_OBJECTS_H__
 
-#include "../fields/scalar_field.h"
-#include "fe_mass_assembler.h"
+#include "header_check.h"
 
 namespace fdapde {  
 namespace internals {
@@ -26,9 +25,9 @@ namespace internals {
 // scalar finite element support
 template <typename FeSpace_>
 struct fe_scalar_test_function_impl :
-    public ScalarFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>> {
+    public ScalarFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element_tag>> {
     // ScalarFieldBase interface
-    using Base = ScalarFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>>;
+    using Base = ScalarFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element_tag>>;
     using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = FeSpace_::local_dim;
@@ -100,9 +99,9 @@ struct fe_scalar_test_function_impl :
 
 template <typename FeSpace_>
 struct fe_scalar_trial_function_impl :
-    public ScalarFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>> {
+    public ScalarFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element_tag>> {
     // ScalarFieldBase interface
-    using Base = ScalarFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>>;
+    using Base = ScalarFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element_tag>>;
     using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = FeSpace_::local_dim;
@@ -175,9 +174,9 @@ struct fe_scalar_trial_function_impl :
 // vector finite element support
 template <typename FeSpace_>
 struct fe_vector_test_function_impl :
-    public MatrixFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>> {
+    public MatrixFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element_tag>> {
     // MatrixFieldBase interface
-    using Base = MatrixFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element>>;
+    using Base = MatrixFieldBase<FeSpace_::local_dim, TestFunction<FeSpace_, finite_element_tag>>;
     using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = FeSpace_::local_dim;
@@ -251,9 +250,9 @@ struct fe_vector_test_function_impl :
 
 template <typename FeSpace_>
 struct fe_vector_trial_function_impl :
-    public MatrixFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>> {
+    public MatrixFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element_tag>> {
     // MatrixFieldBase interface
-    using Base = MatrixFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element>>;
+    using Base = MatrixFieldBase<FeSpace_::local_dim, TrialFunction<FeSpace_, finite_element_tag>>;
     using InputType = internals::fe_assembler_packet<FeSpace_::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = FeSpace_::local_dim;
@@ -329,8 +328,8 @@ struct fe_vector_trial_function_impl :
 
 // public test function type
 template <typename FeSpace_>
-    requires(std::is_same_v<typename std::decay_t<FeSpace_>::space_category, finite_element>)
-struct TestFunction<FeSpace_, finite_element> :
+    requires(std::is_same_v<typename std::decay_t<FeSpace_>::discretization_category, finite_element_tag>)
+struct TestFunction<FeSpace_, finite_element_tag> :
     public std::conditional_t<
       FeSpace_::n_components == 1, internals::fe_scalar_test_function_impl<FeSpace_>,
       internals::fe_vector_test_function_impl<FeSpace_>> {
@@ -342,42 +341,42 @@ struct TestFunction<FeSpace_, finite_element> :
 };
 // partial derivatives of scalar test function
 template <typename FeSpace_>
-struct PartialDerivative<TestFunction<FeSpace_, finite_element>, 1> :
-    public TestFunction<FeSpace_, finite_element>::template FirstPartialDerivative<
-      TestFunction<FeSpace_, finite_element>> {
-    using Base =
-      TestFunction<FeSpace_, finite_element>::template FirstPartialDerivative<TestFunction<FeSpace_, finite_element>>;
+struct PartialDerivative<TestFunction<FeSpace_, finite_element_tag>, 1> :
+    public TestFunction<FeSpace_, finite_element_tag>::template FirstPartialDerivative<
+      TestFunction<FeSpace_, finite_element_tag>> {
+    using Base = TestFunction<FeSpace_, finite_element_tag>::template FirstPartialDerivative<
+      TestFunction<FeSpace_, finite_element_tag>>;
     PartialDerivative() = default;
-    PartialDerivative(const TestFunction<FeSpace_, finite_element>& xpr, int i) : Base(xpr, i) { }
+    PartialDerivative(const TestFunction<FeSpace_, finite_element_tag>& xpr, int i) : Base(xpr, i) { }
 };
 template <typename FeSpace_>
-struct PartialDerivative<TestFunction<FeSpace_, finite_element>, 2> :
-    public TestFunction<FeSpace_, finite_element>::template MixedPartialDerivative<
-      TestFunction<FeSpace_, finite_element>> {
-    using Base =
-      TestFunction<FeSpace_, finite_element>::template MixedPartialDerivative<TestFunction<FeSpace_, finite_element>>;
+struct PartialDerivative<TestFunction<FeSpace_, finite_element_tag>, 2> :
+    public TestFunction<FeSpace_, finite_element_tag>::template MixedPartialDerivative<
+      TestFunction<FeSpace_, finite_element_tag>> {
+    using Base = TestFunction<FeSpace_, finite_element_tag>::template MixedPartialDerivative<
+      TestFunction<FeSpace_, finite_element_tag>>;
     PartialDerivative() = default;
-    PartialDerivative(const TestFunction<FeSpace_, finite_element>& xpr, int i, int j) : Base(xpr, i, j) { }
+    PartialDerivative(const TestFunction<FeSpace_, finite_element_tag>& xpr, int i, int j) : Base(xpr, i, j) { }
 };
 // gradient of vectorial test function
 template <typename FeSpace_>
     requires(FeSpace_::n_components > 1)
-constexpr auto grad(const TestFunction<FeSpace_, finite_element>& xpr) {
-    return
-      typename TestFunction<FeSpace_, finite_element>::template Jacobian<TestFunction<FeSpace_, finite_element>>(xpr);
+constexpr auto grad(const TestFunction<FeSpace_, finite_element_tag>& xpr) {
+    return typename TestFunction<FeSpace_, finite_element_tag>::template Jacobian<
+      TestFunction<FeSpace_, finite_element_tag>>(xpr);
 }
 // divergence of vectorial test function
 template <typename FeSpace_>
     requires(FeSpace_::n_components > 1)
-constexpr auto div(const TestFunction<FeSpace_, finite_element>& xpr) {
-    return
-      typename TestFunction<FeSpace_, finite_element>::template Divergence<TestFunction<FeSpace_, finite_element>>(xpr);
+constexpr auto div(const TestFunction<FeSpace_, finite_element_tag>& xpr) {
+    return typename TestFunction<FeSpace_, finite_element_tag>::template Divergence<
+      TestFunction<FeSpace_, finite_element_tag>>(xpr);
 }
 
 // public trial function type
 template <typename FeSpace_>
-    requires(std::is_same_v<typename std::decay_t<FeSpace_>::space_category, finite_element>)
-struct TrialFunction<FeSpace_, finite_element> :
+    requires(std::is_same_v<typename std::decay_t<FeSpace_>::discretization_category, finite_element_tag>)
+struct TrialFunction<FeSpace_, finite_element_tag> :
     public std::conditional_t<
       FeSpace_::n_components == 1, internals::fe_scalar_trial_function_impl<FeSpace_>,
       internals::fe_vector_trial_function_impl<FeSpace_>> {
@@ -410,37 +409,36 @@ struct TrialFunction<FeSpace_, finite_element> :
 };
 // partial derivative of scalar trial function
 template <typename FeSpace_>
-struct PartialDerivative<TrialFunction<FeSpace_, finite_element>, 1> :
-    public TrialFunction<FeSpace_, finite_element>::template FirstPartialDerivative<
-      TrialFunction<FeSpace_, finite_element>> {
-    using Base =
-      TrialFunction<FeSpace_, finite_element>::template FirstPartialDerivative<TrialFunction<FeSpace_, finite_element>>;
+struct PartialDerivative<TrialFunction<FeSpace_, finite_element_tag>, 1> :
+    public TrialFunction<FeSpace_, finite_element_tag>::template FirstPartialDerivative<
+      TrialFunction<FeSpace_, finite_element_tag>> {
+    using Base = TrialFunction<FeSpace_, finite_element_tag>::template FirstPartialDerivative<
+      TrialFunction<FeSpace_, finite_element_tag>>;
     PartialDerivative() = default;
-    PartialDerivative(const TrialFunction<FeSpace_, finite_element>& xpr, int i) : Base(xpr, i) { }
+    PartialDerivative(const TrialFunction<FeSpace_, finite_element_tag>& xpr, int i) : Base(xpr, i) { }
 };
 template <typename FeSpace_>
-struct PartialDerivative<TrialFunction<FeSpace_, finite_element>, 2> :
-    public TrialFunction<FeSpace_, finite_element>::template MixedPartialDerivative<
-      TrialFunction<FeSpace_, finite_element>> {
-    using Base =
-      TrialFunction<FeSpace_, finite_element>::template MixedPartialDerivative<TrialFunction<FeSpace_, finite_element>>;
+struct PartialDerivative<TrialFunction<FeSpace_, finite_element_tag>, 2> :
+    public TrialFunction<FeSpace_, finite_element_tag>::template MixedPartialDerivative<
+      TrialFunction<FeSpace_, finite_element_tag>> {
+    using Base = TrialFunction<FeSpace_, finite_element_tag>::template MixedPartialDerivative<
+      TrialFunction<FeSpace_, finite_element_tag>>;
     PartialDerivative() = default;
-    PartialDerivative(const TrialFunction<FeSpace_, finite_element>& xpr, int i, int j) : Base(xpr, i, j) { }
+    PartialDerivative(const TrialFunction<FeSpace_, finite_element_tag>& xpr, int i, int j) : Base(xpr, i, j) { }
 };
 // gradient of vectorial trial function
 template <typename FeSpace_>
     requires(FeSpace_::n_components > 1)
-constexpr auto grad(const TrialFunction<FeSpace_, finite_element>& xpr) {
-    return
-      typename TrialFunction<FeSpace_, finite_element>::template Jacobian<TrialFunction<FeSpace_, finite_element>>(xpr);
+constexpr auto grad(const TrialFunction<FeSpace_, finite_element_tag>& xpr) {
+    return typename TrialFunction<FeSpace_, finite_element_tag>::template Jacobian<
+      TrialFunction<FeSpace_, finite_element_tag>>(xpr);
 }
 // divergence of vectorial trial function
 template <typename FeSpace_>
     requires(FeSpace_::n_components > 1)
-constexpr auto div(const TrialFunction<FeSpace_, finite_element>& xpr) {
-    return
-      typename TrialFunction<FeSpace_, finite_element>::template Divergence<TrialFunction<FeSpace_, finite_element>>(
-        xpr);
+constexpr auto div(const TrialFunction<FeSpace_, finite_element_tag>& xpr) {
+    return typename TrialFunction<FeSpace_, finite_element_tag>::template Divergence<
+      TrialFunction<FeSpace_, finite_element_tag>>(xpr);
 }
 
 // representation of u(x) = \sum_{i=1}^{n_dofs} u_i \psi_i(x) with \{ \psi_i \}_i a finite element basis system
@@ -472,7 +470,8 @@ class FeFunction :
     explicit FeFunction(FeSpace_& fe_space) : fe_space_(&fe_space) {
         coeff_ = Eigen::Matrix<double, Dynamic, 1>::Zero(fe_space_->n_dofs());
     }
-    FeFunction(FeSpace_& fe_space, const Eigen::Matrix<double, Dynamic, 1>& coeff) : fe_space_(&fe_space), coeff_(coeff) {
+    FeFunction(FeSpace_& fe_space, const Eigen::Matrix<double, Dynamic, 1>& coeff) :
+        fe_space_(&fe_space), coeff_(coeff) {
         fdapde_assert(coeff.size() > 0 && coeff.size() == fe_space_->n_dofs());
     }
     OutputType operator()(const InputType& p) const {
@@ -714,4 +713,4 @@ struct CellDiameterDescriptor :
 
 }   // namespace fdapde
 
-#endif   // __FE_OBJECTS_H__
+#endif   // __FDAPDE_FE_OBJECTS_H__

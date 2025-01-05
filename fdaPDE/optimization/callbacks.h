@@ -14,23 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __OPTIMIZER_CALLBACKS_H__
-#define __OPTIMIZER_CALLBACKS_H__
+#ifndef __FDAPDE_OPTIMIZATION_CALLBACKS_H__
+#define __FDAPDE_OPTIMIZATION_CALLBACKS_H__
 
-#include "../../utils/traits.h"
+#include "header_check.h"
 
 namespace fdapde {
 
-// define detection-idiom based extension traits
-define_has(pre_update_step);
-define_has(post_update_step);
-define_has(opt_stopping_criterion);
-  
 template <typename Opt, typename Obj, typename... Args>
 bool execute_pre_update_step(Opt& optimizer, Obj& objective, std::tuple<Args...>& callbacks) {
     bool b = false;
     auto exec_callback = [&](auto&& callback) {
-        if constexpr (has_pre_update_step<std::decay_t<decltype(callback)>, bool(Opt&, Obj&)>::value) {
+        if constexpr (requires(requires(std::decay_t<decltype(callback)> c, Opt opt, Obj obj) {
+                          { c.pre_update_step(opt, obj) } -> std::same_as<bool>;
+                      })) {
             b |= callback.pre_update_step(optimizer, objective);
         }
     };
@@ -42,7 +39,9 @@ template <typename Opt, typename Obj, typename... Args>
 bool execute_post_update_step(Opt& optimizer, Obj& objective, std::tuple<Args...>& callbacks) {
     bool b = false;
     auto exec_callback = [&](auto&& callback) {
-        if constexpr (has_post_update_step<std::decay_t<decltype(callback)>, bool(Opt&, Obj&)>::value) {
+        if constexpr (requires(requires(std::decay_t<decltype(callback)> c, Opt opt, Obj obj) {
+                          { c.post_update_step(opt, obj) } -> std::same_as<bool>;
+                      })) {
             b |= callback.post_update_step(optimizer, objective);
         }
     };
@@ -53,7 +52,9 @@ bool execute_post_update_step(Opt& optimizer, Obj& objective, std::tuple<Args...
 template <typename Opt, typename Obj>
 bool execute_obj_stopping_criterion(Opt& optimizer, Obj& objective) {
     bool b = false;
-    if constexpr (has_opt_stopping_criterion<std::decay_t<Obj>, bool(Opt&)>::value) {
+    if constexpr (requires(requires(Opt opt, Obj obj) {
+                      { obj.opt_stopping_criterion(opt) } -> std::same_as<bool>;
+                  })) {
         b |= objective.opt_stopping_criterion(optimizer);
     }
     return b;
@@ -61,4 +62,4 @@ bool execute_obj_stopping_criterion(Opt& optimizer, Obj& objective) {
 
 }   // namespace fdapde
 
-#endif   // __OPTIMIZER_CALLBACKS_H__
+#endif   // __FDAPDE_OPTIMIZATION_CALLBACKS_H__

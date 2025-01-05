@@ -14,23 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __DOF_HANDLER_H__
-#define __DOF_HANDLER_H__
+#ifndef __FDAPDE_DOF_HANDLER_H__
+#define __FDAPDE_DOF_HANDLER_H__
 
-#include "../fields/polynomial.h"
-#include "../geometry/triangulation.h"
-#include "../utils/constexpr.h"
-#include "../utils/symbols.h"
-#include "dof_tetrahedron.h"
-#include "dof_triangle.h"
-#include "dof_segment.h"
-#include "dof_constraints.h"
+#include "header_check.h"
 
 namespace fdapde {
 
-struct finite_element { };
-
-template <int LocalDim, int EmbedDim, typename SpaceCategory> class DofHandler;
+template <int LocalDim, int EmbedDim, typename DiscretizationCategory> class DofHandler;
 
 namespace internals {
 
@@ -40,7 +31,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
     using CellType = std::conditional_t<
       LocalDim == 1, DofSegment<Derived>,
       std::conditional_t<LocalDim == 2, DofTriangle<Derived>, DofTetrahedron<Derived>>>;
-    using space_category = fdapde::finite_element;
     static constexpr int n_nodes_per_cell = TriangulationType::n_nodes_per_cell;
     static constexpr int local_dim = TriangulationType::local_dim;
     static constexpr int embed_dim = TriangulationType::embed_dim;
@@ -300,15 +290,17 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
 
 // 2D and surface triangulations 
 template <int EmbedDim>
-class DofHandler<2, EmbedDim, fdapde::finite_element> :
-    public internals::fe_dof_handler_base<2, EmbedDim, DofHandler<2, EmbedDim, fdapde::finite_element>> {
+class DofHandler<2, EmbedDim, finite_element_tag> :
+    public internals::fe_dof_handler_base<2, EmbedDim, DofHandler<2, EmbedDim, finite_element_tag>> {
    public:
-    using Base = internals::fe_dof_handler_base<2, EmbedDim, DofHandler<2, EmbedDim, fdapde::finite_element>>;
+    using Base = internals::fe_dof_handler_base<2, EmbedDim, DofHandler<2, EmbedDim, finite_element_tag>>;
     using TriangulationType = typename Base::TriangulationType;
     using CellType = typename Base::CellType;
     using Base::dofs_;
     using Base::n_dofs_;
     using Base::triangulation_;
+    static constexpr auto edge_pattern = TriangulationType::edge_pattern;
+
     DofHandler() = default;
     DofHandler(const TriangulationType& triangulation) : Base(triangulation) { }
 
@@ -337,9 +329,7 @@ class DofHandler<2, EmbedDim, fdapde::finite_element> :
         std::unordered_set<std::pair<int, int>, fdapde::pair_hash> boundary_dofs;
         if constexpr (dof_descriptor::n_dofs_per_edge > 0 || dof_descriptor::n_dofs_internal > 0) {
             constexpr int n_edges_per_cell = TriangulationType::n_edges_per_cell;
-            auto edge_pattern =
-              combinations<TriangulationType::n_nodes_per_edge, TriangulationType::n_nodes_per_cell>();
-
+	    
             for (typename TriangulationType::cell_iterator it = triangulation_->cells_begin();
                  it != triangulation_->cells_end(); ++it) {
                 int cell_id = it->id();
@@ -490,15 +480,17 @@ class DofHandler<2, EmbedDim, fdapde::finite_element> :
 
 // 3D tetrahedralizations
 template <>
-class DofHandler<3, 3, fdapde::finite_element> :
-    public internals::fe_dof_handler_base<3, 3, DofHandler<3, 3, fdapde::finite_element>> {
+class DofHandler<3, 3, finite_element_tag> :
+    public internals::fe_dof_handler_base<3, 3, DofHandler<3, 3, finite_element_tag>> {
    public:
-    using Base = internals::fe_dof_handler_base<3, 3, DofHandler<3, 3, fdapde::finite_element>>;
+    using Base = internals::fe_dof_handler_base<3, 3, DofHandler<3, 3, finite_element_tag>>;
     using TriangulationType = typename Base::TriangulationType;
     using CellType = typename Base::CellType;
     using Base::dofs_;
     using Base::n_dofs_;
-    using Base::triangulation_;  
+    using Base::triangulation_;
+    static constexpr auto edge_pattern = TriangulationType::edge_pattern;
+
     DofHandler() = default;
     DofHandler(const TriangulationType& triangulation) : Base(triangulation) { }
 
@@ -532,8 +524,6 @@ class DofHandler<3, 3, fdapde::finite_element> :
           dof_descriptor::n_dofs_internal > 0) {
             constexpr int n_edges_per_cell = TriangulationType::n_edges_per_cell;
             constexpr int n_faces_per_cell = TriangulationType::n_faces_per_cell;
-            auto edge_pattern =
-              combinations<TriangulationType::n_nodes_per_edge, TriangulationType::n_nodes_per_cell>();
 
             for (typename TriangulationType::cell_iterator it = triangulation_->cells_begin();
                  it != triangulation_->cells_end(); ++it) {
@@ -798,10 +788,10 @@ class DofHandler<3, 3, fdapde::finite_element> :
 
 // 1D intervals and linear network
 template <int EmbedDim>
-class DofHandler<1, EmbedDim, fdapde::finite_element> :
-    public internals::fe_dof_handler_base<1, EmbedDim, DofHandler<1, EmbedDim, fdapde::finite_element>> {
+class DofHandler<1, EmbedDim, finite_element_tag> :
+    public internals::fe_dof_handler_base<1, EmbedDim, DofHandler<1, EmbedDim, finite_element_tag>> {
    public:
-    using Base = internals::fe_dof_handler_base<1, EmbedDim, DofHandler<1, EmbedDim, fdapde::finite_element>>;
+    using Base = internals::fe_dof_handler_base<1, EmbedDim, DofHandler<1, EmbedDim, finite_element_tag>>;
     using TriangulationType = typename Base::TriangulationType;
     using CellType = typename Base::CellType;
     using Base::dofs_;
@@ -869,4 +859,4 @@ class DofHandler<1, EmbedDim, fdapde::finite_element> :
 
 }   // namespace fdapde
 
-#endif   // __DOF_HANDLER_H__
+#endif   // __FDAPDE_DOF_HANDLER_H__

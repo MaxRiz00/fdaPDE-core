@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FE_BILINEAR_FORM_ASSEMBLER_H__
-#define __FE_BILINEAR_FORM_ASSEMBLER_H__
+#ifndef __FDAPDE_FE_BILINEAR_FORM_ASSEMBLER_H__
+#define __FDAPDE_FE_BILINEAR_FORM_ASSEMBLER_H__
 
-#include <unordered_map>
-
-#include "fe_assembler_base.h"
+#include "header_check.h"
 
 namespace fdapde {
 namespace internals {
@@ -39,7 +37,10 @@ class fe_bilinear_form_assembly_loop :
     using Base = fe_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
     using Form = typename Base::Form;
     using DofHandlerType = typename Base::DofHandlerType;
-    using space_category = finite_element;
+    using discretization_category = typename TestSpace::discretization_category;
+    fdapde_static_assert(
+      std::is_same_v<discretization_category FDAPDE_COMMA typename TrialSpace::discretization_category>,
+      TEST_AND_TRIAL_SPACE_MUST_HAVE_THE_SAME_DISCRETIZATION_CATEGORY);
     static constexpr int local_dim = Base::local_dim;
     static constexpr int embed_dim = Base::embed_dim;
     using Base::form_;
@@ -282,4 +283,4 @@ template <typename DofHandler, typename FeType> class scalar_fe_grad_grad_assemb
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __FE_BILINEAR_FORM_ASSEMBLER_H__
+#endif   // __FDAPDE_FE_BILINEAR_FORM_ASSEMBLER_H__

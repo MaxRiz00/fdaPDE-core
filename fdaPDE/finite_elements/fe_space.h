@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FE_SPACE_H__
-#define __FE_SPACE_H__
+#ifndef __FDAPDE_FE_SPACE_H__
+#define __FDAPDE_FE_SPACE_H__
 
-#include "../utils/symbols.h"
-#include "dof_handler.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -47,16 +46,17 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
     using cell_dof_descriptor = FeType::template cell_dof_descriptor<local_dim>;
     using face_dof_descriptor = FeType::template face_dof_descriptor<local_dim>;
     using ReferenceCell = typename cell_dof_descriptor::ReferenceCell;
-    using BasisType = typename cell_dof_descriptor::BasisType;
-    using ShapeFunctionType = subscript_t<BasisType>;
+    using CellBasisType = typename cell_dof_descriptor::BasisType;
+    using CellShapeFunctionType = subscript_t<CellBasisType>;
     using FaceBasisType = typename face_dof_descriptor::BasisType;
     using FaceShapeFunctionType = subscript_t<FaceBasisType>;
-    using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::finite_element>;
+    using DofHandlerType = DofHandler<local_dim, embed_dim, finite_element_tag>;
     // vector finite element descriptors
     static constexpr int n_components  = FeType::n_components;
     static constexpr bool is_vector_fe = (n_components > 1);
     // definition of assembly loops
-    using space_category = fdapde::finite_element;
+    using discretization_category = finite_element_tag;
+    static constexpr int sobolev_regularity = 1;
     template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
     using bilinear_form_assembly_loop =
       internals::fe_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
@@ -68,7 +68,7 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
     FeSpace(const Triangulation_& triangulation, FeType_ fe) :
         triangulation_(std::addressof(triangulation)), dof_handler_(triangulation) {
         dof_handler_.enumerate(fe);
-        cell_basis_ = BasisType(unit_cell_dofs_.dofs_phys_coords());
+        cell_basis_ = CellBasisType(unit_cell_dofs_.dofs_phys_coords());
         // degenerate case for 1D boundary integration uses default initialization
         if constexpr (local_dim - 1 != 0) { face_basis_ = FaceBasisType(unit_face_dofs_.dofs_phys_coords()); }
     }
@@ -79,21 +79,21 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
     constexpr int n_shape_functions() const { return n_components * cell_basis_.size(); }
     constexpr int n_shape_functions_face() const { return n_components * face_basis_.size(); }
     int n_dofs() const { return dof_handler_.n_dofs(); }
-    const BasisType& cell_basis() const { return cell_basis_; }
+    const CellBasisType& cell_basis() const { return cell_basis_; }
     const FaceBasisType& face_basis() const { return face_basis_; }
     // evaluation
     template <typename InputType>
-        requires(std::is_invocable_v<ShapeFunctionType, InputType>)
+        requires(std::is_invocable_v<CellShapeFunctionType, InputType>)
     constexpr auto eval_shape_value(int i, const InputType& p) const {
         return cell_basis_[i](p);
     }
     template <typename InputType>
-        requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().gradient()), InputType>)
+        requires(std::is_invocable_v<decltype(std::declval<CellShapeFunctionType>().gradient()), InputType>)
     constexpr auto eval_shape_grad(int i, const InputType& p) const {
         return cell_basis_[i].gradient()(p);
     }
     template <typename InputType>
-        requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().divergence()), InputType>)
+        requires(std::is_invocable_v<decltype(std::declval<CellShapeFunctionType>().divergence()), InputType>)
     constexpr auto eval_shape_div(int i, const InputType& p) const {
         fdapde_static_assert(n_components > 1, THIS_METHOD_IS_FOR_VECTOR_FINITE_ELEMENTS_ONLY);
         return cell_basis_[i].divergence()(p);
@@ -141,10 +141,10 @@ template <typename Triangulation_, typename FeType_> class FeSpace {
     DofHandlerType dof_handler_;
     cell_dof_descriptor unit_cell_dofs_;
     face_dof_descriptor unit_face_dofs_;
-    BasisType cell_basis_ {};
+    CellBasisType cell_basis_ {};
     FaceBasisType face_basis_ {};
 };
 
 }   // namespace fdapde
 
-#endif   // __FE_SPACE_H__
+#endif   // __FDAPDE_FE_SPACE_H__

@@ -17,9 +17,6 @@
 #ifndef __CONSTEXPR_MATRIX_H__
 #define __CONSTEXPR_MATRIX_H__
 
-#include <array>
-#include "../utils/symbols.h"
-
 namespace fdapde {
   
   // visitors, rowwise, colwwise, coeffwise iterators, sum, max, min, ...
@@ -138,7 +135,15 @@ struct MatrixCoeffWiseOp :
     public MatrixBase<
       std::conditional_t<std::is_arithmetic_v<Lhs>, Rhs, Lhs>::Rows,
       std::conditional_t<std::is_arithmetic_v<Lhs>, Rhs, Lhs>::Cols, MatrixCoeffWiseOp<Lhs, Rhs, BinaryOperation>> {
+    fdapde_static_assert(
+      std::is_arithmetic_v<Lhs> ||
+        std::is_arithmetic_v<Rhs> && !(std::is_arithmetic_v<Lhs> && std::is_arithmetic_v<Rhs>),
+      THIS_CLASS_MUST_HAVE_EXACTLY_ONE_BETWEEEN_LHS_AND_RHS_OF_ARITHMETIC_TYPE);
     using CoeffType_ = std::conditional_t<std::is_arithmetic_v<Lhs>, Lhs, Rhs>;
+    using Lhs_ = std::decay_t<Lhs>;
+    using Rhs_ = std::decay_t<Rhs>;
+    using BinaryOperation_ = std::decay_t<BinaryOperation>;
+    static constexpr bool is_coeff_lhs = std::is_arithmetic_v<Lhs>;
    public:
     using XprType = std::conditional_t<std::is_arithmetic_v<Lhs>, Rhs, Lhs>;
     using Base = MatrixCoeffWiseOp<Lhs, Rhs, BinaryOperation>;
@@ -149,19 +154,30 @@ struct MatrixCoeffWiseOp :
     static constexpr int NestAsRef = 0;
     static constexpr int ReadOnly = 1;
 
-    constexpr MatrixCoeffWiseOp(const XprType& xpr, CoeffType_ coeff, BinaryOperation op) :
-        xpr_(xpr), coeff_(coeff), op_(op) { }
-    constexpr Scalar operator()(int i, int j) const { return op_(xpr_(i, j), coeff_); }
+    constexpr MatrixCoeffWiseOp(const Lhs& lhs, const Rhs& rhs, BinaryOperation op) :
+        lhs_(lhs), rhs_(rhs), op_(op) { }
+    constexpr Scalar operator()(int i, int j) const {
+        if constexpr ( is_coeff_lhs) { return op_(lhs_, rhs_(i, j)); }
+        if constexpr (!is_coeff_lhs) { return op_(lhs_(i, j), rhs_); }
+    }
     constexpr Scalar operator[](int i) const {
         fdapde_static_assert(
-          XprType::Rows == 1 || XprType::Cols == 1, THIS_METHOD_IS_ONLY_FOR_CONSTEXPR_ROW_OR_COLUMN_VECTORS);
-        return op_(xpr_[i], coeff_);
+          XprType::Rows == 1 || XprType::Cols == 1, THIS_METHOD_IS_ONLY_FOR_ROW_OR_COLUMN_VECTORS);
+	if constexpr ( is_coeff_lhs) { return op_(lhs_, rhs_[i]); }
+        if constexpr (!is_coeff_lhs) { return op_(lhs_[i], rhs_); }
     }
-    constexpr int rows() const { return xpr_.rows(); }
-    constexpr int cols() const { return xpr_.cols(); }
+    constexpr int rows() const { return xpr().rows(); }
+    constexpr int cols() const { return xpr().cols(); }
+    constexpr const Lhs_& lhs() const { return lhs_; }
+    constexpr const Rhs_& rhs() const { return rhs_; }
+    constexpr const BinaryOperation_& functor() const { return op_; }
    protected:
-    typename internals::ref_select<const XprType>::type xpr_;
-    CoeffType_ coeff_;
+    const XprType& xpr() const {
+        if constexpr ( is_coeff_lhs) return rhs_;
+        if constexpr (!is_coeff_lhs) return lhs_;
+    }
+    typename internals::ref_select<const Lhs>::type lhs_;
+    typename internals::ref_select<const Rhs>::type rhs_;
     BinaryOperation op_;
 };
 
@@ -175,7 +191,7 @@ template <typename XprType, typename Coeff>
 constexpr MatrixCoeffWiseOp<Coeff, XprType, std::multiplies<>>
 operator*(Coeff lhs, const MatrixBase<XprType::Rows, XprType::Cols, XprType>& rhs)
     requires(std::is_arithmetic_v<Coeff>) {
-    return MatrixCoeffWiseOp<Coeff, XprType, std::multiplies<>> {rhs.derived(), lhs, std::multiplies<>()};
+    return MatrixCoeffWiseOp<Coeff, XprType, std::multiplies<>> {lhs, rhs.derived(), std::multiplies<>()};
 }
 template <typename XprType, typename Coeff>
 constexpr MatrixCoeffWiseOp<XprType, Coeff, std::divides<>>
@@ -322,6 +338,12 @@ class Matrix : public MatrixBase<Rows_, Cols_, Matrix<Scalar_, Rows_, Cols_, Nes
 
     constexpr Matrix() : data_() {};
     constexpr explicit Matrix(const std::array<Scalar, Rows * Cols>& data) : data_(data) { }
+    constexpr explicit Matrix(const std::vector<Scalar>& data) : data_() {
+        fdapde_constexpr_assert(data.size() == Rows * Cols);
+        for (int i = 0; i < rows(); ++i) {
+            for (int j = 0; j < cols(); ++j) { data_[i * Cols + j] = data[i * Cols + j]; }
+        }
+    }
     template <typename Derived>
     constexpr Matrix(const MatrixBase<Rows_, Cols_, Derived>& xpr) : data_() {
         fdapde_static_assert(
@@ -361,6 +383,8 @@ class Matrix : public MatrixBase<Rows_, Cols_, Matrix<Scalar_, Rows_, Cols_, Nes
         fdapde_static_assert(Rows * Cols == 3, THIS_METHOD_IS_ONLY_FOR_MATRICES_WITH_THREE_ELEMENTS);
 	data_ = {x, y, z};
     }
+  
+#ifdef __FDAPDE_HAS_EIGEN
     // conversion from Eigen matrix
     template <typename Scalar__, int Rows__, int Cols__>
     explicit Matrix(const Eigen::Matrix<Scalar__, Rows__, Cols__>& other) {
@@ -372,6 +396,8 @@ class Matrix : public MatrixBase<Rows_, Cols_, Matrix<Scalar_, Rows_, Cols_, Nes
             for (int j = 0; j < Cols; ++j) { operator()(i, j) = other(i, j); }
         }
     }
+#endif
+  
     // static constructors
     static constexpr Matrix<Scalar, Rows, Cols> Constant(Scalar c) {
         Matrix<Scalar, Rows, Cols> m;
@@ -418,6 +444,8 @@ class Matrix : public MatrixBase<Rows_, Cols_, Matrix<Scalar_, Rows_, Cols_, Nes
         }
         return *this;
     }
+
+#ifdef __FDAPDE_HAS_EIGEN
     // assignment from Eigen matrix
     template <typename Derived>
     Matrix<Scalar_, Rows_, Cols_, NestAsRefBit_>& operator=(const Eigen::MatrixBase<Derived>& rhs) {
@@ -430,6 +458,8 @@ class Matrix : public MatrixBase<Rows_, Cols_, Matrix<Scalar_, Rows_, Cols_, Nes
         }
         return *this;
     }
+#endif
+
     constexpr void setConstant(Scalar c) {
         for (int i = 0; i < Rows; ++i) {
             for (int j = 0; j < Cols; ++j) { operator()(i, j) = c; }

@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BSPLINE_BASIS_H__
-#define __BSPLINE_BASIS_H__
+#ifndef __FDAPDE_BSPLINE_BASIS_H__
+#define __FDAPDE_BSPLINE_BASIS_H__
 
-#include "../geometry/interval.h"
-#include "../fields/spline.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -82,4 +81,4 @@ class BSplineBasis {
 
 } // namespace fdapde
 
-#endif // __BSPLINE_BASIS_H__
+#endif // __FDAPDE_BSPLINE_BASIS_H__

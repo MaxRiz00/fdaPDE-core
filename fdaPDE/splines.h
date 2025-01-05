@@ -17,26 +17,35 @@
 #ifndef __FDAPDE_SPLINES_MODULE_H__
 #define __FDAPDE_SPLINES_MODULE_H__
 
+// clang-format off
+
 // include required modules
-#ifndef __FDAPDE_FIELDS_MODULE_H__
+#include "linear_algebra.h"    // pull-in Eigen first
+#include "utility.h"
+#include "fields.h"
+#include "geometry.h"
 
-#    include "fields.h"
+namespace fdapde{
 
-#endif   // __FDAPDE_FIELDS_MODULE_H__
+struct spline_tag { };
 
-#ifndef __FDAPDE_GEOMETRY_MODULE_H__
+}   // namespace fdapde
 
-#    include "geometry.h"
-
-#endif   // __FDAPDE_GEOMETRY_MODULE_H__
-
-#include "splines/bs_assembler_base.h"
-#include "splines/bs_bilinear_form_assembler.h"
-#include "splines/bs_linear_form_assembler.h"
-#include "splines/bs_integration.h"
-#include "splines/bs_objects.h"
-#include "splines/bs_space.h"
+// dof management logic
 #include "splines/dof_handler.h"
-#include "splines/spline_basis.h"
+// quadrature rules
+#include "splines/sp_integration.h"
+// assembly logic
+#include "assembly.h"
+#include "splines/sp_assembler_base.h"
+#include "splines/sp_bilinear_form_assembler.h"
+#include "splines/sp_linear_form_assembler.h"
+// spline spaces
+#include "splines/bspline_basis.h"
+#include "splines/bs_space.h"
+// weak forms
+#include "splines/sp_objects.h"
+
+// clang-format on
 
 #endif   // __FDAPDE_SPLINES_MODULE_H__

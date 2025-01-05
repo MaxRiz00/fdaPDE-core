@@ -14,30 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_FIELDS_MODULE_H__
-#define __FDAPDE_FIELDS_MODULE_H__
-
-// clang-format off
-
-// include required modules
-#include "utility.h"
-
-// scalar fields logic, as the matrix field one will depend on it
-#include "fields/scalar_field.h"
-#include "fields/divergence.h"
-#include "fields/dot.h"
-#include "fields/laplacian.h"
-#include "fields/norm.h"
-#include "fields/space_time_field.h"
-// matrix field logic
-#include "fields/jacobian.h"
-#include "fields/matrix_field.h"
-#include "fields/gradient.h"
-#include "fields/hessian.h"
-
-#include "fields/polynomial.h"
-#include "fields/spline.h"
-
-// clang-format on
-
-#endif   // __FDAPDE_FIELDS_MODULE_H__
+#ifndef __FDAPDE_UTILITY_MODULE_H__
+#    error "Include fdaPDE/utils.h instead of including internal headers directly."
+#endif

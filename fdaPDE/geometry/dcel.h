@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __DCEL_H__
-#define __DCEL_H__
+#ifndef __FDAPDE_DCEL_H__
+#define __FDAPDE_DCEL_H__
 
-#include "../utils/traits.h"
-#include "../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
   
@@ -43,7 +42,7 @@ template <int LocalDim, int EmbedDim> class DCEL {
        public:
         node_t() : coords_(), halfedge_(nullptr), boundary_(false) { }
         template <typename CoordsType>
-            requires(fdapde::is_eigen_dense_v<CoordsType>)
+            requires(internals::is_eigen_dense_xpr_v<CoordsType>)
         node_t(int id, halfedge_t* halfedge, bool boundary, const CoordsType& coords) :
             id_(id), halfedge_(halfedge), boundary_(boundary), coords_() {
             fdapde_assert(
@@ -55,7 +54,7 @@ template <int LocalDim, int EmbedDim> class DCEL {
             }
         }
         template <typename CoordsType>
-            requires(fdapde::is_eigen_dense_v<CoordsType>)
+            requires(internals::is_eigen_dense_xpr_v<CoordsType>)
         node_t(int id, bool boundary, const CoordsType& coords) : node_t(id, nullptr, boundary, coords) { }
         template <typename... CoordsType>
             requires(std::is_floating_point_v<CoordsType> && ...) && (sizeof...(CoordsType) == embed_dim)

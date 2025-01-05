@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __DOF_CONSTRAINTS_H__
-#define __DOF_CONSTRAINTS_H__
+#ifndef __FDAPDE_DOF_CONSTRAINTS_H__
+#define __FDAPDE_DOF_CONSTRAINTS_H__
 
-#include "../linear_algebra/binary_matrix.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -81,4 +81,4 @@ template <typename DofHandler> class DofConstraints {
 
 }   // namespace fdapde
 
-#endif   // __DOF_CONSTRAINTS_H__
+#endif   // __FDAPDE_DOF_CONSTRAINTS_H__

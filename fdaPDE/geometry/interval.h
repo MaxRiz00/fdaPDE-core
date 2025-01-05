@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __INTERVAL_H__
-#define __INTERVAL_H__
+#ifndef __FDAPDE_INTERVAL_H__
+#define __FDAPDE_INTERVAL_H__
 
-#include "../linear_algebra/binary_matrix.h"
-#include "segment.h"
-#include "triangulation.h"
+#include "header_check.h"
 
 namespace fdapde {
   
@@ -150,4 +148,4 @@ template <> class Triangulation<1, 1> : public TriangulationBase<1, 1, Triangula
 
 }   // namespace fdapde
 
-#endif   // __INTERVAL_H__
+#endif   // __FDAPDE_INTERVAL_H__

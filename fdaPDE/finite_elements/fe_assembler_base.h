@@ -14,16 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FE_ASSEMBLER_BASE_H__
-#define __FE_ASSEMBLER_BASE_H__
+#ifndef __FDAPDE_FE_ASSEMBLER_BASE_H__
+#define __FDAPDE_FE_ASSEMBLER_BASE_H__
 
-#include <unordered_map>
-
-#include "../assembly.h"
-#include "../fields/meta.h"
-#include "../linear_algebra/constexpr_matrix.h"
-#include "../linear_algebra/mdarray.h"
-#include "fe_integration.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -88,7 +82,7 @@ template <typename FeSpace_, typename... Quadrature_> struct fe_face_assembler_t
     fdapde_static_assert(
       internals::is_fe_quadrature_simplex<Quadrature>, SUPPLIED_QUADRATURE_FORMULA_IS_NOT_FOR_SIMPLEX_INTEGRATION);
     using geo_iterator = typename Triangulation<local_dim, embed_dim>::boundary_iterator;
-    using dof_iterator = typename DofHandler<local_dim, embed_dim, fdapde::finite_element>::boundary_iterator;
+    using dof_iterator = typename DofHandler<local_dim, embed_dim, finite_element_tag>::boundary_iterator;
 };
 
 // traits for integration \int_D (...) over the whole domain D
@@ -112,7 +106,7 @@ template <typename FeSpace_, typename... Quadrature_> struct fe_cell_assembler_t
     fdapde_static_assert(
       internals::is_fe_quadrature_simplex<Quadrature>, SUPPLIED_QUADRATURE_FORMULA_IS_NOT_FOR_SIMPLEX_INTEGRATION);
     using geo_iterator = typename Triangulation<local_dim, embed_dim>::cell_iterator;
-    using dof_iterator = typename DofHandler<local_dim, embed_dim, fdapde::finite_element>::cell_iterator;
+    using dof_iterator = typename DofHandler<local_dim, embed_dim, finite_element_tag>::cell_iterator;
 };
   
 // base class for vector finite element assembly loops
@@ -134,7 +128,7 @@ struct fe_assembler_base {
     static constexpr int Options = Options_;
     using FunctionSpace = TestSpace;
     using FeType = typename FunctionSpace::FeType;
-    using DofHandlerType = DofHandler<local_dim, embed_dim, fdapde::finite_element>;
+    using DofHandlerType = DofHandler<local_dim, embed_dim, finite_element_tag>;
     using fe_traits = std::conditional_t<
       Options == CellMajor, fe_cell_assembler_traits<FunctionSpace, Quadrature_...>,
       fe_face_assembler_traits<FunctionSpace, Quadrature_...>>;
@@ -144,7 +138,11 @@ struct fe_assembler_base {
     static constexpr int n_quadrature_nodes = Quadrature::order;
     static constexpr int n_basis = BasisType::n_basis;
     static constexpr int n_components = FunctionSpace::n_components;
-  
+    using discretization_category = typename TestSpace::discretization_category;
+    fdapde_static_assert(
+      std::is_same_v<discretization_category FDAPDE_COMMA finite_element_tag>,
+      THIS_CLASS_IS_FOR_FINITE_ELEMENT_DISCRETIZATION_ONLY);
+
     fe_assembler_base() = default;
     fe_assembler_base(
       const Form_& form, typename fe_traits::geo_iterator begin, typename fe_traits::geo_iterator end,
@@ -362,4 +360,4 @@ struct fe_assembler_base {
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __FE_ASSEMBLER_BASE_H__
+#endif   // __FDAPDE_FE_ASSEMBLER_BASE_H__

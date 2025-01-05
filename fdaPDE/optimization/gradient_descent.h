@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __GRADIENT_DESCENT__
-#define __GRADIENT_DESCENT__
+#ifndef __FDAPDE_GRADIENT_DESCENT__
+#define __FDAPDE_GRADIENT_DESCENT__
 
-#include "../fields.h"
-#include "../utils/symbols.h"
-#include "callbacks/callbacks.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -97,4 +95,4 @@ template <int N, typename... Args> class GradientDescent {
 
 }   // namespace fdapde
 
-#endif   // __GRADIENT_DESCENT__
+#endif   // __FDAPDE_GRADIENT_DESCENT__

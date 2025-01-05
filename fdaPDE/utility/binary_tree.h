@@ -17,10 +17,6 @@
 #ifndef __BINARY_TREE_H__
 #define __BINARY_TREE_H__
 
-#include <queue>
-#include <stack>
-#include "../concepts.h"
-
 namespace fdapde {
   
 template <typename T> class BinaryTree {
@@ -164,7 +160,9 @@ template <typename T> class BinaryTree {
 
     // push with custom compare strategy
     template <typename Compare_>
-        requires fdapde::LessThanComparable<Compare_, T, node_pointer>
+        requires(requires(Compare_ c, T t, node_pointer ptr) {
+            { c.operator()(t, ptr) } -> std::same_as<bool>;
+        })
     dfs_iterator push(const T& data, Compare_&& less_than) {
         if (!root_) {   // if tree empty, insert root and return
             root_ = new node_type(data, 0);
@@ -187,7 +185,9 @@ template <typename T> class BinaryTree {
         }
     }
     template <typename Compare_>
-        requires fdapde::LessThanComparable<Compare_, T, node_pointer>
+        requires(requires(Compare_ c, T t, node_pointer ptr) {
+            { c.operator()(t, ptr) } -> std::same_as<bool>;
+        })
     dfs_iterator push(const std::initializer_list<T>& data, Compare_&& less_than) {
         auto it = data.begin();
         for (; it != data.end() - 1; ++it) push(*it, std::forward<Compare_>(less_than));

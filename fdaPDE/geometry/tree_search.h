@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __TREE_SEARCH_H__
-#define __TREE_SEARCH_H__
+#ifndef __FDAPDE_TREE_SEARCH_H__
+#define __FDAPDE_TREE_SEARCH_H__
 
-#include "../utils/symbols.h"
-#include "kd_tree.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -86,4 +85,4 @@ template <typename MeshType> class TreeSearch {
 
 }   // namespace fdapde
 
-#endif   // __TREE_SEARCH_H__
+#endif   // __FDAPDE_TREE_SEARCH_H__

@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FIELD_META_H__
-#define __FIELD_META_H__
+#ifndef __FDAPDE_XPR_HELPER_H__
+#define __FDAPDE_XPR_HELPER_H__
 
 namespace fdapde {
 
@@ -24,9 +24,10 @@ template <int Size, typename Derived> struct MatrixFieldBase;
   
 namespace internals {
 
+// expression type detection traits
 template <typename Xpr> struct is_scalar_field {
     static constexpr bool value = []() {
-        if constexpr (requires(Xpr lhs) { Xpr::StaticInputSize; }) {
+        if constexpr (requires(Xpr xpr) { Xpr::StaticInputSize; }) {
             return std::is_base_of_v<ScalarFieldBase<Xpr::StaticInputSize, Xpr>, Xpr>;
         } else {
             return false;
@@ -36,7 +37,7 @@ template <typename Xpr> struct is_scalar_field {
 template <typename Xpr> static constexpr bool is_scalar_field_v = is_scalar_field<Xpr>::value;
 template <typename Xpr> struct is_matrix_field {
     static constexpr bool value = []() {
-        if constexpr (requires(Xpr lhs) { Xpr::StaticInputSize; }) {
+        if constexpr (requires(Xpr xpr) { Xpr::StaticInputSize; }) {
             return std::is_base_of_v<MatrixFieldBase<Xpr::StaticInputSize, Xpr>, Xpr>;
         } else {
             return false;
@@ -224,7 +225,23 @@ constexpr decltype(auto) xpr_for_each(Xpr&& xpr, UnaryPred p, UnaryFunc f, Args&
       std::forward<Xpr>(xpr), std::forward<Args>(args)...);
 }
 
+// if XprType has its NestAsRef bit set, returns the type XprType&, otherwise return XprType.
+// Expression nodes with their NestAsRef bit unset are stored by copy.
+template <typename XprType>
+concept has_nest_as_ref_bit = requires(XprType t) { XprType::NestAsRef; };
+
+template <typename XprType, bool v> struct ref_select_impl;
+template <typename XprType> struct ref_select_impl<XprType, true> {
+    using type = std::conditional_t<
+      XprType::NestAsRef == 0, std::remove_reference_t<XprType>, std::add_lvalue_reference_t<XprType>>;
+};
+template <typename XprType> struct ref_select_impl<XprType, false> {
+    using type = XprType;
+};
+template <typename XprType> struct ref_select : ref_select_impl<XprType, has_nest_as_ref_bit<XprType>> { };
+template <typename XprType> using ref_select_t = ref_select<XprType>::type;
+
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __FIELD_META_H__
+#endif   // __FDAPDE_XPR_HELPER_H__

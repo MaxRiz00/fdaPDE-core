@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __JACOBIAN_H__
-#define __JACOBIAN_H__
+#ifndef __FDAPDE_JACOBIAN_H__
+#define __FDAPDE_JACOBIAN_H__
 
-#include "matrix_field.h"
-#include "scalar_field.h"
-#include "meta.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -73,4 +71,4 @@ Jacobian<XprType> constexpr grad(const XprType& xpr)
 
 }   // namespace fdapde
 
-#endif // __JACOBIAN_H__
+#endif // __FDAPDE_JACOBIAN_H__

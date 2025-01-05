@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __TP_SPACE_H__
-#define __TP_SPACE_H__
+#ifndef __FDAPDE_TP_SPACE_H__
+#define __FDAPDE_TP_SPACE_H__
 
 #include "linear_algebra/mdarray.h"
 #include "utils/traits.h"
@@ -174,10 +174,12 @@ class TpSpace {
    public:
     using FunctionSpaces = std::tuple<FunctionSpace...>;
     using DofHandlerType = dof_handler_t<typename FunctionSpace::DofHandlerType...>;
+    using discretization_category = std::tuple<typename FunctionSpace::discretization_category...>;
     static constexpr int tp_order = sizeof...(FunctionSpace);
     static constexpr std::array<int, tp_order> local_dims {FunctionSpace::local_dim...};
     static constexpr std::array<int, tp_order> embed_dims {FunctionSpace::embed_dim...};
-  
+    static constexpr std::array<int, tp_order> sobolev_regularity {FunctinSpace::sobolev_regularity...};
+
     TpSpace() noexcept = default;
     TpSpace(const FunctionSpace&... function_space) :
         function_spaces_(std::make_tuple(function_space...)), dof_handler_(function_space.dof_handler()...) { }
@@ -435,4 +437,4 @@ class TpFunction :
 
 }   // namespace fdapde
 
-#endif   // __TP_SPACE_H__
+#endif   // __FDAPDE_TP_SPACE_H__

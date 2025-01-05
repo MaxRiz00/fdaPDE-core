@@ -17,14 +17,6 @@
 #ifndef __MDARRAY_H__
 #define __MDARRAY_H__
 
-#include <array>
-#include <numeric>
-
-#include "../utils/assert.h"
-#include "../utils/symbols.h"
-#include "../utils/traits.h"
-#include "constexpr_matrix.h"
-
 namespace fdapde {
 
 static constexpr int full_extent = -2;   // indicates to take the whole extent in subsetting

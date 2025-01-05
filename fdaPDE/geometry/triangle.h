@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __TRIANGLE_H__
-#define __TRIANGLE_H__
+#ifndef __FDAPDE_TRIANGLE_H__
+#define __FDAPDE_TRIANGLE_H__
 
-#include "../utils/symbols.h"
-#include "simplex.h"
-#include "utils.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -100,4 +98,4 @@ template <typename Triangulation> class Triangle : public Simplex<Triangulation:
 
 }   // namespace fdapde
 
-#endif   // __TRIANGLE_H__
+#endif   // __FDAPDE_TRIANGLE_H__

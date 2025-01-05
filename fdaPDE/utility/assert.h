@@ -17,8 +17,6 @@
 #ifndef __FDAPDE_ASSERT_H__
 #define __FDAPDE_ASSERT_H__
 
-#include <iostream>
-
 namespace fdapde {
 
 #define FDAPDE_COMMA ,

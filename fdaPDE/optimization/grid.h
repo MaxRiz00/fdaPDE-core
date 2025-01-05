@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __GRID_H__
-#define __GRID_H__
+#ifndef __FDAPDE_GRID_H__
+#define __FDAPDE_GRID_H__
 
-#include "../fields.h"
-#include "../utils/symbols.h"
-#include "callbacks/callbacks.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -72,4 +70,4 @@ template <int N, typename... Args> class Grid {
 
 }   // namespace fdapde
 
-#endif   // __GRID_H__
+#endif   // __FDAPDE_GRID_H__

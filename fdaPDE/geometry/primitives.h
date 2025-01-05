@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __GEOMETRIC_PRIMITIVES_H__
-#define __GEOMETRIC_PRIMITIVES_H__
+#ifndef __FDAPDE_GEOMETRIC_PRIMITIVES_H__
+#define __FDAPDE_GEOMETRIC_PRIMITIVES_H__
 
-#include "../utils/symbols.h"
-#include "../utils/traits.h"
+#include "header_check.h"
 
 namespace fdapde {
 namespace internals {
@@ -50,10 +49,10 @@ constexpr bool are_2d_counterclockwise_sorted(const PointT& a, const PointT& b, 
 }
 // area of 2D polygon given counterclockwise sorted vertices v_0, v_1, \ldots, v_{n - 1} (lemma 1.3.3 of (1))
 template <typename PointList>
-    requires(fdapde::is_eigen_dense_v<PointList> || fdapde::is_subscriptable<PointList, int>)
+    requires(internals::is_eigen_dense_xpr_v<PointList> || fdapde::is_subscriptable<PointList, int>)
 constexpr double signed_measure_2d_polygon(const PointList& points) {
     double area = 0;
-    if constexpr (fdapde::is_eigen_dense_v<PointList>) {
+    if constexpr (internals::is_eigen_dense_xpr_v<PointList>) {
         fdapde_assert(points.rows() > 0 && points.cols() == 2);
         int n_points = points.rows();
         for (int i = 0; i < n_points - 1; ++i) {
@@ -166,4 +165,4 @@ constexpr double measure_3d_tet(const PointT& a, const PointT& b, const PointT& 
 }   // namespace internals
 }   // namespace fdapde
 
-#endif // __GEOMETRIC_PRIMITIVES_H__
+#endif // __FDAPDE_GEOMETRIC_PRIMITIVES_H__

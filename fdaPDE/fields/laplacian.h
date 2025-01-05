@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __LAPLACIAN_H__
-#define __LAPLACIAN_H__
+#ifndef __FDAPDE_LAPLACIAN_H__
+#define __FDAPDE_LAPLACIAN_H__
 
-#include "scalar_field.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -58,4 +58,4 @@ template <typename XprType> constexpr Laplacian<XprType> laplacian(const XprType
 
 }   // namespace fdapde
 
-#endif   // __LAPLACIAN_H__
+#endif   // __FDAPDE_LAPLACIAN_H__

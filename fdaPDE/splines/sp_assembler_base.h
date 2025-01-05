@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SP_ASSEMBLER_BASE_H__
-#define __SP_ASSEMBLER_BASE_H__
+#ifndef __FDAPDE_SP_ASSEMBLER_BASE_H__
+#define __FDAPDE_SP_ASSEMBLER_BASE_H__
 
-#include "sp_integration.h"
+#include "header_check.h"
 
 namespace fdapde{
 
@@ -67,7 +67,7 @@ struct sp_assembler_base {
     static constexpr int embed_dim = Triangulation::embed_dim;
     static constexpr int Options = Options_;
     using FunctionSpace = TestSpace;
-    using DofHandlerType = DofHandler<local_dim, embed_dim, typename FunctionSpace::space_category>;
+    using DofHandlerType = DofHandler<local_dim, embed_dim, spline_tag>;
     using Quadrature = decltype([]() {
         if constexpr (sizeof...(Quadrature_) == 0) {
             return void();   // quadrature selcted at run-time provided the actual order of spline basis
@@ -77,6 +77,9 @@ struct sp_assembler_base {
     }());
     using geo_iterator = typename Triangulation::cell_iterator;
     using dof_iterator = typename DofHandlerType::cell_iterator;
+    using discretization_category = typename TestSpace::discretization_category;
+    fdapde_static_assert(
+      std::is_same_v<discretization_category FDAPDE_COMMA spline_tag>, THIS_CLASS_IS_FOR_SPLINE_DISCRETIZATION_ONLY);
 
     sp_assembler_base() = default;
     sp_assembler_base(
@@ -203,4 +206,4 @@ struct sp_assembler_base {
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __SP_ASSEMBLER_BASE_H__
+#endif   // __FDAPDE_SP_ASSEMBLER_BASE_H__

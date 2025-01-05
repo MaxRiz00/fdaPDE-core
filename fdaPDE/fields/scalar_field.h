@@ -14,13 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SCALAR_FIELD_H__
-#define __SCALAR_FIELD_H__
+#ifndef __FDAPDE_SCALAR_FIELD_H__
+#define __FDAPDE_SCALAR_FIELD_H__
 
-#include <type_traits>
-
-#include "../utils/symbols.h"
-#include "meta.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -48,7 +45,7 @@ struct ScalarFieldUnaryOp :
     constexpr int input_size() const { return derived_.input_size(); }
     constexpr const Derived& derived() const { return derived_; }
    private:
-    typename internals::ref_select<const Derived>::type derived_;
+    internals::ref_select_t<const Derived> derived_;
     UnaryFunctor op_;
 };
 template <int Size, typename Derived> constexpr auto sin(const ScalarFieldBase<Size, Derived>& f) {
@@ -121,8 +118,8 @@ class ScalarFieldBinOp : public ScalarFieldBase<Lhs_::StaticInputSize, ScalarFie
     constexpr const LhsDerived& lhs() const { return lhs_; }
     constexpr const RhsDerived& rhs() const { return rhs_; }
    private:
-    typename internals::ref_select<const LhsDerived>::type lhs_;
-    typename internals::ref_select<const RhsDerived>::type rhs_;
+    internals::ref_select_t<const LhsDerived> lhs_;
+    internals::ref_select_t<const RhsDerived> rhs_;
     BinaryOperation op_;
 };
 
@@ -194,8 +191,8 @@ struct ScalarFieldCoeffOp :
     constexpr const LhsDerived& lhs() const { return lhs_; }
     constexpr const RhsDerived& rhs() const { return rhs_; }
    private:
-    typename internals::ref_select<const LhsDerived>::type lhs_;
-    typename internals::ref_select<const RhsDerived>::type rhs_;
+    internals::ref_select_t<const LhsDerived> lhs_;
+    internals::ref_select_t<const RhsDerived> rhs_;
     BinaryOperation op_;
 };
 
@@ -222,7 +219,7 @@ FDAPDE_DEFINE_SCALAR_COEFF_OP(operator/, std::divides<>   )
 
 template <
   int Size,   // input space dimension (fdapde::Dynamic accepted)
-  typename FunctorType_ = std::function<double(static_dynamic_vector_selector_t<Size>)>>
+  typename FunctorType_ = std::function<double(internals::static_dynamic_eigen_vector_selector_t<Size>)>>
 class ScalarField : public ScalarFieldBase<Size, ScalarField<Size, FunctorType_>> {
     using FunctorType = std::decay_t<FunctorType_>;   // type of wrapped functor
     using traits = fn_ptr_traits<&FunctorType::operator()>;
@@ -329,7 +326,7 @@ struct PartialDerivative<Derived_, 1> :
     constexpr int input_size() const { return f_.input_size(); }
     constexpr const Derived& derived() const { return f_; }
    private:
-    typename internals::ref_select<Derived>::type f_;
+    internals::ref_select_t<Derived> f_;
     int i_;
     double h_ = 1e-3;
 };
@@ -385,7 +382,7 @@ struct PartialDerivative<Derived_, 2> :
     constexpr int input_size() const { return f_.input_size(); }
     constexpr const Derived& derived() const { return f_; }
    private:
-    typename internals::ref_select<Derived>::type f_;
+    internals::ref_select_t<Derived> f_;
     int i_, j_;
     double h_ = 1e-3;
 };
@@ -455,4 +452,4 @@ using xpr_or_scalar_wrap_t = typename xpr_or_scalar_wrap<Xpr_, StaticInputSize_,
 
 }   // namespace fdapde
 
-#endif   // __SCALAR_FIELD_H__
+#endif   // __FDAPDE_SCALAR_FIELD_H__

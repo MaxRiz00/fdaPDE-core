@@ -14,16 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FSPAI_H__
-#define __FSPAI_H__
+#ifndef __FDAPDE_FSPAI_H__
+#define __FDAPDE_FSPAI_H__
 
-#include "../utils/symbols.h"
+#include "header_check.h"
 
-namespace fdapde {
-
-template <typename T>
-concept is_eigen_sparse_matrix = std::is_base_of_v<Eigen::SparseMatrixBase<T>, T>;
-  
+namespace fdapde {  
 namespace internals {
   
 // a class to represent the sparsity pattern of a matrix
@@ -94,7 +90,7 @@ template <typename Index_, int Options_> struct sparsity_pattern {
         for (auto& line : sparsity_) line.resize(inner_size_);
     }
     template <typename MatrixType>
-        requires(fdapde::is_eigen_sparse_matrix<MatrixType> &&
+        requires(internals::is_eigen_sparse_xpr_v<MatrixType> &&
                  requires(MatrixType m) { typename MatrixType::InnerIterator; } &&
                  ((MatrixType::IsRowMajor == RowMajor && StorageOrder == RowMajor) || StorageOrder == ColMajor))
     sparsity_pattern(const MatrixType& m) :
@@ -140,8 +136,9 @@ template <typename Index_, int Options_> struct sparsity_pattern {
 // implementation of the Factorized Sparse Approximate Inverse algorithm with sparsity pattern update, for the sparse
 // SPD square approximation of the inverse of a sparse SPD square matrix
 template <typename MatrixType_>
-    requires(fdapde::is_eigen_sparse_matrix<MatrixType_>)
 struct FSPAI {
+    fdapde_static_assert(
+      internals::is_eigen_sparse_xpr_v<std::decay_t<MatrixType_>>, THIS_CLASS_IS_FOR_SPARSE_EIGEN_MATRICES_ONLY);
     using MatrixType = MatrixType_;
     using Index = Eigen::Index;
     using StorageIndex = typename MatrixType::StorageIndex;
@@ -300,4 +297,4 @@ struct FSPAI {
 
 }   // namespace fdapde
 
-#endif   // __FSPAI_H__
+#endif   // __FDAPDE_FSPAI_H__

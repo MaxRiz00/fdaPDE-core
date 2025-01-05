@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __DIVERGENCE_H__
-#define __DIVERGENCE_H__
+#ifndef __FDAPDE_DIVERGENCE_H__
+#define __FDAPDE_DIVERGENCE_H__
 
-#include "scalar_field.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -65,4 +65,4 @@ template <typename XprType> Divergence<XprType> constexpr div(const XprType& xpr
 
 }   // namespace fdapde
 
-#endif // __DIVERGENCE_H__
+#endif // __FDAPDE_DIVERGENCE_H__

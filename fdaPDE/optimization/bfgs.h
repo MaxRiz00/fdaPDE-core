@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BFGS_H__
-#define __BFGS_H__
+#ifndef __FDAPDE_BFGS_H__
+#define __FDAPDE_BFGS_H__
 
-#include "../fields.h"
-#include "../utils/symbols.h"
-#include "callbacks/callbacks.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -125,4 +123,4 @@ template <int N, typename... Args> class BFGS {
 
 }   // namespace fdapde
 
-#endif   // __BFGS_H__
+#endif   // __FDAPDE_BFGS_H__

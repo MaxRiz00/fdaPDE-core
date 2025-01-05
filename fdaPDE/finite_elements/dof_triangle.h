@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __DOF_TRIANGLE_H__
-#define __DOF_TRIANGLE_H__
+#ifndef __FDAPDE_DOF_TRIANGLE_H__
+#define __FDAPDE_DOF_TRIANGLE_H__
 
-#include "../geometry/triangle.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -106,4 +106,4 @@ class DofTriangle : public Triangle<typename DofHandler::TriangulationType> {
 
 }   // namespace fdapde
 
-#endif // __DOF_TRIANGLE_H__
+#endif // __FDAPDE_DOF_TRIANGLE_H__

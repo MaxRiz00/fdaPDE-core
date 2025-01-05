@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SEGMENT_H__
-#define __SEGMENT_H__
+#ifndef __FDAPDE_SEGMENT_H__
+#define __FDAPDE_SEGMENT_H__
 
-#include "../utils/symbols.h"
-#include "simplex.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -51,4 +50,4 @@ template <typename Triangulation> class Segment : public Simplex<Triangulation::
 
 }   // namespace fdapde
 
-#endif   // __SEGMENT_H__
+#endif   // __FDAPDE_SEGMENT_H__

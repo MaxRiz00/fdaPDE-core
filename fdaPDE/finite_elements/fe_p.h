@@ -14,14 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FE_P_H__
-#define __FE_P_H__
+#ifndef __FDAPDE_FE_P_H__
+#define __FDAPDE_FE_P_H__
 
-#include "../geometry/simplex.h"
-#include "../linear_algebra/constexpr_matrix.h"
-#include "../utils/symbols.h"
-#include "fe_integration.h"
-#include "lagrange_basis.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -43,8 +39,6 @@ template <int LocalDim, int Order, int NComponents> struct vector_fe_p_basis_typ
             static constexpr int StaticInputSize = LocalDim;
             static constexpr int NestAsRef = 0;
             static constexpr int XprBits = 0;
-
-            constexpr Component() = default;
             constexpr Component(const PolynomialType* xpr, int i) : xpr_(xpr), i_(i) { }
             constexpr Scalar operator()(const InputType& p) const { return xpr_->eval(i_, p); }
             constexpr int input_size() const { return StaticInputSize; }
@@ -343,4 +337,4 @@ template <int N> constexpr FeP<5, N> P5 = FeP<5, N> {};
   
 }   // namespace fdapde
 
-#endif   // __FE_P_H__
+#endif   // __FDAPDE_FE_P_H__

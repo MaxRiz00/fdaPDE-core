@@ -14,16 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_UTILS_MODULE_H__
-#define __FDAPDE_UTILS_MODULE_H__
-
-#include "utils/assert.h"
-#include "utils/constexpr.h"
-#include "utils/data_structures/binary_tree.h"
-#include "utils/data_structures/block_frame.h"
-#include "utils/data_structures/block_vector.h"
-#include "utils/symbols.h"
-#include "utils/traits.h"
-#include "utils/type_erasure.h"
-
-#endif   // __FDAPDE_UTILS_MODULE_H__
+#ifndef __FDAPDE_LINEAR_ALGEBRA_MODULE_H__
+#    error "Include fdaPDE/linear_algebra.h instead of including internal headers directly."
+#endif

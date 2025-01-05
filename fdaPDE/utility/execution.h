@@ -14,30 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_FIELDS_MODULE_H__
-#define __FDAPDE_FIELDS_MODULE_H__
+#ifndef __FDAPDE_EXECUTION_H__
+#define __FDAPDE_EXECUTION_H__
 
-// clang-format off
+namespace fdapde {
 
-// include required modules
-#include "utility.h"
+// execution policy tags
+struct sequential_execution_tag { } seq;   // sequential algorithms tag
+struct parallel_execution_tag   { } par;   // parallel algorithms tag
 
-// scalar fields logic, as the matrix field one will depend on it
-#include "fields/scalar_field.h"
-#include "fields/divergence.h"
-#include "fields/dot.h"
-#include "fields/laplacian.h"
-#include "fields/norm.h"
-#include "fields/space_time_field.h"
-// matrix field logic
-#include "fields/jacobian.h"
-#include "fields/matrix_field.h"
-#include "fields/gradient.h"
-#include "fields/hessian.h"
+template <typename T, typename U = std::decay_t<T>>
+concept is_execution_policy =
+  std::is_same_v<U, fdapde::sequential_execution_tag> || std::is_same_v<U, fdapde::parallel_execution_tag>;
 
-#include "fields/polynomial.h"
-#include "fields/spline.h"
+}   // namespace fdapde
 
-// clang-format on
-
-#endif   // __FDAPDE_FIELDS_MODULE_H__
+#endif   // __FDAPDE_EXECUTION_H__

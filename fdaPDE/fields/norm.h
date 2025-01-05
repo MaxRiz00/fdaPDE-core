@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __NORM_H__
-#define __NORM_H__
+#ifndef __FDAPDE_NORM_H__
+#define __FDAPDE_NORM_H__
 
-#include "scalar_field.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -58,4 +58,4 @@ class MatrixFieldNorm : public ScalarFieldBase<Derived_::StaticInputSize, Matrix
 
 }   // namespace fdapde
 
-#endif // __NORM_H__
+#endif // __FDAPDE_NORM_H__

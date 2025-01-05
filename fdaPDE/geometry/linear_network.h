@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __LINEAR_NETWORK_H__
-#define __LINEAR_NETWORK_H__
+#ifndef __FDAPDE_LINEAR_NETWORK_H__
+#define __FDAPDE_LINEAR_NETWORK_H__
 
-#include "../linear_algebra/binary_matrix.h"
-#include "segment.h"
+#include "header_check.h"
 
 namespace fdapde {
   
@@ -140,4 +139,4 @@ template <> class Triangulation<1, 2> {
 
 }   // namespace fdapde
 
-#endif   // __LINEAR_NETWORK_H__
+#endif   // __FDAPDE_LINEAR_NETWORK_H__

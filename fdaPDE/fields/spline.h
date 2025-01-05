@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SPLINE_H__
-#define __SPLINE_H__
+#ifndef __FDAPDE_SPLINE_H__
+#define __FDAPDE_SPLINE_H__
 
-#include "../linear_algebra/constexpr_matrix.h"
-#include "../linear_algebra/mdarray.h"
-#include "scalar_field.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -169,4 +167,4 @@ constexpr auto ddx(const Spline& spline) { return spline.gradient(2); }
 
 }   // namespace fdapde
 
-#endif // __SPLINE_H__
+#endif // __FDAPDE_SPLINE_H__

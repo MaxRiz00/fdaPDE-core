@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __PROJECTION_H__
-#define __PROJECTION_H__
+#ifndef __FDAPDE_PROJECTION_H__
+#define __FDAPDE_PROJECTION_H__
 
-#include "kd_tree.h"
-#include "../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -77,4 +76,4 @@ template <typename TriangulationType> class Projection {
 
 }   // namespace fdapde
 
-#endif // __PROJECTION_H__
+#endif   // __FDAPDE_PROJECTION_H__

@@ -14,15 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __KD_TREE_H__
-#define __KD_TREE_H__
+#ifndef __FDAPDE_KD_TREE_H__
+#define __FDAPDE_KD_TREE_H__
 
-#include <algorithm>
-#include <numeric>
-#include <unordered_set>
-
-#include "../utils/symbols.h"
-#include "../utils/data_structures/binary_tree.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -151,4 +146,4 @@ template <int K> class KDTree {
 
 }   // namespace fdapde
 
-#endif   // __KD_TREE_H__
+#endif   // __FDAPDE_KD_TREE_H__

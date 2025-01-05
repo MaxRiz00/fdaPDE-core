@@ -17,13 +17,23 @@
 #ifndef __FDAPDE_OPTIMIZATION_MODULE_H__
 #define __FDAPDE_OPTIMIZATION_MODULE_H__
 
-#include "optimization/optimizer.h"
+// clang-format off
+
+// include required modules
+#include "linear_algebra.h"    // pull-in Eigen first
+#include "utility.h"
+#include "fields.h"
+
+// callbacks
+#include "optimization/callbacks.h"
+#include "optimization/backtracking_line_search.h"
+#include "optimization/wolfe_line_search.h"
+// algorithms
 #include "optimization/grid.h"
 #include "optimization/newton.h"
 #include "optimization/gradient_descent.h"
 #include "optimization/bfgs.h"
-#include "optimization/callbacks.h"
-#include "optimization/backtracking_line_search.h"
-#include "optimization/wolfe_line_search.h"
+
+// clang-format on
 
 #endif   // __FDAPDE_OPTIMIZATION_MODULE_H__

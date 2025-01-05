@@ -17,16 +17,22 @@
 #ifndef __FDAPDE_LINEAR_ALGEBRA_MODULE_H__
 #define __FDAPDE_LINEAR_ALGEBRA_MODULE_H__
 
-// include Eigen
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
+// clang-format off
 
-#include "linear_algebra/binary_matrix.h"
-#include "linear_algebra/constexpr_matrix.h"
+// include Eigen linear algebra library
+#include <Eigen/Eigen>
+#define __FDAPDE_HAS_EIGEN
+
+// pull in required modules
+#include "utility.h"
+
+#include "linear_algebra/eigen_helper.h"
 #include "linear_algebra/fspai.h"
 #include "linear_algebra/kronecker.h"
 #include "linear_algebra/lumping.h"
 #include "linear_algebra/sparse_block_matrix.h"
 #include "linear_algebra/woodbury.h"
+
+// clang-format on
 
 #endif   // __FDAPDE_LINEAR_ALGEBRA_MODULE_H__

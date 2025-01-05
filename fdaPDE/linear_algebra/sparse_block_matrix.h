@@ -14,13 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SPARSE_BLOCK_MATRIX_H__
-#define __SPARSE_BLOCK_MATRIX_H__
+#ifndef __FDAPDE_SPARSE_BLOCK_MATRIX_H__
+#define __FDAPDE_SPARSE_BLOCK_MATRIX_H__
 
-#include <Eigen/Core>
-#include <Eigen/Sparse>
-
-#include "../utils/assert.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -310,4 +307,4 @@ struct evaluator<SparseBlockMatrix<Scalar_, Rows_, Cols_, Options_, StorageIndex
 }   // namespace internal
 }   // namespace Eigen
 
-#endif   // __SPARSE_BLOCK_MATRIX_H__
+#endif   // __FDAPDE_SPARSE_BLOCK_MATRIX_H__

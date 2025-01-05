@@ -14,11 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __ASSEMBLY_H__
-#define __ASSEMBLY_H__
-
-#include "fields/meta.h"
-#include "finite_elements/fe_integration.h"
+#ifndef __FDAPDE_ASSEMBLY_H__
+#define __FDAPDE_ASSEMBLY_H__
 
 namespace fdapde {
 
@@ -26,13 +23,15 @@ namespace fdapde {
 [[maybe_unused]] static constexpr int FaceMajor = 1;
 
 // test function forward decl
-template <typename FunctionSpace_, typename SpaceCategory_> struct TestFunction;
+template <typename FunctionSpace_, typename DiscretizationCategory_> struct TestFunction;
 template <typename FunctionSpace_>   // deduction guide
-TestFunction(FunctionSpace_ function_space) -> TestFunction<FunctionSpace_, typename FunctionSpace_::space_category>;
+TestFunction(FunctionSpace_ function_space)
+  -> TestFunction<FunctionSpace_, typename FunctionSpace_::discretization_category>;
 // trial function forward decl
-template <typename FunctionSpace, typename SpaceCategory_> struct TrialFunction;
+template <typename FunctionSpace, typename DiscretizationCategory_> struct TrialFunction;
 template <typename FunctionSpace_>   // deduction guide
-TrialFunction(FunctionSpace_ function_space) -> TrialFunction<FunctionSpace_, typename FunctionSpace_::space_category>;
+TrialFunction(FunctionSpace_ function_space)
+  -> TrialFunction<FunctionSpace_, typename FunctionSpace_::discretization_category>;
 
 namespace internals {
 
@@ -86,8 +85,8 @@ struct assembly_add_op : public assembly_xpr_base<assembly_add_op<Lhs, Rhs>> {
       std::is_same_v<decltype(std::declval<Lhs>().assemble()) FDAPDE_COMMA decltype(std::declval<Rhs>().assemble())>,
       YOU_ARE_SUMMING_NON_COMPATIBLE_ASSEMBLY_LOOPS);
     fdapde_static_assert(
-      std::is_same_v<typename Lhs::space_category FDAPDE_COMMA typename Rhs::space_category>,
-      CANNOT_SUM_ASSEMBLY_LOOPS_OF_DIFFERENT_CATEGORY);
+      std::is_same_v<typename Lhs::discretization_category FDAPDE_COMMA typename Rhs::discretization_category>,
+      CANNOT_SUM_ASSEMBLY_LOOPS_OF_USING_DIFFERENT_DISCRETIZATION_CATEGORIES);
     using OutputType = decltype(std::declval<Lhs>().assemble());
     assembly_add_op(const Lhs& lhs, const Rhs& rhs) : lhs_(lhs), rhs_(rhs) {
         fdapde_assert(lhs.rows() == rhs.rows() && lhs.cols() == rhs.cols());
@@ -162,11 +161,7 @@ template <typename Triangulation_, typename Xpr_, int Options_, typename... Quad
         if constexpr (Quadrature::order == 0) {
             fdapde_static_assert(false, THIS_METHOD_REQUIRES_A_QUADRATURE_RULE);
         } else {
-            fdapde_static_assert(
-              Triangulation::local_dim == Quadrature::local_dim &&
-                (Triangulation::embed_dim == 1 ||
-                 internals::is_fe_quadrature_simplex_v<std::tuple_element_t<0, std::tuple<Quadrature_...>>>),
-              INVALID_QUADRATURE_RULE);
+            fdapde_static_assert(Triangulation::local_dim == Quadrature::local_dim, INVALID_QUADRATURE_RULE);
             constexpr int n_quadrature_nodes = Quadrature::order;
             Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, Triangulation::local_dim, Eigen::RowMajor>>
               ref_quad_nodes(quadrature_.nodes.data());
@@ -205,9 +200,6 @@ template <typename Triangulation, int Options, typename... Quadrature> class int
         if constexpr (trial_space_detected && test_space_detected) {   // discretizing bilinear form
             using TrialSpace = std::decay_t<decltype(trial_space(form))>;
             using TestSpace  = std::decay_t<decltype(test_space (form))>;
-            fdapde_static_assert(
-              std::is_same_v<typename TrialSpace::space_category FDAPDE_COMMA typename TestSpace::space_category>,
-              TRIAL_AND_TEST_SPACES_ARE_DEFINED_ON_DIFFERENT_SPACE_CATEGORIES);
             if constexpr (sizeof...(Quadrature) == 0) {
                 return typename TestSpace::template bilinear_form_assembly_loop<Triangulation, Form, Options> {
                   form, begin_, end_};
@@ -264,4 +256,4 @@ auto integral(
   
 }   // namespace fdapde
 
-#endif   // __ASSEMBLY_H__
+#endif   // __FDAPDE_ASSEMBLY_H__

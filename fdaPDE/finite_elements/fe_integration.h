@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FE_INTEGRATION_H__
-#define __FE_INTEGRATION_H__
+#ifndef __FDAPDE_FE_INTEGRATION_H__
+#define __FDAPDE_FE_INTEGRATION_H__
 
-#include "../linear_algebra/constexpr_matrix.h"
+#include "header_check.h"
 
 namespace fdapde {
 namespace internals {
@@ -379,4 +379,4 @@ template <> struct fe_quadrature_simplex<3, 24> : public fe_quadrature_simplex_b
   
 }   // namespace fdapde
 
-#endif   // __FE_INTEGRATION_H__
+#endif   // __FDAPDE_FE_INTEGRATION_H__

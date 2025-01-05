@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BACKTRACKING_LINE_SEARCH_H__
-#define __BACKTRACKING_LINE_SEARCH_H__
+#ifndef __FDAPDE_BACKTRACKING_LINE_SEARCH_H__
+#define __FDAPDE_BACKTRACKING_LINE_SEARCH_H__
 
-#include "../../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -49,4 +49,4 @@ class BacktrackingLineSearch {
 
 }   // namespace fdapde
 
-#endif   // __BACKTRACKING_LINE_SEARCH_H__
+#endif   // __FDAPDE_BACKTRACKING_LINE_SEARCH_H__

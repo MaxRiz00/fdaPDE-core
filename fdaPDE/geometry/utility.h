@@ -14,15 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __MESH_UTILS_H__
-#define __MESH_UTILS_H__
+#ifndef __FDAPDE_GEOMETRY_UTILITY_H__
+#define __FDAPDE_GEOMETRY_UTILITY_H__
 
-#include "../utils/constexpr.h"
-#include "../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
 
-// flgas
+// flags
 [[maybe_unused]] static constexpr int cache_cells = 0x0001;
 
 // special marker values
@@ -146,4 +145,4 @@ class filtering_iterator : public index_iterator<IteratorType, ValueType> {
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __MESH_UTILS_H__
+#endif   // __FDAPDE_GEOMETRY_UTILITY_H__

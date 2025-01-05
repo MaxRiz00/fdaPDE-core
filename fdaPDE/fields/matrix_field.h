@@ -14,19 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __MATRIX_FIELD_H__
-#define __MATRIX_FIELD_H__
+#ifndef __FDAPDE_MATRIX_FIELD_H__
+#define __FDAPDE_MATRIX_FIELD_H__
 
-#include <array>
-#include <type_traits>
-
-#include "../linear_algebra/constexpr_matrix.h"
-#include "../utils/symbols.h"
-#include "divergence.h"
-#include "dot.h"
-#include "jacobian.h"
-#include "meta.h"
-#include "norm.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -145,8 +136,8 @@ class MatrixFieldProduct : public MatrixFieldBase<Lhs::StaticInputSize, MatrixFi
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    typename internals::ref_select<const Lhs>::type lhs_;
-    typename internals::ref_select<const Rhs>::type rhs_;
+    internals::ref_select_t<const Lhs> lhs_;
+    internals::ref_select_t<const Rhs> rhs_;
 };
 template <typename Lhs, typename Rhs>
 constexpr MatrixFieldProduct<Lhs, Rhs> operator*(
@@ -226,7 +217,8 @@ class MatrixFieldBlock :
     }
     // block assignment
     template <int Size_, typename RhsDerived>
-    constexpr MatrixFieldBlock<BlockRows_, BlockCols_, Derived>& operator=(const MatrixFieldBase<Size_, RhsDerived>& rhs)
+    constexpr MatrixFieldBlock<BlockRows_, BlockCols_, Derived>&
+    operator=(const MatrixFieldBase<Size_, RhsDerived>& rhs)
         requires(BlockRows_ != Dynamic && BlockCols_ != Dynamic) {
         fdapde_static_assert(Derived::ReadOnly != 0, BLOCK_ASSIGNMENT_TO_A_READ_ONLY_EXPRESSION_IS_INVALID);
         fdapde_static_assert(
@@ -256,7 +248,7 @@ class MatrixFieldBlock :
    private:
     int start_row_ = 0, start_col_ = 0;
     int block_rows_ = 0, block_cols_ = 0;
-    typename internals::ref_select<Derived>::type xpr_;
+    internals::ref_select_t<Derived> xpr_;
 };
 
 template <typename Lhs, typename Rhs, typename BinaryOperation>
@@ -270,8 +262,8 @@ class MatrixFieldBinOp : public MatrixFieldBase<Lhs::StaticInputSize, MatrixFiel
     fdapde_static_assert(
       std::is_convertible_v<typename Lhs::Scalar FDAPDE_COMMA typename Rhs::Scalar>,
       YOU_MIXED_MATRIX_FIELDS_WITH_NON_CONVERTIBLE_SCALAR_OUTPUT_TYPES);
-    typename internals::ref_select<const Lhs>::type lhs_;
-    typename internals::ref_select<const Rhs>::type rhs_;
+    internals::ref_select_t<const Lhs> lhs_;
+    internals::ref_select_t<const Rhs> rhs_;
     BinaryOperation op_;
    public:
     using LhsDerived = Lhs;
@@ -465,8 +457,8 @@ class MatrixFieldCoeffWiseOp :
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    typename internals::ref_select<const LhsDerived>::type lhs_;
-    typename internals::ref_select<const RhsDerived>::type rhs_;
+    internals::ref_select_t<const LhsDerived> lhs_;
+    internals::ref_select_t<const RhsDerived> rhs_;
     BinaryOperation op_;
 };
 
@@ -500,10 +492,10 @@ operator*(const MatrixFieldBase<Size, Lhs>& lhs, const Rhs& rhs)
         return MatrixFieldCoeffWiseOp<Lhs, Rhs, std::divides<>>(lhs.derived(), rhs, std::divides<>());
     }
 }
-  
+
 template <
   int StaticInputSize_, int Rows_, int Cols_,
-  typename FunctorType_ = std::function<double(static_dynamic_vector_selector_t<StaticInputSize_>)>>
+  typename FunctorType_ = std::function<double(internals::static_dynamic_eigen_vector_selector_t<StaticInputSize_>)>>
 class MatrixField :
     public MatrixFieldBase<StaticInputSize_, MatrixField<StaticInputSize_, Rows_, Cols_, FunctorType_>> {
     template <typename T> struct is_dynamic_sized {
@@ -684,11 +676,12 @@ struct MatrixFieldTranspose : public MatrixFieldBase<Derived_::StaticInputSize, 
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    typename internals::ref_select<const Derived>::type xpr_;
+    internals::ref_select_t<const Derived> xpr_;
 };
 
 template <typename Derived_>
-struct MatrixFieldDiagonalBlock : public MatrixFieldBase<Derived_::StaticInputSize, MatrixFieldDiagonalBlock<Derived_>> {
+struct MatrixFieldDiagonalBlock :
+    public MatrixFieldBase<Derived_::StaticInputSize, MatrixFieldDiagonalBlock<Derived_>> {
     fdapde_static_assert(Derived_::Rows == Derived_::Cols, DIAGONAL_BLOCK_DEFINED_ONLY_FOR_SQUARED_MATRICES);
     using Derived = Derived_;
     template <typename T> using Meta = MatrixFieldDiagonalBlock<T>;  
@@ -737,7 +730,7 @@ struct MatrixFieldDiagonalBlock : public MatrixFieldBase<Derived_::StaticInputSi
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    typename internals::ref_select<Derived>::type xpr_;
+    internals::ref_select_t<Derived> xpr_;
 };
 
 template <typename Derived_, int ViewMode>
@@ -815,7 +808,7 @@ struct MatrixFieldSymmetricView :
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    typename internals::ref_select<Derived>::type xpr_;
+    internals::ref_select_t<Derived> xpr_;
 };
 
 // base class for matrix expressions
@@ -920,11 +913,12 @@ template <int StaticInputSize, typename Derived> struct MatrixFieldBase {
 
 namespace internals {
 
-template <typename Lhs, typename Rhs, typename FieldType_ = std::conditional_t<is_eigen_dense_v<Lhs>, Rhs, Lhs>>
+template <
+  typename Lhs, typename Rhs, typename FieldType_ = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Rhs, Lhs>>
 class matrix_eigen_product_impl :
     public MatrixFieldBase<FieldType_::StaticInputSize, matrix_eigen_product_impl<Lhs, Rhs>> {
-    using FieldType = std::conditional_t<is_eigen_dense_v<Lhs>, Rhs, Lhs>;
-    using EigenType = std::conditional_t<is_eigen_dense_v<Lhs>, Lhs, Rhs>;
+    using FieldType = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Rhs, Lhs>;
+    using EigenType = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Lhs, Rhs>;
     static constexpr bool is_field_lhs = std::is_same_v<FieldType, Lhs>;
     fdapde_static_assert(
       FieldType::Rows == Dynamic || FieldType::Cols == Dynamic || EigenType::RowsAtCompileTime == Dynamic ||
@@ -1030,17 +1024,17 @@ class matrix_eigen_product_impl :
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    std::conditional_t<is_eigen_dense_v<Lhs>, const Lhs&, typename internals::ref_select<const Lhs>::type> lhs_;
-    std::conditional_t<is_eigen_dense_v<Rhs>, const Rhs&, typename internals::ref_select<const Rhs>::type> rhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, const Lhs&, internals::ref_select_t<const Lhs>> lhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Rhs>, const Rhs&, internals::ref_select_t<const Rhs>> rhs_;
 };
 
 template <
   typename Lhs, typename Rhs, typename BinaryOperation,
-  typename FieldType_ = std::conditional_t<is_eigen_dense_v<Lhs>, Rhs, Lhs>>
+  typename FieldType_ = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Rhs, Lhs>>
 class matrix_eigen_binary_op_impl :
     public MatrixFieldBase<FieldType_::StaticInputSize, matrix_eigen_binary_op_impl<Lhs, Rhs, BinaryOperation>> {
-    using FieldType = std::conditional_t<is_eigen_dense_v<Lhs>, Rhs, Lhs>;
-    using EigenType = std::conditional_t<is_eigen_dense_v<Lhs>, Lhs, Rhs>;
+    using FieldType = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Rhs, Lhs>;
+    using EigenType = std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, Lhs, Rhs>;
     static constexpr bool is_field_lhs = std::is_same_v<FieldType, Lhs>;
     fdapde_static_assert(
       FieldType::Rows == Dynamic || FieldType::Cols == Dynamic || EigenType::RowsAtCompileTime == Dynamic ||
@@ -1104,8 +1098,8 @@ class matrix_eigen_binary_op_impl :
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    std::conditional_t<is_eigen_dense_v<Lhs>, const Lhs&, typename internals::ref_select<const Lhs>::type> lhs_;
-    std::conditional_t<is_eigen_dense_v<Rhs>, const Rhs&, typename internals::ref_select<const Rhs>::type> rhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, const Lhs&, internals::ref_select_t<const Lhs>> lhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Rhs>, const Rhs&, internals::ref_select_t<const Rhs>> rhs_;
     BinaryOperation op_;
 };
 
@@ -1161,8 +1155,7 @@ FDAPDE_DEFINE_FIELD_EIGEN_BIN_OP(operator+, std::plus<> )
 FDAPDE_DEFINE_FIELD_EIGEN_BIN_OP(operator-, std::minus<>)
 
 // integration with cexpr linear algebra
-
   
 }   // namespace fdapde
 
-#endif   // __MATRIX_FIELD_H__
+#endif   // __FDAPDE_MATRIX_FIELD_H__

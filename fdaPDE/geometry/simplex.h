@@ -14,16 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SIMPLEX_H__
-#define __SIMPLEX_H__
+#ifndef __FDAPDE_SIMPLEX_H__
+#define __FDAPDE_SIMPLEX_H__
 
-#include <optional>
-#include <numeric>
-
-#include "../linear_algebra/binary_matrix.h"
-#include "../utils/symbols.h"
-#include "hyperplane.h"
-#include "utils.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -215,4 +209,4 @@ template <int Order_, int EmbedDim_> class Simplex {
 
 }   // namespace fdapde
 
-#endif   // __SIMPLEX_H__
+#endif   // __FDAPDE_SIMPLEX_H__

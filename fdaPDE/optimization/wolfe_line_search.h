@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __WOLFE_LINE_SEARCH_H__
-#define __WOLFE_LINE_SEARCH_H__
+#ifndef __FDAPDE_WOLFE_LINE_SEARCH_H__
+#define __FDAPDE_WOLFE_LINE_SEARCH_H__
 
-#include "../../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -62,4 +62,4 @@ class WolfeLineSearch {
 
 }   // namespace fdapde
 
-#endif   // __WOLFE_LINE_SEARCH_H__
+#endif   // __FDAPDE_WOLFE_LINE_SEARCH_H__

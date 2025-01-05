@@ -17,9 +17,6 @@
 #ifndef __BINARY_MATRIX_H__
 #define __BINARY_MATRIX_H__
 
-#include "../utils/assert.h"
-#include "../utils/symbols.h"
-
 namespace fdapde {
 
 // forward declarations
@@ -75,6 +72,8 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         if constexpr (is_dynamic_sized<This>::value) data_.resize(Base::n_bitpacks_, 0);
         for (int i = 0; i < rhs.bitpacks(); ++i) { data_[i] = rhs.bitpack(i); }
     }
+
+#ifdef __FDAPDE_HAS_EIGEN
     // construct from Eigen dense matrix
     template <typename Derived> BinaryMatrix(const Eigen::MatrixBase<Derived>& mtx) : Base(mtx.rows(), mtx.cols()) {
         fdapde_static_assert(
@@ -87,6 +86,8 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
             }
         }
     }
+#endif
+  
     // construct from iterator pair
     template <typename Iterator>
     BinaryMatrix(Iterator begin, Iterator end, int n_rows, int n_cols) : Base(n_rows, n_cols) {
@@ -211,6 +212,8 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         for (int i = 0; i < rhs.bitpacks(); ++i) { data_[i] = rhs.bitpack(i); }
         return *this;
     }
+
+#ifdef __FDAPDE_HAS_EIGEN
     // assignment from Eigen dense expression
     template <typename Derived> BinaryMatrix& operator=(const Eigen::MatrixBase<Derived>& mtx) {
         fdapde_static_assert(
@@ -226,6 +229,7 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         }
         return *this;
     }
+#endif
    private:
     StorageType data_;
     // recover the byte-pack for the (i,j)-th element
@@ -601,6 +605,8 @@ template <int Rows, int Cols, typename XprType> class BinMtxBase {
     inline bool all() const { return visit_apply_<all_visitor<XprType>, linear_bitpack_visit>(); }
     inline bool any() const { return visit_apply_<any_visitor<XprType>, linear_bitpack_visit>(); }
     inline int count() const { return visit_apply_<count_visitor<XprType>, linear_bit_visit>(); }
+  
+#ifdef __FDAPDE_HAS_EIGEN
     // selection on eigen expressions
     template <typename ExprType>
     Eigen::Matrix<typename ExprType::Scalar, Dynamic, Dynamic> select(const Eigen::MatrixBase<ExprType>& mtx) const {
@@ -624,6 +630,8 @@ template <int Rows, int Cols, typename XprType> class BinMtxBase {
             }
         return masked_mtx;
     }
+#endif
+  
     // block-repeat operation
     BinMtxRepeatOp<Dynamic, Dynamic, XprType> repeat(int rep_row, int rep_col) const {
         return BinMtxRepeatOp<Dynamic, Dynamic, XprType>(get(), rep_row, rep_col);

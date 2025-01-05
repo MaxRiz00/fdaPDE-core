@@ -14,23 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __BARYCENTRIC_WALK_H__
-#define __BARYCENTRIC_WALK_H__
+#ifndef __FDAPDE_WALK_SEARCH_H__
+#define __FDAPDE_WALK_SEARCH_H__
 
-#include <random>
-#include <unordered_set>
+#include "header_check.h"
 
 namespace fdapde {
 
 // barycentric walk strategy for point location problem, works only for 2D and 3D *convex* triangualtions
-template <typename MeshType> class BarycentricWalk {
+template <typename MeshType> class WalkSearch {
    private:
     static constexpr int embed_dim = MeshType::embed_dim;
     static constexpr int local_dim = MeshType::local_dim;
     const MeshType* mesh_;
    public:
-    BarycentricWalk() = default;
-    BarycentricWalk(const MeshType* mesh) : mesh_(mesh) {
+    WalkSearch() = default;
+    WalkSearch(const MeshType* mesh) : mesh_(mesh) {
         static_assert(MeshType::local_dim == MeshType::embed_dim);
     };
     // finds element containing p, returns nullptr if element not found
@@ -63,4 +62,4 @@ template <typename MeshType> class BarycentricWalk {
 
 }   // namespace fdapde
 
-#endif   // __BARYCENTRIC_WALK_H__
+#endif   // __FDAPDE_WALK_SEARCH_H__

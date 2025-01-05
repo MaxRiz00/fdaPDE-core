@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SP_BILINEAR_FORM_ASSEMBLER_H__
-#define __SP_BILINEAR_FORM_ASSEMBLER_H__
+#ifndef __FDAPDE_SP_BILINEAR_FORM_ASSEMBLER_H__
+#define __FDAPDE_SP_BILINEAR_FORM_ASSEMBLER_H__
 
-#include <unordered_map>
-
-#include "sp_assembler_base.h"
+#include "header_check.h"
 
 namespace fdapde {
 namespace internals {
@@ -38,6 +36,10 @@ class sp_bilinear_form_assembly_loop :
     using Base = sp_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
     using Form = typename Base::Form;
     using DofHandlerType = typename Base::DofHandlerType;
+    using discretization_category = typename TestSpace::discretization_category;
+    fdapde_static_assert(
+      std::is_same_v<discretization_category FDAPDE_COMMA typename TrialSpace::discretization_category>,
+      TEST_AND_TRIAL_SPACE_MUST_HAVE_THE_SAME_DISCRETIZATION_CATEGORY);
     static constexpr int local_dim = Base::local_dim;
     static constexpr int embed_dim = Base::embed_dim;
     using Base::form_;
@@ -162,4 +164,4 @@ class sp_bilinear_form_assembly_loop :
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __SP_BILINEAR_FORM_ASSEMBLER_H__
+#endif   // __FDAPDE_SP_BILINEAR_FORM_ASSEMBLER_H__

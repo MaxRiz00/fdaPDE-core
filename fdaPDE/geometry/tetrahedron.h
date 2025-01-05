@@ -14,13 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __TETRAHEDRON_H__
-#define __TETRAHEDRON_H__
+#ifndef __FDAPDE_TETRAHEDRON_H__
+#define __FDAPDE_TETRAHEDRON_H__
 
-#include <unordered_set>
-#include "../utils/symbols.h"
-#include "simplex.h"
-#include "utils.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -147,4 +144,4 @@ class Tetrahedron : public Simplex<Triangulation::local_dim, Triangulation::embe
 
 }   // namespace fdapde
 
-#endif   // __TETRAHEDRON_H__
+#endif   // __FDAPDE_TETRAHEDRON_H__

@@ -14,62 +14,63 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __KRONECKER_PRODUCT_H__
-#define __KRONECKER_PRODUCT_H__
+#ifndef __FDAPDE_KRONECKER_PRODUCT_H__
+#define __FDAPDE_KRONECKER_PRODUCT_H__
 
-#include <Eigen/Core>
-#include <type_traits>
+#include "header_check.h"
 
 namespace fdapde {
 
 // Eigen-compatible implementation of the Kronecker tensor product between matrices.
 template <typename Lhs_, typename Rhs_, typename LhsStorageKind_, typename RhsStorageKind_>
-struct KroneckerTensorProduct;
+struct EigenKroneckerProduct;
 
-template <typename XprType_> struct KroneckerTensorProductBase {
+template <typename XprType_> struct KroneckerBase {
     using XprType = XprType_;
-    using Lhs = typename Eigen::internal::traits<XprType>::Lhs;
-    using Rhs = typename Eigen::internal::traits<XprType>::Rhs;
+    using Lhs       = typename Eigen::internal::traits<XprType>::Lhs;
+    using Rhs       = typename Eigen::internal::traits<XprType>::Rhs;
     using LhsNested = typename Eigen::internal::ref_selector<Lhs>::type;
     using RhsNested = typename Eigen::internal::ref_selector<Rhs>::type;
-    using Nested = typename Eigen::internal::ref_selector<XprType>::type;
+    using Nested    = typename Eigen::internal::ref_selector<XprType>::type;
     LhsNested lhs_;
     RhsNested rhs_;
-    KroneckerTensorProductBase(const Lhs& lhs, const Rhs& rhs) : lhs_(lhs), rhs_(rhs) { }
+    KroneckerBase(const Lhs& lhs, const Rhs& rhs) : lhs_(lhs), rhs_(rhs) { }
     inline Eigen::Index rows() const { return lhs_.rows() * rhs_.rows(); }
     inline Eigen::Index cols() const { return lhs_.cols() * rhs_.cols(); }
 };
-  
+
+using Eigen::Dense;
 // dense-dense Kronecker tensor product
 template <typename Lhs, typename Rhs>
-struct KroneckerTensorProduct<Lhs, Rhs, Eigen::Dense, Eigen::Dense> :
-    public Eigen::MatrixBase<KroneckerTensorProduct<Lhs, Rhs, Eigen::Dense, Eigen::Dense>>,
-    public KroneckerTensorProductBase<KroneckerTensorProduct<Lhs, Rhs, Eigen::Dense, Eigen::Dense>> {
-    using Base = KroneckerTensorProductBase<KroneckerTensorProduct<Lhs, Rhs, Eigen::Dense, Eigen::Dense>>;
+struct EigenKroneckerProduct<Lhs, Rhs, Dense, Dense> :
+    public Eigen::MatrixBase<EigenKroneckerProduct<Lhs, Rhs, Dense, Dense>>,
+    public KroneckerBase<EigenKroneckerProduct<Lhs, Rhs, Dense, Dense>> {
+    using Base = KroneckerBase<EigenKroneckerProduct<Lhs, Rhs, Dense, Dense>>;
     using Base::cols;
     using Base::rows;
-    KroneckerTensorProduct(const Lhs& lhs, const Rhs& rhs) : Base(lhs, rhs) {};
+    EigenKroneckerProduct(const Lhs& lhs, const Rhs& rhs) : Base(lhs, rhs) {};
 };
-template <typename Lhs, typename Rhs>
-KroneckerTensorProduct<Lhs, Rhs, Eigen::Dense, Eigen::Dense>
-Kronecker(const Eigen::MatrixBase<Lhs>& lhs, const Eigen::MatrixBase<Rhs>& rhs) {
-    return KroneckerTensorProduct<Lhs, Rhs, Eigen::Dense, Eigen::Dense>(lhs.derived(), rhs.derived());
-}
-
+  using Eigen::Sparse;
 // sparse-sparse Kronecker tensor product.
 template <typename Lhs, typename Rhs>
-struct KroneckerTensorProduct<Lhs, Rhs, Eigen::Sparse, Eigen::Sparse> :
-    public Eigen::SparseMatrixBase<KroneckerTensorProduct<Lhs, Rhs, Eigen::Sparse, Eigen::Sparse>>,
-    public KroneckerTensorProductBase<KroneckerTensorProduct<Lhs, Rhs, Eigen::Sparse, Eigen::Sparse>> {
-    using Base = KroneckerTensorProductBase<KroneckerTensorProduct<Lhs, Rhs, Eigen::Sparse, Eigen::Sparse>>;
+struct EigenKroneckerProduct<Lhs, Rhs, Sparse, Sparse> :
+    public Eigen::SparseMatrixBase<EigenKroneckerProduct<Lhs, Rhs, Sparse, Sparse>>,
+    public KroneckerBase<EigenKroneckerProduct<Lhs, Rhs, Sparse, Sparse>> {
+    using Base = KroneckerBase<EigenKroneckerProduct<Lhs, Rhs, Sparse, Sparse>>;
     using Base::cols;
     using Base::rows;
-    KroneckerTensorProduct(const Lhs& lhs, const Rhs& rhs) : Base(lhs, rhs) {};
+    EigenKroneckerProduct(const Lhs& lhs, const Rhs& rhs) : Base(lhs, rhs) {};
 };
+
 template <typename Lhs, typename Rhs>
-KroneckerTensorProduct<Lhs, Rhs, Eigen::Sparse, Eigen::Sparse>
-Kronecker(const Eigen::SparseMatrixBase<Lhs>& lhs, const Eigen::SparseMatrixBase<Rhs>& rhs) {
-    return KroneckerTensorProduct<Lhs, Rhs, Eigen::Sparse, Eigen::Sparse>(lhs.derived(), rhs.derived());
+EigenKroneckerProduct<Lhs, Rhs, Dense, Dense>
+kronecker(const Eigen::MatrixBase<Lhs>& lhs, const Eigen::MatrixBase<Rhs>& rhs) {
+    return EigenKroneckerProduct<Lhs, Rhs, Dense, Dense>(lhs.derived(), rhs.derived());
+}
+template <typename Lhs, typename Rhs>
+EigenKroneckerProduct<Lhs, Rhs, Sparse, Sparse>
+kronecker(const Eigen::SparseMatrixBase<Lhs>& lhs, const Eigen::SparseMatrixBase<Rhs>& rhs) {
+    return EigenKroneckerProduct<Lhs, Rhs, Sparse, Sparse>(lhs.derived(), rhs.derived());
 }
 
 }   // namespace fdapde
@@ -79,10 +80,10 @@ namespace Eigen {
 namespace internal {
 
 // import symbols from fdapde namespace
-using fdapde::KroneckerTensorProduct;
+using fdapde::EigenKroneckerProduct;
 
 // template specialization for KroneckerProduct traits (required by Eigen).
-template <typename Lhs_, typename Rhs_> struct traits<KroneckerTensorProduct<Lhs_, Rhs_, Dense, Dense>> {
+template <typename Lhs_, typename Rhs_> struct traits<EigenKroneckerProduct<Lhs_, Rhs_, Dense, Dense>> {
     // export operands type
     typedef Lhs_ Lhs;
     typedef Rhs_ Rhs;
@@ -118,16 +119,16 @@ template <typename Lhs_, typename Rhs_> struct traits<KroneckerTensorProduct<Lhs
 
 // trait specialization for the sparse-sparse version
 template <typename Lhs, typename Rhs>
-struct traits<KroneckerTensorProduct<Lhs, Rhs, Sparse, Sparse>> :
-    public traits<KroneckerTensorProduct<Lhs, Rhs, Dense, Dense>> { };
+struct traits<EigenKroneckerProduct<Lhs, Rhs, Sparse, Sparse>> :
+    public traits<EigenKroneckerProduct<Lhs, Rhs, Dense, Dense>> { };
 
 // dense-dense evaluator
 template <typename Lhs_, typename Rhs_>
-class evaluator<KroneckerTensorProduct<Lhs_, Rhs_, Dense, Dense>> :
-    public evaluator_base<KroneckerTensorProduct<Lhs_, Rhs_, Dense, Dense>> {
+class evaluator<EigenKroneckerProduct<Lhs_, Rhs_, Dense, Dense>> :
+    public evaluator_base<EigenKroneckerProduct<Lhs_, Rhs_, Dense, Dense>> {
    public:
     // typedefs expected by eigen internals
-    typedef KroneckerTensorProduct<Lhs_, Rhs_, Dense, Dense> XprType;
+    typedef EigenKroneckerProduct<Lhs_, Rhs_, Dense, Dense> XprType;
     typedef typename nested_eval<Lhs_, 1>::type LhsNested;
     typedef typename nested_eval<Rhs_, 1>::type RhsNested;
     typedef typename XprType::CoeffReturnType CoeffReturnType;
@@ -151,11 +152,11 @@ class evaluator<KroneckerTensorProduct<Lhs_, Rhs_, Dense, Dense>> :
 
 // sparse-sparse evaluator
 template <typename Lhs_, typename Rhs_>
-class evaluator<KroneckerTensorProduct<Lhs_, Rhs_, Sparse, Sparse>> :
-    public evaluator_base<KroneckerTensorProduct<Lhs_, Rhs_, Sparse, Sparse>> {
+class evaluator<EigenKroneckerProduct<Lhs_, Rhs_, Sparse, Sparse>> :
+    public evaluator_base<EigenKroneckerProduct<Lhs_, Rhs_, Sparse, Sparse>> {
    public:
     // typedefs expected by eigen internals
-    typedef KroneckerTensorProduct<Lhs_, Rhs_, Sparse, Sparse> XprType;
+    typedef EigenKroneckerProduct<Lhs_, Rhs_, Sparse, Sparse> XprType;
     typedef typename evaluator<Lhs_>::InnerIterator LhsIterator;
     typedef typename evaluator<Rhs_>::InnerIterator RhsIterator;
     enum {   // required compile time constants

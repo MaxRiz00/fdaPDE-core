@@ -17,16 +17,17 @@
 #ifndef __FDAPDE_CORE_MODULE_H__
 #define __FDAPDE_CORE_MODULE_H__
 
-// include Eigen
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
+// clang-format off
 
-#include "utils.h"
+// include modules
+#include "linear_algebra.h"    // pull-in Eigen first
+#include "utility.h"
 #include "fields.h"
 #include "geometry.h"
-#include "linear_algebra.h"
-#include "optimization.h"
 #include "finite_elements.h"
 #include "splines.h"
+#include "optimization.h"
+
+// clang-format on
 
 #endif   // __FDAPDE_CORE_MODULE_H__

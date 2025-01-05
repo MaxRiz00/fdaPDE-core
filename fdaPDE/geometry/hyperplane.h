@@ -14,13 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __VECTOR_SPACE_H__
-#define __VECTOR_SPACE_H__
+#ifndef __FDAPDE_HYPERPLANE_H__
+#define __FDAPDE_HYPERPLANE_H__
 
-#include <array>
-
-#include "../utils/assert.h"
-#include "../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -122,4 +119,4 @@ template <int LocalDim, int EmbedDim> class HyperPlane {
 
 }   // namespace fdapde
 
-#endif   // __VECTOR_SPACE_H__
+#endif   // __FDAPDE_HYPERPLANE_H__

@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FE_LINEAR_FORM_ASSEMBLER_H__
-#define __FE_LINEAR_FORM_ASSEMBLER_H__
+#ifndef __FDAPDE_FE_LINEAR_FORM_ASSEMBLER_H__
+#define __FDAPDE_FE_LINEAR_FORM_ASSEMBLER_H__
 
-#include <unordered_map>
-
-#include "fe_assembler_base.h"
+#include "header_check.h"
 
 namespace fdapde {
 namespace internals {
@@ -29,8 +27,10 @@ template <typename Triangulation_, typename Form_, int Options_, typename... Qua
 class fe_linear_form_assembly_loop :
     public fe_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
     public assembly_xpr_base<fe_linear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
+   public:
     using Base = fe_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>;
     using Form = typename Base::Form;
+    using discretization_category = typename Base::discretization_category;
     static constexpr int local_dim = Base::local_dim;
     static constexpr int embed_dim = Base::embed_dim;
     static constexpr int n_basis = Base::n_basis;
@@ -38,8 +38,7 @@ class fe_linear_form_assembly_loop :
     static constexpr int n_components = Base::n_components;
     using Base::dof_handler_;
     using Base::form_;
-   public:
-    using space_category = finite_element;
+  
     fe_linear_form_assembly_loop() = default;
     fe_linear_form_assembly_loop(
       const Form_& form, typename Base::fe_traits::geo_iterator begin, typename Base::fe_traits::geo_iterator end,
@@ -102,4 +101,4 @@ class fe_linear_form_assembly_loop :
 }   // namespace internals
 }   // namespace fdapde
 
-#endif   // __FE_LINEAR_FORM_ASSEMBLER_H__
+#endif   // __FDAPDE_FE_LINEAR_FORM_ASSEMBLER_H__

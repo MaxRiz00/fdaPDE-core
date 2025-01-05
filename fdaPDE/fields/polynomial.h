@@ -14,15 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __POLYNOMIAL_H__
-#define __POLYNOMIAL_H__
+#ifndef __FDAPDE_POLYNOMIAL_H__
+#define __FDAPDE_POLYNOMIAL_H__
 
-#include <array>
-
-#include "../linear_algebra/constexpr_matrix.h"
-#include "../linear_algebra/mdarray.h"
-#include "../utils/constexpr.h"
-#include "scalar_field.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -54,7 +49,7 @@ class Polynomial : public ScalarFieldBase<StaticInputSize_, Polynomial<StaticInp
             int i = 0;
             bool found = false;
             while (i < StaticInputSize && !found) {
-                if (tmp[i] <= Order && array_sum<int, StaticInputSize>(tmp) <= Order) {
+                if (tmp[i] <= Order && std::accumulate(tmp.begin(), tmp.end(), 0) <= Order) {
                     found = true;
                     for (int k = 0; k < StaticInputSize; ++k) coeff(j, k) = tmp[k];
                     tmp[0]++;   // increment for next iteration
@@ -221,4 +216,4 @@ template <int StaticInputSize, int Order> constexpr auto grad(const Polynomial<S
 
 }   // namespace fdapde
 
-#endif   // __POLYNOMIAL_H__
+#endif   // __FDAPDE_POLYNOMIAL_H__

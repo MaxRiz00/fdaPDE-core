@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SP_INTEGRATION_H__
-#define __SP_INTEGRATION_H__
+#ifndef __FDAPDE_SP_INTEGRATION_H__
+#define __FDAPDE_SP_INTEGRATION_H__
 
-#include "../linear_algebra/constexpr_matrix.h"
+#include "header_check.h"
 
 namespace fdapde {
 namespace internals {
@@ -139,4 +139,4 @@ void get_sp_quadrature(int order, T& quad_nodes, T& quad_weights) {
   
 }   // namespace fdapde
 
-#endif   // __SP_INTEGRATION_H__
+#endif   // __FDAPDE_SP_INTEGRATION_H__

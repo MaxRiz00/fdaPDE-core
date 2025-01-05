@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __DOF_TETRAHEDRON_H__
-#define __DOF_TETRAHEDRON_H__
+#ifndef __FDAPDE_DOF_TETRAHEDRON_H__
+#define __FDAPDE_DOF_TETRAHEDRON_H__
 
-#include "../geometry/tetrahedron.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -163,4 +163,4 @@ template <typename DofHandler> class DofTetrahedron : public Tetrahedron<typenam
 
 }   // namespace fdapde
 
-#endif // __DOF_TETRAHEDRON_H__
+#endif // __FDAPDE_DOF_TETRAHEDRON_H__

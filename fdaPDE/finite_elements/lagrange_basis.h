@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __LAGRANGE_BASIS_H__
-#define __LAGRANGE_BASIS_H__
+#ifndef __FDAPDE_LAGRANGE_BASIS_H__
+#define __FDAPDE_LAGRANGE_BASIS_H__
 
-#include "../fields/polynomial.h"
-#include "../linear_algebra/constexpr_matrix.h"
-#include "../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -94,4 +92,4 @@ template <int Order_> struct LagrangeBasis<0, Order_> {
 
 }   // namespace fdapde
 
-#endif   // __LAGRANGE_BASIS_H__
+#endif   // __FDAPDE_LAGRANGE_BASIS_H__

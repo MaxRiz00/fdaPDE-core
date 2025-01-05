@@ -14,20 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __SP_OBJECTS_H__
-#define __SP_OBJECTS_H__
+#ifndef __FDAPDE_SP_OBJECTS_H__
+#define __FDAPDE_SP_OBJECTS_H__
 
-#include "../fields/scalar_field.h"
-#include "sp_bilinear_form_assembler.h"
+#include "header_check.h"
 
 namespace fdapde {  
 namespace internals {
 
 template <typename SpSpace_>
-struct sp_scalar_test_function_impl : public ScalarFieldBase<SpSpace_::local_dim, TestFunction<SpSpace_, bspline>> {
+struct sp_scalar_test_function_impl : public ScalarFieldBase<SpSpace_::local_dim, TestFunction<SpSpace_, spline_tag>> {
     fdapde_static_assert(SpSpace_::local_dim == 1, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
     using TestSpace = std::decay_t<SpSpace_>;
-    using Base = ScalarFieldBase<SpSpace_::local_dim, TestFunction<SpSpace_, bspline>>;
+    using Base = ScalarFieldBase<SpSpace_::local_dim, TestFunction<SpSpace_, spline_tag>>;
     using InputType = internals::sp_assembler_packet<TestSpace::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = TestSpace::local_dim;
@@ -82,8 +81,8 @@ struct sp_scalar_test_function_impl : public ScalarFieldBase<SpSpace_::local_dim
     };
    public:
     // expose derivative types
-    using FirstDerivative  = FirstDerivative_ <TestFunction<SpSpace_, bspline>>;
-    using SecondDerivative = SecondDerivative_<TestFunction<SpSpace_, bspline>>;
+    using FirstDerivative  = FirstDerivative_ <TestFunction<SpSpace_, spline_tag>>;
+    using SecondDerivative = SecondDerivative_<TestFunction<SpSpace_, spline_tag>>;
 
     constexpr sp_scalar_test_function_impl() noexcept = default;
     constexpr sp_scalar_test_function_impl(SpSpace_& sp_space) noexcept : sp_space_(std::addressof(sp_space)) { }  
@@ -97,10 +96,11 @@ struct sp_scalar_test_function_impl : public ScalarFieldBase<SpSpace_::local_dim
 };
 
 template <typename SpSpace_>
-struct sp_scalar_trial_function_impl : public ScalarFieldBase<SpSpace_::local_dim, TrialFunction<SpSpace_, bspline>> {
+struct sp_scalar_trial_function_impl :
+    public ScalarFieldBase<SpSpace_::local_dim, TrialFunction<SpSpace_, spline_tag>> {
     fdapde_static_assert(SpSpace_::local_dim == 1, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
     using TrialSpace = std::decay_t<SpSpace_>;
-    using Base = ScalarFieldBase<SpSpace_::local_dim, TrialFunction<SpSpace_, bspline>>;
+    using Base = ScalarFieldBase<SpSpace_::local_dim, TrialFunction<SpSpace_, spline_tag>>;
     using InputType = internals::sp_assembler_packet<TrialSpace::local_dim>;
     using Scalar = double;
     static constexpr int StaticInputSize = TrialSpace::local_dim;
@@ -156,8 +156,8 @@ struct sp_scalar_trial_function_impl : public ScalarFieldBase<SpSpace_::local_di
     };
    public:
     // expose derivative types
-    using FirstDerivative  = FirstDerivative_ <TrialFunction<SpSpace_, bspline>>;
-    using SecondDerivative = SecondDerivative_<TrialFunction<SpSpace_, bspline>>;
+    using FirstDerivative  = FirstDerivative_ <TrialFunction<SpSpace_, spline_tag>>;
+    using SecondDerivative = SecondDerivative_<TrialFunction<SpSpace_, spline_tag>>;
   
     constexpr sp_scalar_trial_function_impl() noexcept = default;
     constexpr sp_scalar_trial_function_impl(SpSpace_& sp_space) noexcept : sp_space_(std::addressof(sp_space)) { }
@@ -173,36 +173,37 @@ struct sp_scalar_trial_function_impl : public ScalarFieldBase<SpSpace_::local_di
 }   // namespace internals
 
 template <typename SpSpace_>
-    requires(std::is_same_v<typename std::decay_t<SpSpace_>::space_category, bspline>)
-struct TestFunction<SpSpace_, bspline> : public internals::sp_scalar_test_function_impl<SpSpace_> {
+    requires(std::is_same_v<typename std::decay_t<SpSpace_>::discretization_category, spline_tag>)
+struct TestFunction<SpSpace_, spline_tag> : public internals::sp_scalar_test_function_impl<SpSpace_> {
     using Base = internals::sp_scalar_test_function_impl<SpSpace_>;
     constexpr TestFunction() = default;
     constexpr TestFunction(SpSpace_& sp_space) : Base(sp_space) { }
 };
 // partial derivatives of scalar test function
 template <typename SpSpace_>
-struct PartialDerivative<TestFunction<SpSpace_, bspline>, 1> : public TestFunction<SpSpace_, bspline>::FirstDerivative {
+struct PartialDerivative<TestFunction<SpSpace_, spline_tag>, 1> :
+    public TestFunction<SpSpace_, spline_tag>::FirstDerivative {
     PartialDerivative() = default;
-    PartialDerivative(const TestFunction<SpSpace_, bspline>& f, [[maybe_unused]] int i) :
-        TestFunction<SpSpace_, bspline>::FirstDerivative(f) { }
+    PartialDerivative(const TestFunction<SpSpace_, spline_tag>& f, [[maybe_unused]] int i) :
+        TestFunction<SpSpace_, spline_tag>::FirstDerivative(f) { }
 };
 template <typename SpSpace_>
-struct PartialDerivative<TestFunction<SpSpace_, bspline>, 2> :
-    public TestFunction<SpSpace_, bspline>::SecondDerivative {
+struct PartialDerivative<TestFunction<SpSpace_, spline_tag>, 2> :
+    public TestFunction<SpSpace_, spline_tag>::SecondDerivative {
     PartialDerivative() = default;
-    PartialDerivative(const TestFunction<SpSpace_, bspline>& f, [[maybe_unused]] int i, [[maybe_unused]] int j) :
-        TestFunction<SpSpace_, bspline>::SecondDerivative(f) { }
+    PartialDerivative(const TestFunction<SpSpace_, spline_tag>& f, [[maybe_unused]] int i, [[maybe_unused]] int j) :
+        TestFunction<SpSpace_, spline_tag>::SecondDerivative(f) { }
 };
-template <typename SpSpace_> constexpr auto dx (const TestFunction<SpSpace_, bspline>& xpr) {
-    return typename TestFunction<SpSpace_, bspline>::FirstDerivative(xpr);
+template <typename SpSpace_> constexpr auto dx (const TestFunction<SpSpace_, spline_tag>& xpr) {
+    return typename TestFunction<SpSpace_, spline_tag>::FirstDerivative(xpr);
 }
-template <typename SpSpace_> constexpr auto ddx(const TestFunction<SpSpace_, bspline>& xpr) {
-    return typename TestFunction<SpSpace_, bspline>::SecondDerivative(xpr);
+template <typename SpSpace_> constexpr auto ddx(const TestFunction<SpSpace_, spline_tag>& xpr) {
+    return typename TestFunction<SpSpace_, spline_tag>::SecondDerivative(xpr);
 }
   
 template <typename SpSpace_>
-    requires(std::is_same_v<typename std::decay_t<SpSpace_>::space_category, bspline>)
-struct TrialFunction<SpSpace_, bspline> : public internals::sp_scalar_trial_function_impl<SpSpace_> {
+    requires(std::is_same_v<typename std::decay_t<SpSpace_>::discretization_category, spline_tag>)
+struct TrialFunction<SpSpace_, spline_tag> : public internals::sp_scalar_trial_function_impl<SpSpace_> {
     using Base = internals::sp_scalar_trial_function_impl<SpSpace_>;
     using TrialSpace = typename Base::TrialSpace;
     static constexpr int local_dim = SpSpace_::local_dim;
@@ -224,24 +225,24 @@ struct TrialFunction<SpSpace_, bspline> : public internals::sp_scalar_trial_func
 };
 // partial derivative of scalar trial function
 template <typename SpSpace_>
-struct PartialDerivative<TrialFunction<SpSpace_, bspline>, 1> :
-    public TrialFunction<SpSpace_, bspline>::FirstDerivative {
+struct PartialDerivative<TrialFunction<SpSpace_, spline_tag>, 1> :
+    public TrialFunction<SpSpace_, spline_tag>::FirstDerivative {
     PartialDerivative() = default;
-    PartialDerivative(const TrialFunction<SpSpace_, bspline>& f, [[maybe_unused]] int i) :
-        TrialFunction<SpSpace_, bspline>::FirstDerivative(f, i) { }
+    PartialDerivative(const TrialFunction<SpSpace_, spline_tag>& f, [[maybe_unused]] int i) :
+        TrialFunction<SpSpace_, spline_tag>::FirstDerivative(f, i) { }
 };
 template <typename SpSpace_>
-struct PartialDerivative<TrialFunction<SpSpace_, bspline>, 2> :
-    public TrialFunction<SpSpace_, bspline>::SecondDerivative {
+struct PartialDerivative<TrialFunction<SpSpace_, spline_tag>, 2> :
+    public TrialFunction<SpSpace_, spline_tag>::SecondDerivative {
     PartialDerivative() = default;
-    PartialDerivative(const TrialFunction<SpSpace_, bspline>& f, [[maybe_unused]] int i, [[maybe_unused]] int j) :
-        TrialFunction<SpSpace_, bspline>::SecondDerivative(f, i, j) { }
+    PartialDerivative(const TrialFunction<SpSpace_, spline_tag>& f, [[maybe_unused]] int i, [[maybe_unused]] int j) :
+        TrialFunction<SpSpace_, spline_tag>::SecondDerivative(f, i, j) { }
 };
-template <typename SpSpace_> constexpr auto dx (const TrialFunction<SpSpace_, bspline>& xpr) {
-    return typename TrialFunction<SpSpace_, bspline>::FirstDerivative(xpr);
+template <typename SpSpace_> constexpr auto dx (const TrialFunction<SpSpace_, spline_tag>& xpr) {
+    return typename TrialFunction<SpSpace_, spline_tag>::FirstDerivative(xpr);
 }
-template <typename SpSpace_> constexpr auto ddx(const TrialFunction<SpSpace_, bspline>& xpr) {
-    return typename TrialFunction<SpSpace_, bspline>::SecondDerivative(xpr);
+template <typename SpSpace_> constexpr auto ddx(const TrialFunction<SpSpace_, spline_tag>& xpr) {
+    return typename TrialFunction<SpSpace_, spline_tag>::SecondDerivative(xpr);
 }
 
 // representation of u(x) = \sum_{i=1}^{n_dofs} u_i \psi_i(x) with \{ \psi_i \}_i a B-Spline basis system
@@ -372,4 +373,4 @@ template <typename Derived_> struct SpMap : public ScalarBase<Derived_::StaticIn
  
 }   // namespace fdapde
 
-#endif   // __SP_OBJECTS_H__
+#endif   // __FDAPDE_SP_OBJECTS_H__

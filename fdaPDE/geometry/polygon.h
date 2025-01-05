@@ -14,15 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __POLYGON_H__
-#define __POLYGON_H__
+#ifndef __FDAPDE_POLYGON_H__
+#define __FDAPDE_POLYGON_H__
 
-#include <deque>
-#include <set>
-
-#include "dcel.h"
-#include "primitives.h"
-#include "triangulation.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -455,4 +450,4 @@ template <int LocalDim, int EmbedDim> class MultiPolygon {
 
 }   // namespace fdapde
 
-#endif // __POLYGON_H__
+#endif // __FDAPDE_POLYGON_H__

@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __LUMPING_H__
-#define __LUMPING_H__
+#ifndef __FDAPDE_LUMPING_H__
+#define __FDAPDE_LUMPING_H__
 
-#include "../utils/assert.h"
-#include "../utils/symbols.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -50,4 +49,4 @@ Eigen::DiagonalMatrix<typename ExprType::Scalar, Dynamic, Dynamic> lump(const Ei
 
 }   // namespace fdapde
 
-#endif   // __LUMPING_H__
+#endif   // __FDAPDE_LUMPING_H__

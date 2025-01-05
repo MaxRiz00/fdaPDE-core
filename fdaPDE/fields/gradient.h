@@ -14,12 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __GRADIENT_H__
-#define __GRADIENT_H__
+#ifndef __FDAPDE_GRADIENT_H__
+#define __FDAPDE_GRADIENT_H__
 
-#include "matrix_field.h"
-#include "scalar_field.h"
-#include "meta.h"
+#include "header_check.h"
 
 namespace fdapde {
 
@@ -68,4 +66,4 @@ constexpr Gradient<XprType> grad(const XprType& xpr) requires(internals::is_scal
 
 }   // namespace fdapde
 
-#endif // __GRADIENT_H__
+#endif // __FDAPDE_GRADIENT_H__
