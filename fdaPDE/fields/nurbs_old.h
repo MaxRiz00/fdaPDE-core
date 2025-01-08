@@ -74,10 +74,10 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             Nurbs(std::array<std::vector<double>,M>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>& index, int order): 
                 knots_(knots), index_(index), order_(order){
 
-
                 std::array<std::size_t, M> maxIdx;
 
                 for (std::size_t i = 0; i < M; ++i) {
+
                     minIdx_[i] = (index_[i] >= order)? (index_[i]-order) : 0;
                     extents_[i] = (index_[i] + order < weights.extent(i))? (index_[i]+order+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]); 
                     maxIdx[i] = (minIdx_[i] + extents_[i]-1);
@@ -136,7 +136,23 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
 
                 for(std::size_t i=0;i<M;i++){
 
-                    auto basis_eval = SplineBasis(knots_[i], order_).evaluate_basis(p_[i]);
+                    // pad the knots
+                    auto n = knots_[i].size();
+                    std::vector<double> padded_knots;
+                    padded_knots.resize(n + 2 * order_);
+                    for (int j = 0; j < n + 2 * order_; ++j) {
+                        if (j < order_) {
+                            padded_knots[j] = knots_[i][j];
+                        } else {
+                            if (j < n + order_) {
+                                padded_knots[j] = knots_[i][j - order_];
+                            } else {
+                                padded_knots[j] = knots_[i][n - 1];
+                            }
+                        }
+                    }
+                    
+                    auto basis_eval = SplineBasis(padded_knots, order_).evaluate_basis(p_[i]);
                     //std::cout << "basis_eval : "  << std::endl;
 
                     // print the basis evaluation
@@ -289,6 +305,9 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             public:
                 constexpr FirstDerivative first_derive(int i=0) const { return gradient_[i]; }
                 //constexpr SecondDerivarive second_derive(int i, int j) const { return SecondDerivative(knots_, weights_, index_, order_, i, j); }
+                
+                // overload the call operator for the first derivative for a double
+                constexpr Scalar operator()(double p) const { return operator()(InputType{p}); }
     
     };
 

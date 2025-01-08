@@ -108,7 +108,7 @@ TEST(nurbs_test, nurbs_basis_derivative_1D){
     
     for(size_t i = 0; i < basis.size(); ++i){
         for(size_t j = 0; j < expected.cols() ; ++j){
-            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].first_derive()(InputType(expected.coeff(0,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].derive()(InputType(expected.coeff(0,j)))));
         }
     }
 }
@@ -140,8 +140,8 @@ TEST(nurbs_test, nurbs_basis_derivative_2D) {
     for(size_t i = 0; i < basis.size(); ++i){
         for(size_t j = 0; j < expected.cols(); ++j){
             // compare values with data from file
-            EXPECT_TRUE(almost_equal(expected.coeff(2*i+2,j),basis[i].first_derive(0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
-            EXPECT_TRUE(almost_equal(expected.coeff(2*i+3,j),basis[i].first_derive(1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(2*i+2,j),basis[i].derive(0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(2*i+3,j),basis[i].derive(1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
         }
     }
 }
@@ -170,7 +170,7 @@ TEST(nurbs_test, nurbs_basis_second_derivative_1D){
     
     for(size_t i = 0; i < basis.size(); ++i){
         for(size_t j = 0; j < expected.cols(); ++j){
-            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].second_derive()((InputType(expected.coeff(0,j))))));
+            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].deriveTwice()((InputType(expected.coeff(0,j))))));
         }
     }
 }
@@ -203,10 +203,10 @@ TEST(nurbs_test, nurbs_basis_second_derivative_2D) {
     for(size_t i = 0; i < basis.size(); ++i){
         for(size_t j = 0; j < expected.cols(); ++j){
             // compare values with data from file
-            EXPECT_TRUE(almost_equal(expected.coeff(4*i+2,j),basis[i].second_derive(0,0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
-            EXPECT_TRUE(almost_equal(expected.coeff(4*i+3,j),basis[i].second_derive(1,0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
-            EXPECT_TRUE(almost_equal(expected.coeff(4*i+4,j),basis[i].second_derive(0,1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
-            EXPECT_TRUE(almost_equal(expected.coeff(4*i+5,j),basis[i].second_derive(1,1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(4*i+2,j),basis[i].deriveTwice(0,0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(4*i+3,j),basis[i].deriveTwice(1,0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(4*i+4,j),basis[i].deriveTwice(0,1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(4*i+5,j),basis[i].deriveTwice(1,1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
         }
     }
 }

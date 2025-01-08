@@ -71,15 +71,20 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
         public:
             Nurbs() = default;
 
-            Nurbs(std::array<std::vector<double>,M>&& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>&& index, int order): 
+
+            template <typename KnotsVectorType>
+            requires(requires(KnotsVectorType knots, int i) {
+                    { knots[i] } -> std::convertible_to<double>;
+                    { knots.size() } -> std::convertible_to<std::size_t>;
+                })
+            Nurbs(std::array<KnotsVectorType,M>&& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>&& index, int order): 
                  index_(std::move(index)), order_(order){
 
                 // we suppose the knots are not padded
                 // build a spline basis for each dimension
 
                 std::array<std::size_t, M> maxIdx;
-
-
+                
                 for (std::size_t i = 0; i < M; ++i) {
 
                     std::vector<double> knots_ ;
@@ -126,12 +131,17 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
 
             };
 
-            // constructor for the 1d knot passed as std::vector<double>, using the previous constructor
-            Nurbs(std::vector<double>& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, int index, int order): 
+            // constructor for the 1d knot passed as std::vector<double>, using the previous constructor, non so se va bene ?????
+            template <typename KnotsVectorType>
+            requires(requires(KnotsVectorType knots) {
+                    { knots.size() } -> std::convertible_to<std::size_t>;
+                })
+            Nurbs(KnotsVectorType& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, int index, int order): 
             Nurbs(std::array<std::vector<double>,M>{std::move(knots)}, weights, std::array<int,M>{index}, order) {
                 fdapde_static_assert(M == 1, THIS_METHOD_IS_ONLY_FOR_1D_NURBS);
             };
 
+            // constructor with shared pointers, used by the NurbsBasis
             Nurbs(std::array<std::shared_ptr<SplineBasis>, M> spline_basis, MdArray<double,full_dynamic_extent_t<M>>& weights,std::array<int,M>& index) : spline_basis_(spline_basis), index_(index) { 
                 // questo viene usato da NurbsBasis
 
@@ -329,6 +339,11 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 };
             };
 
+                // overload the call operator for the first derivative for a double
+                //constexpr Scalar operator()(double p) const {
+                //    return operator()(InputType{p});
+                //}
+
 
             class SecondDerivative: public MatrixBase<M,SecondDerivative> {
             public:
@@ -515,8 +530,8 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 MatrixField<M,M,M, SecondDerivative> hessian_; //hessian accedi con hessian_(i,j)
 
             public:
-                constexpr FirstDerivative first_derive(int i=0) const { return gradient_[i]; }
-                constexpr SecondDerivative second_derive(int i=0, int j=0) const { return hessian_(i,j); }
+                constexpr FirstDerivative derive(int i=0) const { return gradient_[i]; }
+                constexpr SecondDerivative deriveTwice(int i=0, int j=0) const { return hessian_(i,j); }
 
                 // getters
                 constexpr int order() const { return order_; }

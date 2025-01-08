@@ -81,9 +81,7 @@ namespace fdapde {
 
 
                 for(int i=0;i<basis_size;++i){
-
-                    //std::cout<<"index in nurbs_basis: "<<index[0]<<std::endl;
-
+                    
                     basis_.emplace_back(M_spline_basis, weights, index);
 
                     // Update the index with carry-over logic
@@ -98,6 +96,9 @@ namespace fdapde {
                     }
                 }
             }
+            
+            // overload constructor for 1D case TO DO
+            
             //NurbsBasis(const Triangulation<M, 1>& interval, MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : NurbsBasis(interval.nodes(), weights, order) { }
             // getters
             constexpr const Nurbs<M>& operator[](int i) const { return basis_[i]; }
