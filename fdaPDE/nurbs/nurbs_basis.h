@@ -98,6 +98,19 @@ namespace fdapde {
             }
             
             // overload constructor for 1D case TO DO
+
+            // function multiindex to index
+            constexpr int multiindex_to_index(const std::array<int, M>& multiIndex) const {
+                int idx = 0;
+                for (int j = 0; j < M; ++j) {
+                    idx += (knots_[j].size() - order_ - 1)*idx + multiIndex[j];
+                }
+                return idx;
+            }
+
+            const Nurbs<M>& operator()(const std::array<int, M>& multiIndex) const {
+                return basis_[multiindex_to_index(multiIndex)];
+            }
             
             //NurbsBasis(const Triangulation<M, 1>& interval, MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : NurbsBasis(interval.nodes(), weights, order) { }
             // getters
