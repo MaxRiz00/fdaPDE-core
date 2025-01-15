@@ -31,7 +31,7 @@ public:
     ElementIga(const std::vector<std::size_t> & non_vanishing_functions, std::size_t ID, 
         const ParametrizationType & parametrization, const GradientType & gradient, 
         const std::array<int,M> & left_coords, const std::array<int,M> & right_coords) 
-    : functions_(functions), ID_(ID), parametrization_(std::make_shared<ParametrizationType>(parametrization)),
+    : non_vanishing_functions_(non_vanishing_functions), ID_(ID), parametrization_(std::make_shared<ParametrizationType>(parametrization)),
     gradient_(std::make_shared<GradientType>(gradient)), left_coords_(left_coords), right_coords_(right_coords)  {
 
         measure_ = 1;

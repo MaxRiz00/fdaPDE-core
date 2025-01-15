@@ -59,6 +59,6 @@ public:
     }
 };
 
-} // namespace fdapde
+}; // namespace fdapde
 
 #endif // __MESH_PARAMETRIZATION_H__
