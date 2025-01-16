@@ -26,18 +26,22 @@ class IsoMesh {
 
     // implementation of the private methods for the mesh parametrization
 
-    inline double eval_param(const std::array<double, M>& u, std::size_t derivative_index_) const {
+    
+
+    inline double eval_param(const std::array<double, M>& u, int sliceIdx) const {
+        auto CpSlice = this->control_points_.template slice<M>(sliceIdx);
         double x = 0.0;
         for (const auto& nurb : this->nurbs_basis_) {
-            x += nurb(x) * this->control_points_(nurb.index());
+            x += nurb(x) * CpSlice(nurb.index());
         }
         return x;
     }
 
-    inline double eval_param_derivative(const std::array<double, M>& u) const {
+    inline double eval_param_derivative(const std::array<double, M>& u, int sliceIdx, std::size_t derivative_index) const {
+        auto CpSlice = this->control_points_.template slice<M>(sliceIdx);
         double x = 0.0;
         for (const auto& nurb : this->nurbs_basis_) {
-            x += nurb.derive(derivative_index_)(x) * this->control_points_(nurb.index());
+            x += nurb.derive(derivative_index)(x) * CpSlice(nurb.index());
         }
         return x;
     }
