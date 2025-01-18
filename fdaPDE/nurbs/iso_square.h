@@ -1,51 +1,59 @@
 #ifndef __ISO_SQUARE_H__
+#define __ISO_SQUARE_H__
 
-#include "iso_mesh.h"
+#include <array>
+#include <cmath>
+#include <Eigen/Dense>
+
+
 
 namespace fdapde {
+        
+// Forward declaration of IsoMesh
+template<int M, int N> class IsoMesh;
 
 template<int M, int N>
 class IsoSquare{
 
+    friend class IsoMesh<M,N>;
+
     //template<typename T> using DMatrix = MdArray<T, Dynamic, Dynamic>;
 
-    IsoMesh<M,N>* mesh_; // mesh pointer
+    const IsoMesh<M,N>* mesh_; // mesh pointer
 
     std::size_t ID_; // element ID
+
+    std::array<std::size_t,M> eMultiIndex_; // element multi-index, da capire se tenerlo
 
     std::array<int, M> left_coords_; // coordinates of the left corner of the element
     std::array<int, M> right_coords_; // coordinates of the right corner of the element
 
     bool boundary_; // true if the element has at least one vertex on the boundary
 
-    // should implement "parametrization gradient", "metric tensor" e "metric determinant", gometric properties of the element
-
-
     public:
 
-    //construct an element a mesh pointer
-    IsoSquare(std::array<size::t,M> eMultiIndex, const IsoMesh<M,N>* mesh): mesh_(mesh) {
+    /// Default constructor
+    IsoSquare() = default;
 
-        boundary_=false;
+    //construct an element a mesh pointer
+    IsoSquare(std::array<std::size_t,M> eMultiIndex,const IsoMesh<M,N>* mesh): mesh_(mesh), eMultiIndex_(eMultiIndex){
+
+        /*
+        std::cout << "eMultiIndex della cella in cui siamo: ";
+        for(int i=0;i<M;i++){
+            std::cout << eMultiIndex[i] << " ";
+        }
+        std::cout << std::endl;
+        */
 
         // Compute the ID from the multi-index using the lexicographic order
-        ID_ = 0;
-        for(std::size_t i = 0; i < M; ++i){
-            if(i==0) 
-                ID_ = eMultiIndex[i];
-            else
-                ID_ += (mesh_->knots_[i-1].size() - 1) + eMultiIndex[i];
-        }
+        ID_ = mesh_->compute_el_ID(eMultiIndex);
 
-        // compute the coordinates of the left and right corners of the element, basing on the multi-index
-        for(std::size_t i = 0; i < M; ++i){
-            left_coords_[i] = eMultiIndex[i];
-            right_coords_[i] = eMultiIndex[i] + 1;
-            // check if the element is on the boundary
-            if(left_coords_[i] == 0 || right_coords_[i] == mesh_->knots_[i].size() - 1){
-                boundary_ = true;
-            }
-        }
+        //std::cout << "ID della cella in cui siamo: " << ID_ << std::endl;
+
+        left_coords_ = mesh_->compute_param_el_vertices(ID_)[0];
+        right_coords_ = mesh_->compute_param_el_vertices(ID_)[1];
+
 
     };
 
@@ -87,9 +95,22 @@ class IsoSquare{
 
     double metric_determinant(const std::array<double, M>& p) const {
         auto x = affine_map(p);
-        auto metric_tensor = metric_tensor(x);
-        return sqrt(metric_tensor.determinant()); // non funziona, there are no operations between matrices, guarda per il trasposto
+        return sqrt(metric_tensor(x).determinant()); // non funziona, there are no operations between matrices, guarda per il trasposto
     }
+
+    // da aggiungere misura dell'elemento fisico
+
+    // some getters
+    std::size_t ID() const { return ID_; }
+    const std::array<int,M> & left_coords() const { return left_coords_; }
+    const std::array<int,M> & right_coords() const { return right_coords_; }
+    bool is_boundary() const { return boundary_; }
+
+    // get the neighbors of the element
+    std::vector<std::size_t> get_neighbors_ID() const {
+        return mesh_->get_neighbors_ID(ID_);
+    }
+
 
 };
 

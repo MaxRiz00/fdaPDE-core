@@ -103,7 +103,7 @@ namespace fdapde {
             constexpr int multiindex_to_index(const std::array<int, M>& multiIndex) const {
                 int idx = 0;
                 for (int j = 0; j < M; ++j) {
-                    idx += (knots_[j].size() - order_ - 1)*idx + multiIndex[j];
+                    idx += (basis_[j].size() - order_ - 1)*idx + multiIndex[j];
                 }
                 return idx;
             }
