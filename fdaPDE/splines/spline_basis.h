@@ -94,7 +94,8 @@ class SplineBasis {
             right[j] = knots_[i+j] - x;
             double saved = 0.0;
             for (int r=0;r<j;r++){
-                double temp = N[r]/(right[r+1]+left[j-r]);
+                double denominator = right[r + 1] + left[j - r];
+                double temp = (denominator == 0) ? 0.0 : N[r] / denominator;
                 N[r] = saved + right[r+1]*temp;
                 saved = left[j-r]*temp;
             }

@@ -10,8 +10,6 @@ namespace fdapde {
 template<int M, int N>
 class IsoMesh {
 
-    //template<typename T> using DMatrix = MdArray<T, Dynamic, Dynamic>;
-
     std::array<std::vector<double>,M> knots_; // knots in each direction
     MdArray<double,full_dynamic_extent_t<M>> weights_; // weights in each direction
     MdArray<double,full_dynamic_extent_t<M+1>> control_points_; // control points in each direction
@@ -19,93 +17,87 @@ class IsoMesh {
     int n_elements_; // number of elements
     int n_nodes_; // number of nodes
 
-    
     NurbsBasis<M> basis_; // basis of the mesh
 
+    //DMatrix<std::size_t> boundary_dof_ {}; // dofs of boundary of the mesh ( DofHandler.h will be implemented later)
 
-    //std::vector<ElementIGA<M,N>> elements_cache_; // elements of the mesh
-
-    //DMatrix<double> nodes_ {}; // nodes of the mesh, size: r by M, where r is the product of the numbers of unique knots along each dimension
-    //std::vector<std::size_t> boundary_ {}; // : r by 1 contains a boolean value for each node, true if the node is on the boundary of Ω
-    //DMatrix<std::size_t> elements_ {}; // elements of the mesh
-    //DMatrix<std::size_t> boundary_dof_ {}; // dofs of boundary of the mesh
-
-    // implementation of the private methods for the mesh parametrization
-
+    // Compute stride based on dimension and type (element or node)
     std::size_t compute_stride(std::size_t dim, bool element) const {
         return element ? this->knots_[dim].size() - 1 : this->knots_[dim].size();   
     }   
 
-
-    inline double eval_param(const std::array<double, M>& u, int sliceIdx) const {
-        auto CpSlice = this->control_points_.template slice<M>(sliceIdx);
-        double x = 0.0;
-        for (const auto& nurb : this->nurbs_basis_) {
-            x += nurb(x) * CpSlice(nurb.index());
-        }
-        return x;
-    }
-
-    inline double eval_param_derivative(const std::array<double, M>& u, int sliceIdx, std::size_t derivative_index) const {
-        auto CpSlice = this->control_points_.template slice<M>(sliceIdx);
-        double x = 0.0;
-        for (const auto& nurb : this->nurbs_basis_) {
-            x += nurb.derive(derivative_index)(x) * CpSlice(nurb.index());
-        }
-        return x;
-    }
-
-
-    // HERE
-
     public:
 
-    IsoMesh(std::array<std::vector<double>,M> & knots, MdArray<double,full_dynamic_extent_t<M>> & weights, int order,
-        MdArray<double,full_dynamic_extent_t<M+1>> & control_points): knots_(knots), weights_(weights), control_points_(control_points){
+    // Evaluate the physical coordinates of a point u given its parametric coordinates with index sliceIdx
+    inline double eval_param(const std::array<double, M>& u, int sliceIdx) const {
+        const auto CpSlice = this->control_points_.template slice<M>(sliceIdx);
+        double x = 0.0;
+        for (const auto& nurb : this->basis_) {
+            x += nurb(u) * CpSlice(nurb.index());
+        }
+        return x;
+    }
 
-            basis_ = NurbsBasis<M>(knots, weights, order);
+    // evaluate the derivative of the physical coordinates of a point given its parametric coordinates with index sliceIdx and derivative_index as the derivative index
+    inline double eval_param_derivative(const std::array<double, M>& u, int sliceIdx, std::size_t derivative_index) const {
+        const auto CpSlice = this->control_points_.template slice<M>(sliceIdx);
+        double x = 0.0;
+        for (const auto& nurb : this->basis_) {
+            x += nurb.derive(derivative_index)(u) * CpSlice(nurb.index());
+        }
+        return x;
+    }
 
-            // compute numeber of elements and nodes
-            n_elements_ = 1;
-            n_nodes_ = 1;
 
-            for(std::size_t i=0; i < M; ++i){
-                n_elements_ *= knots_[i].size() - 1;
-                n_nodes_ *= knots_[i].size();
-            }
-
-            //std::cout<<"n_elements: "<<n_elements_<<std::endl;
-
-        };
-
-    
-    // function to compute the ID of a cell from the multi-index
-
-    // function to compute the ID of a cell from the multi-index
-
-    std::size_t compute_el_ID(const std::array<std::size_t, M>& eMultiIndex) const {
+    // Compute the ID of a cell (or a node if element is false) from the multi-index
+    std::size_t compute_ID(const std::array<std::size_t, M>& eMultiIndex, bool element=true) const {
         std::size_t ID = eMultiIndex[M - 1]; // Start with the last index
         for (std::size_t i = M - 1; i > 0; --i) { // Iterate backward
-            ID = ID * (this->knots_[i - 1].size() - 1) + eMultiIndex[i - 1];
+            ID = ID * compute_stride(i-1,element) + eMultiIndex[i - 1];
         }
         return ID;
     }
 
-    std::array<std::size_t, M> compute_multiIndex(std::size_t ID, bool element=true) const {
+    public:
+
+    // Constructor
+    IsoMesh(std::array<std::vector<double>,M> & knots, MdArray<double,full_dynamic_extent_t<M>> & weights, int order,
+         MdArray<double,full_dynamic_extent_t<M+1>> & control_points): knots_(knots), weights_(weights), control_points_(control_points){
+
+            basis_ = NurbsBasis<M>(knots, weights, order);
+
+            // compute number of elements and nodes
+            n_elements_ = 1;
+            n_nodes_ = 1;
+            for(std::size_t i=0; i < M; ++i){
+                n_elements_ *= knots_[i].size() - 1;
+                n_nodes_ *= knots_[i].size();
+            }
+            // print
+            std::cout << "Number of elements: " << n_elements_ << std::endl;
+            std::cout << "Number of nodes: " << n_nodes_ << std::endl;
+        };
+
+
+
+    // Compute the multi-index of a cell (or a node if element is false) from the ID
+    std::array<std::size_t, M> compute_multiIndex(const std::size_t& ID, bool element=true) const {
+        auto tempID = ID;
         std::array<std::size_t, M> eMultiIndex;
         for (std::size_t i = M; i > 0; --i) {
             if (i == 1) {
-                eMultiIndex[M-1] = ID; // The last index is the remaining ID
+                eMultiIndex[M-1] = tempID; // The last index is the remaining ID
             } else {
-                std::size_t stride = element ? this->knots_[i - 2].size() - 1 : this->knots_[i - 2].size(); // Use (i-2) to match dimensions
-                eMultiIndex[M - i] = ID % stride; // Extract the current index
-                ID /= stride; // Update ID for the next dimension
+                std::size_t stride = compute_stride(i - 2, element); // Use (i-2) to match dimensions
+                eMultiIndex[M - i] = tempID % stride; // Extract the current index
+                tempID /= stride; // Update ID for the next dimension
             }
         }
         return eMultiIndex;
     }
 
-    std::array<std::array<int, M>,2> compute_param_el_vertices(const std::size_t ID)const {
+    // Compute the vertices of a square (cell) given its ID
+    std::array<std::array<int, M>,2> compute_lr_vertices(const std::size_t& ID)const {
         auto eMultiIndex = compute_multiIndex(ID);
         std::array<std::array<int, M>,2> vertices;
         for(std::size_t i = 0; i < M; ++i){
@@ -115,28 +107,18 @@ class IsoMesh {
         return vertices;
     }
 
-    bool is_boundary(const std::size_t ID) const {
-        auto eMultiIndex = compute_multiIndex(ID);
+    // check if a cell/node is on the boundary
+    bool is_boundary(const std::size_t& ID, bool element=true) const {
+        auto eMultiIndex = compute_multiIndex(ID,element);
         for(std::size_t i = 0; i < M; ++i){
-            if(eMultiIndex[i] == 0 || eMultiIndex[i] == knots_[i].size() - 2){
+            if(eMultiIndex[i] == 0 || eMultiIndex[i] == compute_stride(i,element) - 1){
                 return true;
             }
         }
         return false;
     }
-
-    bool is_node_boundary(const std::size_t ID) const {
-        auto eMultiIndex = compute_multiIndex(ID, false);
-        for(std::size_t i = 0; i < M; ++i){
-            if(eMultiIndex[i] == 0 || eMultiIndex[i] == knots_[i].size() - 1){
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // compute nodes, tensor for each node, compute the multi-index of the node, dimension r (number of nodes) by M
-
+    
+    // Compute all nodes of the mesh (dimension #nodes x M )
     std::vector<std::array<double,M>> compute_nodes() const {
         std::vector<std::array<double,M>> nodes;
         // print number of nodes
@@ -150,8 +132,7 @@ class IsoMesh {
         return nodes;
     }
 
-    // compute elements
-
+    // Compute all elements of the mesh (dimension #elements x M )
     std::vector<std::array<std::size_t,M>> compute_elements() const {
         std::vector<std::array<std::size_t,M>> elements;
         elements.resize(n_elements_);
@@ -161,123 +142,84 @@ class IsoMesh {
         return elements;
     }
 
-    // get neighbors
-
-    std::vector<std::size_t> get_neighbors_ID(const std::size_t ID) const {
-        // compute the multi-index of the element
+    // Compute the ID neighbors of a cell given its ID (dimension #elements x 2M(at most))
+    std::vector<std::size_t> get_neighbors_ID(const std::size_t& ID) const {
         auto eMultiIndex = compute_multiIndex(ID);
         std::vector<std::size_t> neighbors;
+        bool element = true; // neighbors are elements
 
-        // Size of the neighbors vector is at most 2M
-        // each element's neighbors are elements who have the same indexes along each dimension
-        // except for one dimension where the index is the previous or the next one (if they exist)
-        // w.r.t. the considered element
-        // to simplify the computation, we add the "next" element along a direction to the current one's neighbor list
-        // while simultaneously adding the current one to the "next" one's list
-
-        // loop over all the dimensions
         for(std::size_t i = 0; i < M; ++i){
-            // create a copy of the multi-index
             auto neighbor = eMultiIndex;
-            // check if the element is not on the boundary
             if(eMultiIndex[i] > 0){
-                // add the previous element along the i-th direction
                 neighbor[i] = eMultiIndex[i] - 1;
-                neighbors.push_back(compute_el_ID(neighbor));
+                neighbors.push_back(compute_ID(neighbor));
             }
-            // create a copy of the multi-index
             neighbor = eMultiIndex;
-            // check if the element is not on the boundary
-            if(eMultiIndex[i] < knots_[i].size() - 2){
-                // add the next element along the i-th direction
+            if(eMultiIndex[i] < compute_stride(i,element) - 1 ){
                 neighbor[i] = eMultiIndex[i] + 1;
-                neighbors.push_back(compute_el_ID(neighbor));
+                neighbors.push_back(compute_ID(neighbor));
             }
         }
-        // sort the neighbors
         std::sort(neighbors.begin(), neighbors.end());
         return neighbors;
     }
 
-    // Da mettere coordinate fisiche, problema con MdArray che son supporta somme di array
-    // This function computes the phisical coordinates of a point given its parametric coordinates
-    /*
-    std::array<double, M+1> compute_physical_coords(const std::array<double, M> & p) const {
-        std::array<double, M+1> x;
-
-        for (const auto& nurb : this->nurbs_basis_) {
-            x += nurb(x) * control_points_(nurb.index()); // devi fare una slice e poi sommare ... Da rivedere 
+    // Compute the coordinates of the physical coords using eval_param method of the mesh
+    // point in Parametric Space (M dim) -> point in Physical Space (M+1 dim)
+    std::array<double,N> compute_physical_coords(const std::array<double, M> & p) const {
+        std::array<double, N> x;
+        // note that the control points are stored in a tensor of dimension M+1, we need to slice it
+        for(int i = 0; i < N; ++i){
+            x[i] = eval_param(p,i);
         }
         return x;
     }
-    */
 
-    // getCell function
-    
-    IsoSquare<M,N> getCell(std::size_t index) const {
-        // compute the multi-index of the element
-        auto eMultiIndex = compute_multiIndex(index);
-        return IsoSquare<M,N>(eMultiIndex, this);
+    // Access individual cells, Create a cell object given its ID
+    IsoSquare<M,N> getCell(const std::size_t& ID) const {
+        return IsoSquare<M,N>(ID, this);
     }
 
-    // some getters
-
-    const NurbsBasis<M>& basis() const { return basis_; }
-    const MdArray<double, full_dynamic_extent_t<M+1>>& control_points() const { return control_points_; }
-    const std::array<std::vector<double>,M>& knots() const { return knots_; }
-
-    public:
 
     class CellIterator {
+    private:
+        const IsoMesh* parentMesh_;
+        std::size_t currentIndex_;
+        IsoSquare<M,N> currentCell_; 
+    
     public:
 
-        CellIterator(const IsoMesh* mesh, size_t index): parentMesh_(mesh), currentIndex_(index), currentCell_(mesh->getCell(index)) {}
+        CellIterator(const IsoMesh* mesh, size_t index): 
+            parentMesh_(mesh), currentIndex_(index), currentCell_(mesh->getCell(index)) {}
 
-        // Dereferenziazione
-        IsoSquare<M,N> operator*() const {
-            return currentCell_;
-        }
+        IsoSquare<M,N> operator*() const { return currentCell_;}
 
-        // Incremento
         CellIterator& operator++() {
             currentIndex_++;
-            currentCell_ = parentMesh_->getCell(currentIndex_); // Update cached cell
+            currentCell_ = parentMesh_->getCell(currentIndex_); 
             return *this;
         }
 
         // Confronto
-        bool operator==(const CellIterator& other) const {
-            return currentIndex_ == other.currentIndex_ ;
-        }
+        bool operator==(const CellIterator& other) const { return currentIndex_ == other.currentIndex_ ;}
 
-        bool operator!=(const CellIterator& other) const {
-            return !(currentIndex_ == other.currentIndex_ );
-        }
-
-    private:
-        const IsoMesh* parentMesh_;
-        size_t currentIndex_;
-        IsoSquare<M,N> currentCell_; // Cache the current cell
+        bool operator!=(const CellIterator& other) const { return !(*this == other);}
     };
 
     // Metodi per ottenere gli iteratori
-    CellIterator beginCells() const {
-        return CellIterator(this, 0);
-    }
+    CellIterator beginCells() const { return CellIterator(this, 0);}
 
-    CellIterator endCells() const {
-        return CellIterator(this, this->n_elements_ - 1);
-    }
+    CellIterator endCells() const { return CellIterator(this, this->n_elements_ - 1);}
 
 
     // some getters
+    const NurbsBasis<M>& basis() const { return basis_; }
+    const MdArray<double, full_dynamic_extent_t<M+1>>& control_points() const { return control_points_; }
+    const std::array<std::vector<double>,M>& knots() const { return knots_; }
+
     std::size_t n_elements() const { return n_elements_; }
     std::size_t n_nodes() const { return n_nodes_; }
-
 };
-
-
-
 }; // namespace fdapde
 
 #endif // __ISO_MESH_H__

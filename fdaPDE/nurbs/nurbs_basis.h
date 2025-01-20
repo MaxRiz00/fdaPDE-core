@@ -41,7 +41,7 @@ namespace fdapde {
                             { knots[i] } -> std::convertible_to<std::vector<double>>;
                             { knots.size() } -> std::convertible_to<std::size_t>;
                         })
-            NurbsBasis(KnotsVectorType&& knots, MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : order_(order) {
+            NurbsBasis(KnotsVectorType&& knots,MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : order_(order) {
             // construct knots vector
 
             std::array<std::vector<double>,M> knots_ ;
@@ -118,6 +118,9 @@ namespace fdapde {
             constexpr int size() const { return basis_.size(); }
             constexpr int order() const { return order_; }
             constexpr const std::vector<Nurbs<M>>& spline_basis() const { return basis_; }
+
+            auto begin() const { return basis_.begin(); }
+            auto end() const { return basis_.end(); }
     };
 }   // namespace fdapde
 

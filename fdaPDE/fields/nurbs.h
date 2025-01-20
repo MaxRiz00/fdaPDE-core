@@ -278,7 +278,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 };
 
                 // evalutes the first order partial derivative of the NURBS at a given point, funziona
-                constexpr Scalar operator()(const InputType& p) const {
+                constexpr Scalar operator()(const std::array<Scalar,StaticInputSize> & p) const { // attaentzione, qua devi usare InputType
 
                     //std::cout<<"Inizio a calcolare"<<std::endl;
 
