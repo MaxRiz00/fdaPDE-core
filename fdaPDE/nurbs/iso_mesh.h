@@ -73,9 +73,6 @@ class IsoMesh {
                 n_elements_ *= knots_[i].size() - 1;
                 n_nodes_ *= knots_[i].size();
             }
-            // print
-            std::cout << "Number of elements: " << n_elements_ << std::endl;
-            std::cout << "Number of nodes: " << n_nodes_ << std::endl;
         };
 
 

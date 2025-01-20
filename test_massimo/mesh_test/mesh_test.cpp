@@ -9,6 +9,8 @@
 #include "linear_algebra/mdarray.h"
 #include "../utils/utils.h" 
 
+#include <chrono>
+
 
 namespace fdapde::testing{
 
@@ -44,7 +46,7 @@ TEST(isogeometric_analysis_test, mesh_structure){
     // Test nodes
     std::vector<std::array<double,3>> nodes = mesh.compute_nodes();
     SpMatrix<double> expected_nodes;
-    Eigen::loadMarket(expected_nodes, "../mesh_structure/nodes.mtx");
+    Eigen::loadMarket(expected_nodes, "../mesh_test_data/nodes.mtx");
     for(size_t i = 0; i < nodes.size(); ++i){
         for(size_t j = 0; j < 3; ++j){
             EXPECT_TRUE(almost_equal(expected_nodes.coeff(i,j),nodes[i][j]));
@@ -54,7 +56,9 @@ TEST(isogeometric_analysis_test, mesh_structure){
     // use get_neighbors to get the neighbors of a cell, print all neighbors for ll cels
 
     SpMatrix<size_t> expected_neighbors;
-    Eigen::loadMarket(expected_neighbors, "../mesh_structure/neighbors.mtx");
+    Eigen::loadMarket(expected_neighbors, "../mesh_test_data/neighbors.mtx");
+
+    auto n_elements = mesh.n_elements();
 
     // compute the neighbors of all elements
     for(size_t i = 0; i < n_elements; ++i){
@@ -67,13 +71,12 @@ TEST(isogeometric_analysis_test, mesh_structure){
     // check for boundary cells
     auto n_nodes = mesh.n_nodes();
     SpMatrix<size_t> expected_boundary;
-    Eigen::loadMarket(expected_boundary, "../mesh_structure/boundary.mtx");
+    Eigen::loadMarket(expected_boundary, "../mesh_test_data/boundary.mtx");
 
     bool element = false;
 
     for(size_t i = 0; i < n_nodes; ++i){
         // print true value and computed value
-        //std::cout << "Element " << i << " is boundary: " << mesh.is_node_boundary(i) << " expected: " << expected_boundary.coeff(i,0) << std::endl;
         EXPECT_TRUE(mesh.is_boundary(i,element) == expected_boundary.coeff(i,0));
     }
 };
@@ -84,7 +87,7 @@ TEST(isogeometric_analysis_test, mesh_parametrization){
     int order = 1;
 
     std::array<std::vector<double>,3> knots ;
-    MdArray<double,full_dynamic_extent_t<3>> weights(3,3,2);
+    MdArray<double,full_dynamic_extent_t<3>> weights(2,3,2);
     MdArray<double,full_dynamic_extent_t<4>> control_points(2,3,2,3);
 
     knots[0].resize(2);
@@ -92,7 +95,7 @@ TEST(isogeometric_analysis_test, mesh_parametrization){
     knots[2].resize(2);
 
     for(int i = 0; i<2; i++) knots[0][i] = 1.*i;
-    for(int i = 0; i<3; i++) knots[1][i] = .5*i;
+    for(int i = 0; i<3; i++) knots[1][i] = 0.5*i;
     for(int i = 0; i<2; i++) knots[2][i] = 1.*i;
 
     for(int i = 0; i<2; i++) for(int j = 0; j<3; j++) for(int k = 0; k<2; k++) weights(i,j,k) = 1.;
@@ -110,23 +113,30 @@ TEST(isogeometric_analysis_test, mesh_parametrization){
 
     SpMatrix<double> expected;
     // expected results from nurbs derivative pointwise evaluations
-    Eigen::loadMarket(expected, "../data/mtx/nurbs_mesh_test.mtx");
+    Eigen::loadMarket(expected, "../mesh_test_data/nurbs_mesh_test.mtx");
 
     IsoMesh<3,3> mesh(knots, weights, order, control_points);
 
-    // iterate over the cells
+    // start measuring the time
+    auto start = std::chrono::high_resolution_clock::now();
 
     for(size_t j = 0; j < expected.cols(); ++j){
         // first three rows of expected contain the x-y-z coordinates of the point at which to evaluate
         std::array<double, 3> x = {expected.coeff(0, j), expected.coeff(1, j), expected.coeff(2, j)};
-        for(std::size_t i = 0; i<3; ++i){
+        for(std::size_t i = 0; i<3 ; ++i){
             EXPECT_TRUE(almost_equal(expected.coeff(3+i,j),mesh.eval_param(x,i)));
-            for(size_t k = 0; k < 3; ++k){
-                EXPECT_TRUE(almost_equal(expected.coeff(6+3*i+k,j),mesh.eval_param_derivative(x,i,k)));
+            for(std::size_t k = 0; k < 3; ++k){
+                EXPECT_TRUE(almost_equal(expected.coeff(6+3*i+k,j),mesh.eval_param_derivative(x,k,i)));
             }
         }
-
     }
+
+    // stop measuring the time
+    auto stop = std::chrono::high_resolution_clock::now();
+
+    //print time elapsed
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    std::cout << "Time taken by function: " << duration.count() << " microseconds" << std::endl;
 
 };
 
