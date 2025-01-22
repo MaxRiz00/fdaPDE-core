@@ -1,6 +1,7 @@
 #include "nurbs/nurbs_basis.h"
 #include "nurbs/iso_mesh.h"
 #include "nurbs/iso_square.h"
+#include "nurbs/integrator.h"
 
 #include <gtest/gtest.h>   // testing framework
 #include <unsupported/Eigen/SparseExtra>
@@ -139,5 +140,52 @@ TEST(isogeometric_analysis_test, mesh_parametrization){
     std::cout << "Time taken by function: " << duration.count() << " microseconds" << std::endl;
 
 };
+
+TEST(isogeometric_analysis_test, integrator){
+
+    int order =3;
+
+    std::array<std::vector<double>,3>  nodes;
+    MdArray<double,full_dynamic_extent_t<3>> weights(4,4,4);
+    MdArray<double,full_dynamic_extent_t<4>> controlpoints(4,4,4,3);
+    nodes[0].resize(2);
+    nodes[1].resize(2);
+    nodes[2].resize(2);
+
+    for(size_t i = 0; i < 2; i++)nodes[0][i]=nodes[1][i]=nodes[2][i]=1.*i;
+
+    for(size_t i = 0; i < 4; i++)
+        for(size_t j = 0; j < 4; j++)
+            for(size_t k = 0; k < 4; k++)
+                weights(i,j,k) = 1.;
+
+    // control points
+    for(size_t i = 0; i < 4; i++)
+        for(size_t j = 0; j < 4; j++)
+            for(size_t k = 0; k < 4; k++){
+                controlpoints(i,j,k,0) = 1.*i;
+                controlpoints(i,j,k,1) = 1.*j;
+                controlpoints(i,j,k,2) = 1.*k;
+            }
+    
+    IsoMesh<3,3> mesh(nodes, weights,order, controlpoints);
+    IsoIntegrator<3, 27> itg;
+
+    // exact integral of t is equal to 1
+    auto f = [] (const std::array<double,3> & x) -> double 
+        {return x[0]*x[0]*x[0] + 2*x[0]*x[0]*x[1] - 2*x[0]*x[1]*x[1] + 4*x[0]*x[1]*x[2] + x[2]*x[2]*x[2];};
+
+    EXPECT_TRUE(almost_equal(1., itg.integrate(*(mesh.beginCells()), f)));
+    // print the integral of the function f over the mesh
+    EXPECT_TRUE(almost_equal(1., itg.integrate(mesh, f)));
+
+    // try the physical domain integration
+
+    auto f_physical = [] (const std::array<double,3> & x) -> double 
+        {return 3*x[0]*x[0] + 2*x[0]*x[1] - 2*x[0]*x[1] + 4*x[0]*x[1] + x[2]*x[2];};
+
+    // print the integral over the physical domain
+    std::cout<<itg.integrate_physical(*(mesh.beginCells()), f_physical)<<std::endl;
+}
 
 }; // namespace fdapde::testing

@@ -27,4 +27,4 @@ cmake --build .
 
 # Step 5: Run the resulting executable
 echo "Running the executable..."
-./SplineExecutable
+./SplineExecutable --gtest_filter isogeometric_analysis_test.integrator

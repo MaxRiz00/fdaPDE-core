@@ -93,7 +93,7 @@ TEST(nurbs_test, nurbs_basis_derivative_1D){
 
     int order = 3;
 
-    using InputType = cexpr::Vector<double, 1>;
+    using InputType = std::array<double, 1>;
     
     // open uniform knot vector
     for(size_t i = 0; i < 5; i++)nodes[0][i]=1.*i;
@@ -108,7 +108,7 @@ TEST(nurbs_test, nurbs_basis_derivative_1D){
     
     for(size_t i = 0; i < basis.size(); ++i){
         for(size_t j = 0; j < expected.cols() ; ++j){
-            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].derive()(InputType(expected.coeff(0,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].derive()(InputType{expected.coeff(0,j)})));
         }
     }
 }
@@ -120,7 +120,7 @@ TEST(nurbs_test, nurbs_basis_derivative_2D) {
     nodes[0].resize(2);
     nodes[1].resize(3);
 
-    using InputType = cexpr::Vector<double, 2>;
+    using InputType = std::array<double, 2>;
 
     int order = 3;
 
@@ -140,8 +140,8 @@ TEST(nurbs_test, nurbs_basis_derivative_2D) {
     for(size_t i = 0; i < basis.size(); ++i){
         for(size_t j = 0; j < expected.cols(); ++j){
             // compare values with data from file
-            EXPECT_TRUE(almost_equal(expected.coeff(2*i+2,j),basis[i].derive(0)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
-            EXPECT_TRUE(almost_equal(expected.coeff(2*i+3,j),basis[i].derive(1)(InputType(expected.coeff(0,j), expected.coeff(1,j)))));
+            EXPECT_TRUE(almost_equal(expected.coeff(2*i+2,j),basis[i].derive(0)(InputType{expected.coeff(0,j), expected.coeff(1,j)})));
+            EXPECT_TRUE(almost_equal(expected.coeff(2*i+3,j),basis[i].derive(1)(InputType{expected.coeff(0,j), expected.coeff(1,j)})));
         }
     }
 }
@@ -170,7 +170,7 @@ TEST(nurbs_test, nurbs_basis_second_derivative_1D){
     
     for(size_t i = 0; i < basis.size(); ++i){
         for(size_t j = 0; j < expected.cols(); ++j){
-            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].deriveTwice()((InputType(expected.coeff(0,j))))));
+            EXPECT_TRUE(almost_equal(expected.coeff(i+1,j),basis[i].deriveTwice()((InputType{expected.coeff(0,j)}))));
         }
     }
 }

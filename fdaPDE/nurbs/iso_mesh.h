@@ -205,8 +205,36 @@ class IsoMesh {
 
     // Metodi per ottenere gli iteratori
     CellIterator beginCells() const { return CellIterator(this, 0);}
+    CellIterator endCells() const { return CellIterator(this, this->n_elements_);}
 
-    CellIterator endCells() const { return CellIterator(this, this->n_elements_ - 1);}
+    class BoundaryIterator {
+        private:
+            const IsoMesh* parentMesh_;
+            std::size_t currentIndex_;
+            IsoSquare<M,N> currentCell_;
+        public:
+            BoundaryIterator(const IsoMesh* mesh, std::size_t index)
+                : parentMesh_(mesh), currentIndex_(index), currentCell_(mesh->getCell(index)) {
+                while (currentIndex_ < parentMesh_->n_elements_ && !parentMesh_->is_boundary(currentIndex_)) {
+                    currentIndex_++;
+                }
+            }
+            IsoSquare<M,N> operator*() const { return currentCell_; }
+            BoundaryIterator& operator++() {
+                do {
+                    currentIndex_++;
+                } while (currentIndex_ < parentMesh_->n_elements_ && !parentMesh_->is_boundary(currentIndex_));
+                if (currentIndex_ < parentMesh_->n_elements_) {
+                    currentCell_ = parentMesh_->getCell(currentIndex_);
+                }
+                return *this;
+            }
+            bool operator==(const BoundaryIterator& other) const { return currentIndex_ == other.currentIndex_; }
+            bool operator!=(const BoundaryIterator& other) const { return !(*this == other); }
+        };
+
+    BoundaryIterator beginBoundaryCells() const { return BoundaryIterator(this, 0);}
+    BoundaryIterator endBoundaryCells() const { return BoundaryIterator(this, n_elements_); }
 
 
     // some getters

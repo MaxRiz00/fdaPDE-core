@@ -49,6 +49,19 @@ class IsoSquare{
     
     // All these methods want a point p in \Omega, [-1,1]^M, and return the corresponding value in the physical domain
     // parametrization gradient F, puo' magari essere resa piu' efficiente
+
+    // also parametrization
+    std::array<double,N> parametrization(const std::array<double, M>& p) const {
+        // compute x, with the affine map
+        auto x = affine_map(p);
+        // now x is in [left_coords, right_coords]
+        std::array<double,N> F;
+        for(int i=0;i<N;i++){
+            F[i] = mesh_->eval_param(x,i);
+        }
+        return F;
+    }
+
     Eigen::Matrix<double,N,M> parametrization_gradient(const std::array<double, M>& p) const {
         // compute x, with the affine map
         auto x = affine_map(p);
@@ -71,7 +84,7 @@ class IsoSquare{
     // metric determinant sqrt(det(F^T * F))
     double metric_determinant(const std::array<double, M>& p) const {
         auto x = affine_map(p);
-        return sqrt(metric_tensor(x).determinant()); 
+        return std::sqrt(metric_tensor(x).determinant()); 
     }
 
     // Compute the neighbors of the current element
@@ -103,6 +116,17 @@ class IsoSquare{
     }
     return physical_vertices;
     }
+
+    // compute parametric measure
+
+    double parametric_measure() const {
+        double measure = 1.0;
+        for(std::size_t i = 0; i < M; ++i){
+            measure *= right_coords_[i] - left_coords_[i];
+        }
+        return measure/(1<<M);
+    }
+
 
     // Getters
     std::size_t ID() const { return ID_; }
