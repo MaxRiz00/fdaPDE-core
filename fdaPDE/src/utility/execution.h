@@ -14,21 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_CORE_MODULE_H__
-#define __FDAPDE_CORE_MODULE_H__
+#ifndef __FDAPDE_EXECUTION_H__
+#define __FDAPDE_EXECUTION_H__
 
-// clang-format off
+#include "header_check.h"
 
-// include modules
-#include "linear_algebra.h"    // pull Eigen first
-#include "utility.h"
-#include "fields.h"
-#include "geometry.h"
-#include "finite_elements.h"
-#include "splines.h"
-#include "optimization.h"
-#include "geoframe.h"
+namespace fdapde {
 
-// clang-format on
+// execution policy tags
+struct sequential_execution_tag { } seq;   // sequential algorithms tag
+struct parallel_execution_tag   { } par;   // parallel algorithms tag
 
-#endif   // __FDAPDE_CORE_MODULE_H__
+template <typename T, typename U = std::decay_t<T>>
+concept is_execution_policy =
+  std::is_same_v<U, sequential_execution_tag> || std::is_same_v<U, parallel_execution_tag>;
+
+}   // namespace fdapde
+
+#endif   // __FDAPDE_EXECUTION_H__
