@@ -2,7 +2,7 @@
 #define __ISO_MESH_H__
 
 
-#include "nurbs_basis.h"
+#include "nurbs.h"
 #include "iso_square.h"
 
 namespace fdapde {

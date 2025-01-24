@@ -317,9 +317,6 @@ TEST(mesh_test, mesh_parametrization){
 
     IsoMesh<3,3> mesh(knots, weights, order, control_points);
 
-    // start measuring the time
-    auto start = std::chrono::high_resolution_clock::now();
-
     for(size_t j = 0; j < expected.cols(); ++j){
         // first three rows of expected contain the x-y-z coordinates of the point at which to evaluate
         std::array<double, 3> x = {expected.coeff(0, j), expected.coeff(1, j), expected.coeff(2, j)};
@@ -330,13 +327,6 @@ TEST(mesh_test, mesh_parametrization){
             }
         }
     }
-
-    // stop measuring the time
-    auto stop = std::chrono::high_resolution_clock::now();
-
-    //print time elapsed
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-    std::cout << "Time taken by function: " << duration.count() << " microseconds" << std::endl;
 
 };
 
