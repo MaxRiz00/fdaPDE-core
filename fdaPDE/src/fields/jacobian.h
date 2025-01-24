@@ -23,29 +23,6 @@ namespace fdapde {
 
 template <typename Derived_> class Jacobian : public MatrixFieldBase<Derived_::StaticInputSize, Jacobian<Derived_>> {
     fdapde_static_assert(Derived_::Cols == 1, JACOBIAN_OPERATOR_IS_FOR_VECTOR_FIELDS_ONLY);
-<<<<<<< HEAD:fdaPDE/fields/jacobian.h
-
-    class jacobian_helper : public ScalarBase<Derived_::StaticInputSize, jacobian_helper> {
-        using XprType = std::decay_t<decltype(std::declval<Derived_>().operator[](std::declval<int>()))>;
-        XprType xpr_;
-        const Jacobian* jacobian_;
-       public:
-        using Base = ScalarBase<Derived_::StaticInputSize, jacobian_helper>;
-        using InputType = std::decay_t<typename Derived_::InputType>;
-        using Scalar = typename Derived_::Scalar;
-        static constexpr int StaticInputSize = Derived_::StaticInputSize;
-        static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = Derived_::XprBits;
-
-        constexpr jacobian_helper() = default;
-        constexpr jacobian_helper(const XprType& xpr, const Jacobian* jacobian) :
-            Base(), xpr_(xpr), jacobian_(jacobian) { }
-        constexpr Scalar operator()(InputType x) const { return xpr_(x); }
-        constexpr int input_size() const { return jacobian_->input_size(); }
-        constexpr const Jacobian& derived() const { return *jacobian_; }
-    };
-=======
->>>>>>> 65d96c110c3e6d9c181cd5c2b32e4286b280360a:fdaPDE/src/fields/jacobian.h
    public:
     using Derived = Derived_;
     template <typename T> using Meta = Jacobian<T>;

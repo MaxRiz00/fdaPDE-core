@@ -23,6 +23,8 @@
 #include "linear_algebra.h"    // pull Eigen first
 #include "utility.h"
 
+
+
 // minimal geometric entites
 #include "src/geometry/utility.h"
 #include "src/geometry/primitives.h"
@@ -42,6 +44,8 @@
 #include "src/geometry/linear_network.h"
 #include "src/geometry/dcel.h"
 #include "src/geometry/polygon.h"
+
+
 
 // clang-format on
 

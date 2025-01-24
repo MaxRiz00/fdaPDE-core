@@ -17,8 +17,9 @@
 #ifndef __NURBS_BASIS_H__
 #define __NURBS_BASIS_H__
 
-#include "../geometry/interval.h"
+
 #include "../fields/nurbs.h"
+
 
 namespace fdapde {
 
@@ -36,12 +37,12 @@ namespace fdapde {
             // constructors
             constexpr NurbsBasis() : order_(0) { } 
 
-            template <typename KnotsVectorType>
-                requires(requires(KnotsVectorType knots, int i) {
-                            { knots[i] } -> std::convertible_to<std::vector<double>>;
-                            { knots.size() } -> std::convertible_to<std::size_t>;
-                        })
-            NurbsBasis(KnotsVectorType&& knots,MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : order_(order) {
+            //template <typename KnotsVectorType> da capire come fare
+            //   requires(requires(KnotsVectorType knots, int i) {
+            //               { knots[i] } -> std::convertible_to<std::vector<double>>;
+            //               { knots.size() } -> std::convertible_to<std::size_t>;
+            //          })
+            NurbsBasis(std::array<std::vector<double>,M>& knots,MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : order_(order) {
             // construct knots vector
 
             std::array<std::vector<double>,M> knots_ ;
@@ -73,10 +74,10 @@ namespace fdapde {
                 std::array<int, M> index = {0};
 
                 // instantialize the shared pointers of spline basis functions for each dimension
-                std::array<std::shared_ptr<SplineBasis>, M> M_spline_basis;
+                std::array<std::shared_ptr<BSplineBasis>, M> M_spline_basis;
 
                 for(int k=0;k<M;++k){
-                    M_spline_basis[k] = std::make_shared<SplineBasis>(knots_[k], order_);
+                    M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_);
                 }
 
 

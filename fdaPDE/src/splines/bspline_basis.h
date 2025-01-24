@@ -39,14 +39,8 @@ class BSplineBasis {
                     { knots[i] } -> std::convertible_to<double>;
                     { knots.size() } -> std::convertible_to<std::size_t>;
                 })
-<<<<<<< HEAD:fdaPDE/splines/spline_basis.h
-    SplineBasis(KnotsVectorType&& knots, int order) : order_(order) {
-
-        //fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
-=======
     BSplineBasis(KnotsVectorType&& knots, int order) : order_(order) {
-        fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
->>>>>>> 65d96c110c3e6d9c181cd5c2b32e4286b280360a:fdaPDE/src/splines/bspline_basis.h
+        //fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
         int n = knots.size();
         knots_.resize(n);
         for (int i = 0; i < n; ++i) { knots_[i] = knots[i]; }
@@ -55,18 +49,13 @@ class BSplineBasis {
         for (int i = 0; i < n - order_ - 1; ++i) { basis_.emplace_back(knots_, i, order_); }
     }
     // constructor from geometric interval (no repeated knots)
-<<<<<<< HEAD:fdaPDE/splines/spline_basis.h
-    SplineBasis(const Triangulation<1, 1>& interval, int order, bool already_padded = false) : order_(order) {
-=======
     BSplineBasis(const Triangulation<1, 1>& interval, int order) : order_(order) {
->>>>>>> 65d96c110c3e6d9c181cd5c2b32e4286b280360a:fdaPDE/src/splines/bspline_basis.h
         // construct knots vector
         Eigen::Matrix<double, Dynamic, 1> knots = interval.nodes();
         fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end() FDAPDE_COMMA std::less_equal<double>()));
         int n = knots.size();
         knots_.resize(n + 2 * order_);
         // pad the knot vector to obtain a full basis for the whole knot span [knots[0], knots[n-1]]
-        if (not already_padded)
             for (int i = 0; i < n + 2 * order_; ++i) {
                 if (i < order_) {
                     knots_[i] = knots[0];

@@ -2,11 +2,11 @@
 #ifndef __NURBS_H__
 #define __NURBS_H__
 
-#include "../linear_algebra/constexpr_matrix.h"
-#include "../linear_algebra/mdarray.h"
-#include "../fields/matrix_field.h"
-#include "scalar_field.h"
-#include "../splines/spline_basis.h"
+#include "header_check.h"
+
+#include "linear_algebra.h"
+#include "fields.h"
+#include "splines.h"
 
 namespace fdapde{
 
@@ -46,19 +46,19 @@ inline double multicontract(const MdArray<double, full_dynamic_extent_t<M>>& wei
 
 
 template<int M>
-class Nurbs: public ScalarBase<M,Nurbs<M>> {
+class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
         public:
 
-            using Base = ScalarBase<M,Nurbs<M>>;
+            using Base = ScalarFieldBase<M,Nurbs<M>>;
             static constexpr int StaticInputSize = M;
             static constexpr int NestAsRef = 0;   // avoid nesting as reference, .derive() generates temporaries
             static constexpr int XprBits = 0;
             static constexpr int Order = Dynamic;
             using Scalar = double;
-            using InputType = cexpr::Vector<Scalar, StaticInputSize>;
+            using InputType = Vector<Scalar, StaticInputSize>;
 
         private:
-            std::array<std::shared_ptr<SplineBasis>, M> spline_basis_;
+            std::array<std::shared_ptr<BSplineBasis>, M> spline_basis_;
             MdArray<double,full_dynamic_extent_t<M>> weights_;
             std::array<int,M> index_ ;
             int order_ = 0;
@@ -102,7 +102,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                             }
                         }
                     }
-                    spline_basis_[i] = std::make_shared<SplineBasis>(knots_, order_);
+                    spline_basis_[i] = std::make_shared<BSplineBasis>(knots_, order_);
 
                     // compute the minIdx and extents for each dimension
                     minIdx_[i] = (index_[i] >= order_)? (index_[i]-order_) : 0;
@@ -142,7 +142,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             };
 
             // constructor with shared pointers, used by the NurbsBasis
-            Nurbs(std::array<std::shared_ptr<SplineBasis>, M> spline_basis, MdArray<double,full_dynamic_extent_t<M>>& weights,std::array<int,M>& index) : spline_basis_(spline_basis), index_(index) { 
+            Nurbs(std::array<std::shared_ptr<BSplineBasis>, M> spline_basis, MdArray<double,full_dynamic_extent_t<M>>& weights,std::array<int,M>& index) : spline_basis_(spline_basis), index_(index) { 
                 // questo viene usato da NurbsBasis
 
                 //decalre maxIdx
@@ -188,7 +188,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
 
             //evaluates the NURBS at a given point, funziona
             template <typename InputType_>
-            requires(fdapde::is_subscriptable<InputType_, int>)
+            requires(internals::is_subscriptable<InputType_, int>)
             constexpr Scalar operator()(const InputType_& p_) const {
                 
                 double num = num0_;
@@ -224,19 +224,19 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             }; 
 
         private:
-            class FirstDerivative: public MatrixBase<M,FirstDerivative> {
+            class FirstDerivative: public MatrixFieldBase<M,FirstDerivative> {
             public:
             
-                using Base = MatrixBase<M,FirstDerivative>;
+                using Base = MatrixFieldBase<M,FirstDerivative>;
                 static constexpr int StaticInputSize = M;
                 static constexpr int NestAsRef = 0;   // avoid nesting as reference, .derive() generates temporaries
                 static constexpr int XprBits = 0;
                 static constexpr int Order = Dynamic;
                 using Scalar = double;
-                using InputType = cexpr::Vector<Scalar, StaticInputSize>;
+                using InputType = Vector<Scalar, StaticInputSize>;
 
             private:
-                std::array<std::shared_ptr<SplineBasis>, M> spline_basis_;
+                std::array<std::shared_ptr<BSplineBasis>, M> spline_basis_;
                 MdArray<double,full_dynamic_extent_t<M>> weights_;
                 std::array<int,M> index_ ;
                 int order_;
@@ -250,7 +250,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             public:
                 FirstDerivative() = default;
 
-                FirstDerivative(std::array<std::shared_ptr<SplineBasis>, M> spline_basis, const MdArray<double,full_dynamic_extent_t<M>>& weights, const std::array<int,M>& index, std::size_t i): 
+                FirstDerivative(std::array<std::shared_ptr<BSplineBasis>, M> spline_basis, const MdArray<double,full_dynamic_extent_t<M>>& weights, const std::array<int,M>& index, std::size_t i): 
                      spline_basis_(spline_basis), index_(index), i_(i){
 
                     // build a spline basis for each dimension
@@ -345,19 +345,19 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 //}
 
 
-            class SecondDerivative: public MatrixBase<M,SecondDerivative> {
+            class SecondDerivative: public MatrixFieldBase<M,SecondDerivative> {
             public:
             
-                using Base = MatrixBase<M,SecondDerivative>;
+                using Base = MatrixFieldBase<M,SecondDerivative>;
                 static constexpr int StaticInputSize = M;
                 static constexpr int NestAsRef = 0;   // avoid nesting as reference, .derive() generates temporaries
                 static constexpr int XprBits = 0;
                 static constexpr int Order = Dynamic;
                 using Scalar = double;
-                using InputType = cexpr::Vector<Scalar, StaticInputSize>;
+                using InputType = Vector<Scalar, StaticInputSize>;
 
             private:
-                std::array<std::shared_ptr<SplineBasis>, M> spline_basis_;
+                std::array<std::shared_ptr<BSplineBasis>, M> spline_basis_;
                 MdArray<double,full_dynamic_extent_t<M>> weights_;
                 std::array<int,M> index_ ;
                 int order_ = 0;
@@ -372,7 +372,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
             public:
                 SecondDerivative() = default;
 
-                SecondDerivative(std::array<std::shared_ptr<SplineBasis>, M> spline_basis, const MdArray<double,full_dynamic_extent_t<M>>& weights, const std::array<int,M>& index, std::size_t i, std::size_t j): 
+                SecondDerivative(std::array<std::shared_ptr<BSplineBasis>, M> spline_basis, const MdArray<double,full_dynamic_extent_t<M>>& weights, const std::array<int,M>& index, std::size_t i, std::size_t j): 
                      spline_basis_(spline_basis), index_(index), i_(i), j_(j){
 
                     // build a spline basis for each dimension
@@ -538,7 +538,7 @@ class Nurbs: public ScalarBase<M,Nurbs<M>> {
                 constexpr int size() const { return weights_.size(); }
                 constexpr const MdArray<double,full_dynamic_extent_t<M>>& weights() const { return weights_; }
                 constexpr const std::array<int,M>& index() const { return index_; }
-                constexpr const std::array<std::shared_ptr<SplineBasis>, M>& spline_basis() const { return spline_basis_; }
+                constexpr const std::array<std::shared_ptr<BSplineBasis>, M>& spline_basis() const { return spline_basis_; }
 
                 constexpr Scalar operator()(double p) const { return operator()(std::vector<double>{p}); }
     

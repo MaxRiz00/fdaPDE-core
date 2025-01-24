@@ -19,7 +19,7 @@ cd "$BUILD_DIR"
 
 # Step 3: Run CMake to configure the build system
 echo "Configuring the project with CMake..."
-cmake ..
+cmake .. -Wno-dev -DCMAKE_C_COMPILER=/usr/local/bin/gcc-14 -DCMAKE_CXX_COMPILER=/usr/local/bin/g++-14
 
 # Step 4: Build the project
 echo "Building the project..."
@@ -27,4 +27,4 @@ cmake --build .
 
 # Step 5: Run the resulting executable
 echo "Running the executable..."
-./SplineExecutable --gtest_filter isogeometric_analysis_test.integrator
+./IsoTest #--gtest_filter=nurbs_test.nurbs_basis_1D

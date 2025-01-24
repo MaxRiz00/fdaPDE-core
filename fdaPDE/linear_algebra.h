@@ -23,11 +23,6 @@
 #include <Eigen/Eigen>
 #define __FDAPDE_HAS_EIGEN
 
-<<<<<<< HEAD
-//#include "linear_algebra/randomized_algorithms/rsvd.h"
-//#include "linear_algebra/randomized_algorithms/revd.h"
-//#include "linear_algebra/randomized_algorithms/nystrom.h"
-=======
 // include required modules
 #include "utility.h"
 
@@ -39,6 +34,5 @@
 #include "src/linear_algebra/woodbury.h"
 
 // clang-format on
->>>>>>> 65d96c110c3e6d9c181cd5c2b32e4286b280360a
 
 #endif   // __FDAPDE_LINEAR_ALGEBRA_MODULE_H__

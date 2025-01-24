@@ -1,9 +1,9 @@
 #ifndef __ISO_MESH_H__
 #define __ISO_MESH_H__
 
+
 #include "nurbs_basis.h"
 #include "iso_square.h"
-#include "linear_algebra/mdarray.h"
 
 namespace fdapde {
 
