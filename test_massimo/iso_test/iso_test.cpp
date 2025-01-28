@@ -239,46 +239,47 @@ TEST(mesh_test, mesh_structure){
         }
     }
 
-    IsoMesh<3,3> mesh(knots, weights, order, control_points);
+    IsoMesh<3,3> mesh(knots, weights, control_points, order);
 
     // to iterate over the cells using the class CellIterator for (auto it = mesh.beginCells(); it != end; ++it)
 
     // Test nodes
-    std::vector<std::array<double,3>> nodes = mesh.compute_nodes();
+    auto nodes = mesh.parametric_nodes();
     SpMatrix<double> expected_nodes;
     Eigen::loadMarket(expected_nodes, "../mesh_test_data/nodes.mtx");
-    for(size_t i = 0; i < nodes.size(); ++i){
+
+    auto n_cells = mesh.n_cells();
+    auto n_nodes = mesh.n_nodes();
+
+    for(size_t i = 0; i < n_nodes; ++i){
         for(size_t j = 0; j < 3; ++j){
-            EXPECT_TRUE(almost_equal(expected_nodes.coeff(i,j),nodes[i][j]));
+            EXPECT_TRUE(almost_equal(expected_nodes.coeff(i,j),nodes(i,j)));
         }
     }
-
     // use get_neighbors to get the neighbors of a cell, print all neighbors for ll cels
 
     SpMatrix<size_t> expected_neighbors;
     Eigen::loadMarket(expected_neighbors, "../mesh_test_data/neighbors.mtx");
 
-    auto n_elements = mesh.n_elements();
-
     // compute the neighbors of all elements
-    for(size_t i = 0; i < n_elements; ++i){
-        auto neighbors = mesh.get_neighbors_ID(i);
-        for(size_t j = 0; j < neighbors.size(); ++j){
-            EXPECT_TRUE(neighbors[j] == expected_neighbors.coeff(i,j));
+
+    
+    auto neighbors = mesh.neighbors();
+
+    for(size_t i = 0; i < n_cells; ++i){
+        for(size_t j = 0; j < 2*3; ++j){
+            EXPECT_TRUE(expected_neighbors.coeff(i,j) == neighbors(i,j));
         }
     }
-
-    // check for boundary cells
-    auto n_nodes = mesh.n_nodes();
+    
     SpMatrix<size_t> expected_boundary;
     Eigen::loadMarket(expected_boundary, "../mesh_test_data/boundary.mtx");
 
-    bool element = false;
-
     for(size_t i = 0; i < n_nodes; ++i){
         // print true value and computed value
-        EXPECT_TRUE(mesh.is_boundary(i,element) == expected_boundary.coeff(i,0));
+        EXPECT_TRUE(mesh.is_node_on_boundary(i) == expected_boundary.coeff(i,0));
     }
+
 };
 
 
@@ -315,23 +316,23 @@ TEST(mesh_test, mesh_parametrization){
     // expected results from nurbs derivative pointwise evaluations
     Eigen::loadMarket(expected, "../mesh_test_data/nurbs_mesh_test.mtx");
 
-    IsoMesh<3,3> mesh(knots, weights, order, control_points);
+    IsoMesh<3,3> mesh(knots, weights, control_points, order);
 
     for(size_t j = 0; j < expected.cols(); ++j){
         // first three rows of expected contain the x-y-z coordinates of the point at which to evaluate
         std::array<double, 3> x = {expected.coeff(0, j), expected.coeff(1, j), expected.coeff(2, j)};
+        auto param_eval = mesh.eval_param(x);
+        auto param_deriv = mesh.eval_param_derivative(x);
         for(std::size_t i = 0; i<3 ; ++i){
-            EXPECT_TRUE(almost_equal(expected.coeff(3+i,j),mesh.eval_param(x,i)));
+            EXPECT_TRUE(almost_equal(expected.coeff(3+i,j),param_eval(i,0)));
             for(std::size_t k = 0; k < 3; ++k){
-                EXPECT_TRUE(almost_equal(expected.coeff(6+3*i+k,j),mesh.eval_param_derivative(x,k,i)));
+                EXPECT_TRUE(almost_equal(expected.coeff(6+3*i+k,j),param_deriv(k,i)));
             }
         }
     }
 
-};
-
+}; 
 /*
-
 TEST(integration_test, integrator){
 
     int order =3;
@@ -377,8 +378,7 @@ TEST(integration_test, integrator){
 
     // print the integral over the physical domain
     std::cout<<itg.integrate_physical(*(mesh.beginCells()), f_physical)<<std::endl;
-}
-*/
+}*/
+
 
 } // namespace fdapde::testing
-

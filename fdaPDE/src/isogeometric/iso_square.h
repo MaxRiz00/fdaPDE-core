@@ -15,8 +15,10 @@ template<int M, int N> class IsoMesh;
 template<int M, int N>
 class IsoSquare{
 
+    friend class IsoMesh<M,N>;
+
     const IsoMesh<M,N>* mesh_; // mesh pointer
-    std::size_t ID_; // element ID
+    std::size_t id_; // element ID
     std::array<int, M> left_coords_; // coordinates of the left corner of the element
     std::array<int, M> right_coords_; // coordinates of the right corner of the element
     bool boundary_; // true if the element has at least one vertex on the boundary
@@ -27,17 +29,20 @@ class IsoSquare{
     IsoSquare() = default;
 
     // Constructor with element ID and parent mesh pointer
-    IsoSquare(const std::size_t& ID,const IsoMesh<M,N>* mesh): mesh_(mesh), ID_(ID){ 
+    IsoSquare(const std::size_t& ID,const IsoMesh<M,N>* mesh): mesh_(mesh), id_(ID){ 
 
-        left_coords_ = mesh_->compute_lr_vertices(ID_)[0];
-        right_coords_ = mesh_->compute_lr_vertices(ID_)[1];
+        left_coords_ = mesh_->compute_lr_vertices_(id_)[0];
+        right_coords_ = mesh_->compute_lr_vertices_(id_)[1];
 
-        boundary_ = mesh_->is_boundary(ID_);
+        boundary_ = mesh_->is_cell_on_boundary(id_);
 
     };
 
 
-    // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]
+    // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
+    // left_coords
+    // map from refernce to parameric domain, map_to_parametric, left_coord e right_coord li prende dalla mesh
+    // ci metti l'ID, ricalca la struttura di triangle.h
     std::array<double, M> affine_map(const std::array<double, M> & p) const {
             std::array<double, M> x;
             for(std::size_t i = 0; i < M; ++i){
@@ -49,51 +54,37 @@ class IsoSquare{
     
     // All these methods want a point p in \Omega, [-1,1]^M, and return the corresponding value in the physical domain
     // parametrization gradient F, puo' magari essere resa piu' efficiente
+    //
 
     // also parametrization
-    std::array<double,N> parametrization(const std::array<double, M>& p) const {
-        // compute x, with the affine map
-        auto x = affine_map(p);
-        // now x is in [left_coords, right_coords]
-        std::array<double,N> F;
-        for(int i=0;i<N;i++){
-            F[i] = mesh_->eval_param(x,i);
-        }
-        return F;
+    Eigen::Matrix<double, N, 1> parametrization(const std::array<double, M>& p) const {
+        return mesh_->eval_param(affine_map(p));
     }
 
-    Eigen::Matrix<double,N,M> parametrization_gradient(const std::array<double, M>& p) const {
-        // compute x, with the affine map
-        auto x = affine_map(p);
-        Eigen::Matrix<double,N,M> F;
-        for(int i=0;i<N;i++){
-            for(int j=0;j<M;j++){
-                F(i,j) = mesh_->eval_param_derivative(x,i,j);
-            }
-        }
-        return F;
+    Eigen::Matrix<double, N, M, Eigen::RowMajor> parametrization_gradient(const std::array<double, M>& p) const {
+        return mesh_->eval_param_derivative(affine_map(p));
     }
 
     // Metric tensor F^T * F
-    Eigen::Matrix<double,M,M> metric_tensor(const std::array<double, M>& p) const {
-        auto x = affine_map(p);
-        auto F = parametrization_gradient(x);
+    Eigen::Matrix<double, M, M, Eigen::RowMajor> metric_tensor(const std::array<double, M>& p) const {
+        auto F = parametrization_gradient(affine_map(p));
         return F.transpose() * F; 
     }
 
-    // metric determinant sqrt(det(F^T * F))
+    // metric determinant sqrt(det(F^T * F)), array diventano matrici eigen
     double metric_determinant(const std::array<double, M>& p) const {
-        auto x = affine_map(p);
-        return std::sqrt(metric_tensor(x).determinant()); 
+        return std::sqrt(metric_tensor(affine_map(p)).determinant()); 
     }
 
-    // Compute the neighbors of the current element
-    std::vector<std::size_t> get_neighbors_ID() const {
-        return mesh_->get_neighbors_ID(ID_);
+    // Compute the neighbors of the current element, diventa neighbors
+    Eigen::Matrix<int, 1, 2 * M> neighbors() const {
+        return mesh_->neighbors().row(id_);
     }
 
 
     // get the physical coordinates of vertices of a cell (dimension 2^M x N)
+    // chiamalo physical_nodes std::vector<std::array<double,N>> usa la matrice
+    // fai iso_segment iso_square, iso_cube
     std::vector<std::array<double,N>> compute_physical_vertices() const {
     
     // Number of vertices (2^M)
@@ -129,7 +120,7 @@ class IsoSquare{
 
 
     // Getters
-    std::size_t ID() const { return ID_; }
+    std::size_t id() const { return id_; }
     const std::array<int,M> & left_coords() const { return left_coords_; }
     const std::array<int,M> & right_coords() const { return right_coords_; }
     bool is_boundary() const { return boundary_; }
