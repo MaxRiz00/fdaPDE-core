@@ -99,15 +99,19 @@ class BSplineBasis {
             N[j] = saved;
         }
 
-      // create a vector of the same size of the basis functions, copy N in the right position, zeros elsewhere
-        std::vector<double> basis_eval(knots_.size() - order_ + 1, 0.0);
-        for (int j = 0; j < order_ + 1; ++j) { basis_eval[i - order_ + j] = N[j]; }
-        return basis_eval;
+        if (!pad) 
+            return N;
+        else {
+        // create a vector of the same size of the basis functions, copy N in the right position, zeros elsewhere
+            std::vector<double> basis_eval(knots_.size() - order_ + 1, 0.0);
+            for (int j = 0; j < order_ + 1; ++j) { basis_eval[i - order_ + j] = N[j]; }
+            return basis_eval;
+        }
         
     }
 
     // A2.3 Evaluate the nth derivative of B-spline basis functions at x, padded with zeros
-    std::vector<double> evaluate_der_basis(double x, int n) {
+    std::vector<double> evaluate_der_basis(double x, int n=1, bool pad = true) const {
         // Degree (p) and knot vector (U) from the class
 
         int i = 0;
@@ -189,11 +193,14 @@ class BSplineBasis {
             r *= (order_ - k);
         }
         
-
-        // create a vector of the same size of the basis functions, copy N in the right position, zeros elsewhere
-        std::vector<double> der_eval(knots_.size() - order_ + 1, 0.0);
-        for (int j = 0; j < order_ + 1; ++j) { der_eval[i - order_ + j] = ders[n][j]; }
-        return der_eval;
+        if (!pad) 
+            return ders[n];
+        else {
+            // create a vector of the same size of the basis functions, copy N in the right position, zeros elsewhere
+            std::vector<double> der_eval(knots_.size() - order_ + 1, 0.0);
+            for (int j = 0; j < order_ + 1; ++j) { der_eval[i - order_ + j] = ders[n][j]; }
+            return der_eval;
+        }
     }
 
     // getters

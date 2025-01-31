@@ -57,6 +57,66 @@ class IsoMesh {
         return x;
     }
 
+    // Algo A4.3 from NURBS book pag. 103
+
+    Eigen::Matrix<double, N, 1> eval_param2_(const std::array<double, M>& u) const {
+
+        std::vector<std::vector<double>> basis_eval(M);
+        std::array<int,M> spans= {0};
+        auto order= this->basis_[0].order();
+        auto nurb = this->basis_[0];
+
+        double total_weight = 0.0;
+        
+        for(int i = 0; i < M; i++){
+            basis_eval[i] = nurb.spline_basis()[i]->evaluate_basis(u[i], false);
+
+            int j=0;
+            //std::cout<<"U: "<<u[i]<<std::endl;
+            while (u[i] >= knots_[i][j+1] && j < knots_[i].size() - order - 1) j++;
+            spans[i] = j + order;
+        }
+
+        Eigen::Matrix<double, N, 1> Sw = Eigen::Matrix<double, N, 1>::Zero();
+
+        std::vector<int> index(M,0);
+        bool done =  false;
+        while(!done){
+            double weight = 1.0;
+            Eigen::Matrix<double, N, 1> temp = Eigen::Matrix<double, N, 1>::Zero();
+
+            for(int d = 0;d<M;d++){
+                weight *= basis_eval[d][index[d]];
+            }
+
+            std::array<int,M> full_indices;
+            for(int i = 0; i < M; i++){
+                full_indices[i] = spans[i] - order + index[i];
+            }
+
+            Eigen::Matrix<double, N, 1> cp;
+            for(int i = 0; i < N; i++){
+                const auto cp_slice = this->control_points_.template slice<M>(i);
+                cp(i) = cp_slice(full_indices);
+            }
+
+            double w = weights_(index);  // Retrieve weight from weight array
+            cp *= w;  // Apply weight to control point
+            total_weight += weight * w ;  // Accumulate total weight
+
+            Sw += weight * cp;
+
+            for (int d = M - 1; d >= 0; d--) {
+            if (++index[d] > order) {
+                index[d] = 0;
+                if (d == 0) done = true;
+            } else 
+                break;
+            }
+        }
+        return Sw/total_weight;
+    }
+
     // prova a fare quella valutazione ottimizzata... cerca di generalizzarla in BSpline curves and surfaces
 
     // evaluate the derivative of the physical coordinates of a point given its parametric coordinates with index sliceIdx and derivative_index as the derivative index
@@ -73,6 +133,87 @@ class IsoMesh {
         }
         return x;
     }
+
+    Eigen::Matrix<double, N, M, Eigen::RowMajor> eval_param_derivative2_(const std::array<double, M>& u) const {
+        std::vector<std::vector<double>> basis_eval(M);
+        std::vector<std::vector<double>> basis_deriv_eval(M);
+        std::array<int, M> spans = {0};
+        auto order = this->basis_[0].order();
+        auto nurb = this->basis_[0];
+        
+        for (int i = 0; i < M; i++) {
+            basis_eval[i] = nurb.spline_basis()[i]->evaluate_basis(u[i], false);
+            basis_deriv_eval[i] = nurb.spline_basis()[i]->evaluate_der_basis(u[i],1,false);
+            
+            int j = 0;
+            while (u[i] >= knots_[i][j+1] && j < knots_[i].size() - order - 1) j++;
+            spans[i] = j + order;
+        }
+        
+        Eigen::Matrix<double, N, M, Eigen::RowMajor> J = Eigen::Matrix<double, N, M>::Zero();
+        Eigen::Matrix<double, N, 1> Sw = Eigen::Matrix<double, N, 1>::Zero();
+        Eigen::Matrix<double, M, 1> dW = Eigen::Matrix<double, M, 1>::Zero();
+        double total_weight = 0.0;
+        
+        std::vector<int> index(M, 0);
+        bool done = false;
+        while (!done) {
+            double weight = 1.0;
+            std::array<double, M> weight_der = {0.0};
+            Eigen::Matrix<double, N, 1> temp = Eigen::Matrix<double, N, 1>::Zero();
+            
+            for (int d = 0; d < M; d++) {
+                weight *= basis_eval[d][index[d]];
+                weight_der[d] = basis_deriv_eval[d][index[d]];
+            }
+            
+            std::array<int, M> full_indices;
+            for (int i = 0; i < M; i++) {
+                full_indices[i] = spans[i] - order + index[i];
+            }
+
+            
+            Eigen::Matrix<double, N, 1> cp;
+            for (int i = 0; i < N; i++) {
+                const auto cp_slice = this->control_points_.template slice<M>(i);
+                cp(i) = cp_slice(full_indices);
+            }
+            
+            double w = weights_(index);
+            cp *= w;
+            Sw += weight * cp;
+            total_weight += weight * w;
+            
+            for (int j = 0; j < M; j++) {
+                double w_temp = w*weight_der[j];
+                Eigen::Matrix<double, N, 1> cp_temp = weight_der[j] *cp;
+                for(int i = 0; i < M; i++){
+                    if(i != j){
+                        w_temp *= basis_eval[i][index[i]];
+                        cp_temp *= basis_eval[i][index[i]];
+                    }
+                }
+                dW(j) += w_temp;
+                J.col(j) += cp_temp;
+            }
+            
+            for (int d = M - 1; d >= 0; d--) {
+                if (++index[d] > order) {
+                    index[d] = 0;
+                    if (d == 0) done = true;
+                } else 
+                    break;
+            }
+        }
+        
+        // Apply derivative of the ratio Sw / total_weight
+        for (int j = 0; j < M; j++) {
+            J.col(j) = (J.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
+        }
+        
+        return J;
+    }
+
 
     // fanne due separate per is_cell e node, falla privata, compute_cell_ID, compute_node_ID
     // puoi spostarla in iso_square se non usata qui
@@ -331,7 +472,9 @@ class IsoMesh {
 
     // for the test to access private members, put a public version evl_param and eval_param_derivative
     Eigen::Matrix<double, N, 1> eval_param(const std::array<double, M>& u) const { return eval_param_(u); }
+    Eigen::Matrix<double, N, 1> eval_param2(const std::array<double, M>& u) const { return eval_param2_(u); }
     Eigen::Matrix<double, N, M, Eigen::RowMajor> eval_param_derivative(const std::array<double, M>& u) const { return eval_param_derivative_(u); }
+    Eigen::Matrix<double, N, M, Eigen::RowMajor> eval_param_derivative2(const std::array<double, M>& u) const { return eval_param_derivative2_(u); }
 
 
 

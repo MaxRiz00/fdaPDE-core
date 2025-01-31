@@ -321,8 +321,8 @@ TEST(mesh_test, mesh_parametrization){
     for(size_t j = 0; j < expected.cols(); ++j){
         // first three rows of expected contain the x-y-z coordinates of the point at which to evaluate
         std::array<double, 3> x = {expected.coeff(0, j), expected.coeff(1, j), expected.coeff(2, j)};
-        auto param_eval = mesh.eval_param(x);
-        auto param_deriv = mesh.eval_param_derivative(x);
+        auto param_eval = mesh.eval_param2(x);
+        auto param_deriv = mesh.eval_param_derivative2(x);
         for(std::size_t i = 0; i<3 ; ++i){
             EXPECT_TRUE(almost_equal(expected.coeff(3+i,j),param_eval(i,0)));
             for(std::size_t k = 0; k < 3; ++k){
