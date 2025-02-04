@@ -33,4 +33,6 @@ experiments/test_RSVD/performances.csv
 .Rproj.user
 
 #some test directories
-experiments/
+test_massimo/experiments/
+test_massimo/plots/
+test_massimo/statistics/

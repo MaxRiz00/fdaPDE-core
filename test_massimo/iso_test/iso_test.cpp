@@ -20,6 +20,7 @@
 
 #include "isogeometric.h"
 
+
 #include "../utils/utils.h" 
 
 
@@ -280,6 +281,14 @@ TEST(mesh_test, mesh_structure){
         EXPECT_TRUE(mesh.is_node_on_boundary(i) == expected_boundary.coeff(i,0));
     }
 
+    // print number of cells
+    std::cout<<"# cells: "<<mesh.n_cells()<<std::endl;
+
+    // iterator over the elements
+    for(auto it = mesh.cells_begin(); it != mesh.cells_end(); ++it){
+        std::cout<<"# cell: "<<it->id()<<std::endl;
+    }
+
 };
 
 
@@ -318,11 +327,20 @@ TEST(mesh_test, mesh_parametrization){
 
     IsoMesh<3,3> mesh(knots, weights, control_points, order);
 
+    std::cout<<"# points: "<<expected.cols()<<std::endl;
+
+    // print number of cells
+    std::cout<<"# cells: "<<mesh.n_cells()<<std::endl;
+
+    // iterator over the elements
+    for(auto it = mesh.cells_begin(); it != mesh.cells_end(); ++it){
+        std::cout<<"# cell: "<<it->id()<<std::endl;
+    }
     for(size_t j = 0; j < expected.cols(); ++j){
         // first three rows of expected contain the x-y-z coordinates of the point at which to evaluate
         std::array<double, 3> x = {expected.coeff(0, j), expected.coeff(1, j), expected.coeff(2, j)};
-        auto param_eval = mesh.eval_param2(x);
-        auto param_deriv = mesh.eval_param_derivative2(x);
+        auto param_eval = mesh.eval_param(x);
+        auto param_deriv = mesh.eval_param_derivative(x);
         for(std::size_t i = 0; i<3 ; ++i){
             EXPECT_TRUE(almost_equal(expected.coeff(3+i,j),param_eval(i,0)));
             for(std::size_t k = 0; k < 3; ++k){
@@ -332,6 +350,7 @@ TEST(mesh_test, mesh_parametrization){
     }
 
 }; 
+
 /*
 TEST(integration_test, integrator){
 

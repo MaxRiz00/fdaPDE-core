@@ -27,4 +27,4 @@ cmake --build .
 
 # Step 5: Run the resulting executable
 echo "Running the executable..."
-./IsoTest --gtest_filter=mesh_test.mesh_parametrization
+./IsoTest --gtest_filter=mesh_test.*
