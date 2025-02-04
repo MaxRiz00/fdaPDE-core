@@ -1,13 +1,11 @@
 #ifndef __FDAPDE_ISO_CELL_H__
 #define __FDAPDE_ISO_CELL_H__
 
-#include "header_check.h"
 
 namespace fdapde {
 
 // Md Hypercube
 template<int Order_, int EmbedDim_> class IsoCell{
-    friend class IsoMesh<Order_,EmbedDim_>;
     static_assert(Order_ >= 0 && Order_ <= 3);
     public:
     static constexpr int local_dim = Order_;
@@ -21,7 +19,8 @@ template<int Order_, int EmbedDim_> class IsoCell{
 
     IsoCell() = default;
 
-    IsoCell(const std::array<int, LocalDim>& left_coords, const std::array<int, LocalDim>& right_coords ): left_coords_(left_coords), right_coords_(right_coords){} 
+    IsoCell(const std::array<int, local_dim>& left_coords, const std::array<int, local_dim>& right_coords ): 
+        left_coords_(left_coords), right_coords_(right_coords){} 
 
 
     std::array<double, Order_> affine_map(const std::array<double, Order_> & p) const {
@@ -32,32 +31,8 @@ template<int Order_, int EmbedDim_> class IsoCell{
             return x;
         }
 
-    // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
-    // left_coords
-    // map from refernce to parameric domain, map_to_parametric, left_coord e right_coord li prende dalla mesh
-    Eigen::Matrix<double, EmbedDim_, 1> parametrization(const std::array<double, Order_>& p) const {
-        return mesh_->eval_param(affine_map(p));
-    }
 
-    Eigen::Matrix<double, EmbedDim_, Order_, Eigen::RowMajor> parametrization_gradient(const std::array<double, Order_>& p) const {
-        return mesh_->eval_param_derivative(affine_map(p));
-    }
-
-    // Metric tensor F^T * F
-    Eigen::Matrix<double, Order_, Order_, Eigen::RowMajor> metric_tensor(const std::array<double, Order_>& p) const {
-        auto F = parametrization_gradient(affine_map(p));
-        return F.transpose() * F; 
-    }
-
-    // metric determinant sqrt(det(F^T * F)), array diventano matrici eigen
-    double metric_determinant(const std::array<double, Order_>& p) const {
-        return std::sqrt(metric_tensor(affine_map(p)).determinant()); 
-    }
-
-    // Compute the neighbors of the current element, diventa neighbors
-    Eigen::Matrix<int, 1, 2 * Order_> neighbors() const {
-        return mesh_->neighbors().row(id_);
-    }
+    
 
     double parametric_measure() const {
         double measure = 1.0;
@@ -73,7 +48,7 @@ template<int Order_, int EmbedDim_> class IsoCell{
     std::array<int, Order_> right_coords_ ; // coordinates of the right corner of the element
     // capire se salvare altre quantità
 
-}
+};
 
 
 };

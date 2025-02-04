@@ -1,7 +1,6 @@
 #ifndef __FDAPDE_ISO_SEGMENT_H__
 #define __FDAPDE_ISO_SEGMENT_H__
 
-#include "header_check.h"
 
 namespace fdapde {
 
@@ -12,9 +11,31 @@ template <typename MeshType> class IsoSegment: public IsoCell<MeshType::local_di
     IsoSegment() = default;
     IsoSegment(int id, const MeshType* mesh) : id_(id), mesh_(mesh), boundary_(false) {
         boundary_ = mesh_->is_cell_on_boundary(id_);
-        left_coords_ = mesh_->compute_lr_vertices_(id_)[0];
-        right_coords_ = mesh_->compute_lr_vertices_(id_)[1];
+        this->left_coords_ = mesh_->compute_lr_vertices_(id_)[0];
+        this->right_coords_ = mesh_->compute_lr_vertices_(id_)[1];
         // initialize = (){}; // da capire cosa inizializzare
+    }
+
+    // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
+    // left_coords
+    // map from refernce to parameric domain, map_to_parametric, left_coord e right_coord li prende dalla mesh
+    Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const std::array<double, MeshType::local_dim>& p) const {
+        return mesh_->eval_param(affine_map(p));
+    }
+
+    Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim, Eigen::RowMajor> parametrization_gradient(const std::array<double, MeshType::local_dim>& p) const {
+        return mesh_->eval_param_derivative(affine_map(p));
+    }
+
+    // Metric tensor F^T * F
+    Eigen::Matrix<double, MeshType::local_dim, MeshType::local_dim, Eigen::RowMajor> metric_tensor(const std::array<double, MeshType::local_dim>& p) const {
+        auto F = parametrization_gradient(affine_map(p));
+        return F.transpose() * F; 
+    }
+
+    // metric determinant sqrt(det(F^T * F)), array diventano matrici eigen
+    double metric_determinant(const std::array<double, MeshType::local_dim>& p) const {
+        return std::sqrt(metric_tensor(affine_map(p)).determinant()); 
     }
 
     //getters 
@@ -28,7 +49,7 @@ template <typename MeshType> class IsoSegment: public IsoCell<MeshType::local_di
     int id_ = 0;   // segment ID in the physical mesh
     const MeshType* mesh_ = nullptr;
     bool boundary_ = false;   // true if the element has at least one vertex on the boundary
-}
+};
     
     
 }; // namespace fdapde

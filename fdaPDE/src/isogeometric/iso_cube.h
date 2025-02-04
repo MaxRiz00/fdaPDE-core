@@ -1,23 +1,39 @@
-#ifndef __FDAPDE_ISO_SQUARE_H__
-#define __FDAPDE_ISO_SQUARE_H__
+#ifndef __FDAPDE_ISO_CUBE_H__
+#define __FDAPDE_ISO_CUBE_H__
 
 
 namespace fdapde {
 
-template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim, MeshType::embed_dim>{
+template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, MeshType::embed_dim>{
     fdapde_static_assert(MeshType::local_dim == 2, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
     using Base = IsoCell<MeshType::local_dim, MeshType::embed_dim>;
     public:
     // constructor
-    IsoSquare() = default;
-    IsoSquare(int id, const MeshType* mesh) : id_(id), mesh_(mesh), boundary_(false) {
+    IsoCube() = default;
+    IsoCube(int id, const MeshType* mesh) : id_(id), mesh_(mesh), boundary_(false) {
         boundary_ = mesh_->is_cell_on_boundary(id_);
         this->left_coords_ = mesh_->compute_lr_vertices_(id_)[0];
         this->right_coords_ = mesh_->compute_lr_vertices_(id_)[1];
         // initialize = (){}; // da capire cosa inizializzare
     }
 
-    // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
+    /*
+
+    class EdgeType : public IsoCell<MeshType::local_dim, MeshType::embed_dim>::BoundaryCellType {
+        private:
+        int edge_id_;
+        const MeshType* mesh_;
+        public:
+        using CoordsType = Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim>; 
+        EdgeType() = default; //// da capire come adattare!!!
+        EdgeType(int edge_id, const MeshType* mesh) : edge_id_(edge_id), mesh_(mesh) {
+            for (int i = 0; i < this->n_nodes; ++i) { this->coords_.col(i) = mesh_->node(mesh_->edges()(edge_id_, i)); }
+            //this->initialize();
+        }
+    };
+    */
+
+   // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
     // left_coords
     // map from refernce to parameric domain, map_to_parametric, left_coord e right_coord li prende dalla mesh
     Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const std::array<double, MeshType::local_dim>& p) const {
@@ -38,22 +54,6 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
     double metric_determinant(const std::array<double, MeshType::local_dim>& p) const {
         return std::sqrt(metric_tensor(affine_map(p)).determinant()); 
     }
-
-    /*
-
-    class EdgeType : public IsoCell<MeshType::local_dim, MeshType::embed_dim>::BoundaryCellType {
-        private:
-        int edge_id_;
-        const MeshType* mesh_;
-        public:
-        using CoordsType = Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim>; 
-        EdgeType() = default; //// da capire come adattare!!!
-        EdgeType(int edge_id, const MeshType* mesh) : edge_id_(edge_id), mesh_(mesh) {
-            for (int i = 0; i < this->n_nodes; ++i) { this->coords_.col(i) = mesh_->node(mesh_->edges()(edge_id_, i)); }
-            //this->initialize();
-        }
-    };
-    */
 
 
     //getters 

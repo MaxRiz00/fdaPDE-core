@@ -25,7 +25,6 @@ template <typename MeshType> struct BoundaryIterator : public MeshType::boundary
 template <int LocalDim, int EmbedDim> class IsoMesh;
 
 template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typname Derived
-    friend class IsoSquare<LocalDim, EmbedDim>;
     public:
     static constexpr int local_dim = LocalDim;
     static constexpr int embed_dim = EmbedDim;
@@ -231,7 +230,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         }
         return multi_index;
     }
-
+    public:
     // Compute the vertices of a square (cell) given its id, fai MdArray , sono metodi pirvati
     std::array<std::array<int, LocalDim>,2> compute_lr_vertices_(const int& id)const {
         auto multi_index = compute_multi_index_(id);
@@ -342,9 +341,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
     // Access individual cells, Create a cell object given its id
     // cell(id) -> IsoSquare
     // da cambiare una volta che hai IsoSegment, IsoSquare, IsoCube
-    IsoSquare<LocalDim,EmbedDim> cell(const int& id) const {
-        return IsoSquare<LocalDim,EmbedDim>(id,static_cast<const Derived*>(this));
-    }
 
     // Make eval_param and eval_param_derivative public
     Eigen::Matrix<double, EmbedDim, 1> eval_param(const std::array<double, LocalDim>& u) const {
@@ -486,6 +482,11 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
     IsoMesh(std::array<std::vector<double>, 2>& knots, MdArray<double, MdExtents<Dynamic, Dynamic>>& weights,
          MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>>& control_points, int order, int flags = 0) :
         Base(knots, weights, control_points, order, flags) { }
+
+    const typename Base::CellType& cell(int id) const {
+        cell_ = typename Base::CellType(id, this);
+        return cell_;
+    }
 
     protected:
     std::vector<int> edges_ {};                        // nodes (as row indexes in nodes_ matrix) composing each edge
