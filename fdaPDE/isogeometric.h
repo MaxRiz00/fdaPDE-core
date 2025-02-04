@@ -7,9 +7,8 @@
 #include "geometry.h"
 #include "nurbs.h"
 
-
-#include "src/isogeometric/iso_mesh.h"
-#include "src/isogeometric/iso_square.h"
+#include "src/isogeometric/iso_square_old.h"
+#include "src/isogeometric/iso_mesh_new.h"
 #include "src/isogeometric/iso_integration.h"
 
 #endif  // ____FDAPDE_ISOGEOMETRIC_MODULE_H__

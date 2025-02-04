@@ -178,6 +178,66 @@ template <typename Triangulation_, typename Xpr_, int Options_, typename... Quad
     }
 };
 
+/*
+
+// generic integration loop to integrate scalar expressions over physical domains (ISO version)
+template <typename Igamesh_, typename Xpr_, int Options_, typename... Quadrature_> class std_ISO_integration_loop{
+    fdapde_static_assert(is_scalar_field_v<Xpr_>, THIS_CLASS_IS_FOR_SCALAR_FIELDS_ONLY);
+    using Igamesh = std::decay_t<Igamesh_>;
+    static constexpr int local_dim = Igamesh::local_dim;
+    static constexpr int embed_dim = Igamesh::embed_dim;
+    static constexpr int Options = Options_;
+    using iterator = std::conditional_t<
+      Options == CellMajor, typename Igamesh::cell_iterator, typename Igamesh::boundary_iterator>;
+
+    template <typename... Quad_> struct empty_quadrature {
+        static constexpr int order = 0;
+    };
+    template <typename... Quad_>
+    using maybe_empty_quadrature = decltype([]() {
+        if constexpr (sizeof...(Quadrature_) == 0) {
+            return empty_quadrature<Quadrature_...> {};
+        } else {
+            return std::tuple_element_t<0, std::tuple<Quadrature_...>> {};
+        }
+    }());
+    using Quadrature = maybe_empty_quadrature<Quadrature_...>;
+  
+    Xpr_ xpr_;
+    iterator begin_, end_;
+    Quadrature quadrature_;
+   public:
+    std_ISO_integration_loop() = default;
+    std_ISO_ntegration_loop(const Xpr_& xpr, iterator begin, iterator end, const Quadrature_&... quadrature) :
+        xpr_(xpr), begin_(begin), end_(end), quadrature_(quadrature...) { }
+
+    double operator()() const {
+        double integral_ = 0;
+        if constexpr (Quadrature::order == 0) {
+            fdapde_static_assert(false, THIS_METHOD_REQUIRES_A_QUADRATURE_RULE);
+        } else {
+            fdapde_static_assert(Igamesh::local_dim == Quadrature::local_dim, INVALID_QUADRATURE_RULE);
+            constexpr int n_quadrature_nodes = Quadrature::order;
+            Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, Igamesh::local_dim, Eigen::RowMajor>>
+              ref_quad_nodes(quadrature_.nodes.data());
+            for(iterator it = begin_; it != end_; ++it) {
+              double partial = 0;
+              for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
+                // Compute the physical coordinates of the quadrature node
+                auto x = it->parametrization(ref_quad_nodes.row(q_k).transpose());
+                // Compute the metric determinant at the quadrature node
+                double det_metric = it->metric_determinant(ref_quad_nodes.row(q_k).transpose());
+                // Compute the value of the scalar field at the physical coordinates
+                partial += xpr_(x) * quadrature_.weights[q_k] * det_metric;
+              }
+              integral_ += partial; // this does not work beacuse the metric determinant depends on the point p 
+            }
+        }
+        return integral_;
+  }
+};
+
+*/
 // main assembly loop dispatching type. This class instantiates the correctly assembly loop for the form to integrate
 template <typename Triangulation, int Options, typename... Quadrature> class integrator_dispatch {
     fdapde_static_assert(sizeof...(Quadrature) < 2, THIS_CLASS_ACCEPTS_AT_MOST_ONE_QUADRATURE_RULE);

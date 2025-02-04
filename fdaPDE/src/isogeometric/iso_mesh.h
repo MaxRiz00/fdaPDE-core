@@ -5,10 +5,13 @@
 #include "nurbs.h"
 #include "iso_square.h"
 
+
 namespace fdapde {
 
 template<int M, int N>
 class IsoMesh {
+
+    friend class IsoSquare<M, N>;
 
     private:
 
@@ -27,6 +30,9 @@ class IsoMesh {
 
     int n_cells_; // number of cells
     int n_nodes_; // number of nodes
+
+    std::vector<int> cells_markers_;   // marker associated to i-th cell
+    std::vector<int> nodes_markers_;   // marker associated to i-th node
     
     //membri privati nodi e celle
 
@@ -42,39 +48,18 @@ class IsoMesh {
     }   
     //is_cell chiamare cell 
 
-    // mettili privati e basta, puoi outputtare  Eigen::Matrix<double, N, 1> per fare i calcoli
-    // Evaluate the physical coordinates of a point u given its parametric coordinates with index sliceIdx
-    // falla u che diventa in [-1,1]^M, portando la affine_map in questa classe
-    Eigen::Matrix<double, N, 1> eval_param_(const std::array<double, M>& u) const {
-        Eigen::Matrix<double, N, 1> x = Eigen::Matrix<double, N, 1>::Zero();
-        x.setZero();
-        for(int i = 0;i<N;i++){
-            const auto cp_slice = this->control_points_.template slice<M>(i); // cp_slice , slice_idx
-            for (const auto& nurb : this->basis_) {
-                x(i) += nurb(u) * cp_slice(nurb.index());  
-            }
-        }
-        return x;
-    }
-
     // Algo A4.3 from NURBS book pag. 103
-
-    Eigen::Matrix<double, N, 1> eval_param2_(const std::array<double, M>& u) const {
+    Eigen::Matrix<double, N, 1> eval_param_(const std::array<double, M>& u) const {
 
         std::vector<std::vector<double>> basis_eval(M);
         std::array<int,M> spans= {0};
         auto order= this->basis_[0].order();
         auto nurb = this->basis_[0];
-
         double total_weight = 0.0;
         
         for(int i = 0; i < M; i++){
-            basis_eval[i] = nurb.spline_basis()[i]->evaluate_basis(u[i], false);
-
-            int j=0;
-            //std::cout<<"U: "<<u[i]<<std::endl;
-            while (u[i] >= knots_[i][j+1] && j < knots_[i].size() - order - 1) j++;
-            spans[i] = j + order;
+            basis_eval[i] = nurb.spline_basis()[i]->evaluate_basis(u[i], false); // evaluate basis functions, padding = false
+            spans[i] = std::distance(knots_[i].begin(), std::upper_bound(knots_[i].begin(), knots_[i].end(), u[i])) - 1 + order;
         }
 
         Eigen::Matrix<double, N, 1> Sw = Eigen::Matrix<double, N, 1>::Zero();
@@ -82,15 +67,11 @@ class IsoMesh {
         std::vector<int> index(M,0);
         bool done =  false;
         while(!done){
-            double weight = 1.0;
-            Eigen::Matrix<double, N, 1> temp = Eigen::Matrix<double, N, 1>::Zero();
-
-            for(int d = 0;d<M;d++){
-                weight *= basis_eval[d][index[d]];
-            }
+            double eval = 1.0;
 
             std::array<int,M> full_indices;
             for(int i = 0; i < M; i++){
+                eval *= basis_eval[i][index[i]];
                 full_indices[i] = spans[i] - order + index[i];
             }
 
@@ -102,9 +83,9 @@ class IsoMesh {
 
             double w = weights_(index);  // Retrieve weight from weight array
             cp *= w;  // Apply weight to control point
-            total_weight += weight * w ;  // Accumulate total weight
-
-            Sw += weight * cp;
+            Sw += eval * cp; // Accumulate weighted control point
+            
+            total_weight += eval * w ;  // Accumulate total weight
 
             for (int d = M - 1; d >= 0; d--) {
             if (++index[d] > order) {
@@ -117,24 +98,9 @@ class IsoMesh {
         return Sw/total_weight;
     }
 
-    // prova a fare quella valutazione ottimizzata... cerca di generalizzarla in BSpline curves and surfaces
-
-    // evaluate the derivative of the physical coordinates of a point given its parametric coordinates with index sliceIdx and derivative_index as the derivative index
-    // puoi ritornare Eigen::Matrix<double, N, M>, direttamente lo jacobiano
+    // Inspired by algo A4.3 from NURBS book pag. 103
+    // evaluate the derivative of the physical coordinates of a point given its parametric coordinates
     Eigen::Matrix<double, N, M, Eigen::RowMajor> eval_param_derivative_(const std::array<double, M>& u) const {
-        Eigen::Matrix<double, N, M, Eigen::RowMajor> x = Eigen::Matrix<double, N, M>::Zero();
-        for(int i = 0;i<N;i++){
-            for(int j = 0; j<M; j++){
-                const auto cp_slice = this->control_points_.template slice<M>(i);
-                for (const auto& nurb : this->basis_) {
-                    x(i,j) += nurb.derive(j)(u) * cp_slice(nurb.index());
-                }
-            }
-        }
-        return x;
-    }
-
-    Eigen::Matrix<double, N, M, Eigen::RowMajor> eval_param_derivative2_(const std::array<double, M>& u) const {
         std::vector<std::vector<double>> basis_eval(M);
         std::vector<std::vector<double>> basis_deriv_eval(M);
         std::array<int, M> spans = {0};
@@ -144,13 +110,10 @@ class IsoMesh {
         for (int i = 0; i < M; i++) {
             basis_eval[i] = nurb.spline_basis()[i]->evaluate_basis(u[i], false);
             basis_deriv_eval[i] = nurb.spline_basis()[i]->evaluate_der_basis(u[i],1,false);
-            
-            int j = 0;
-            while (u[i] >= knots_[i][j+1] && j < knots_[i].size() - order - 1) j++;
-            spans[i] = j + order;
+            spans[i] = std::distance(knots_[i].begin(), std::upper_bound(knots_[i].begin(), knots_[i].end(), u[i])) - 1 + order;
         }
         
-        Eigen::Matrix<double, N, M, Eigen::RowMajor> J = Eigen::Matrix<double, N, M>::Zero();
+        Eigen::Matrix<double, N, M, Eigen::RowMajor> dSw = Eigen::Matrix<double, N, M>::Zero();
         Eigen::Matrix<double, N, 1> Sw = Eigen::Matrix<double, N, 1>::Zero();
         Eigen::Matrix<double, M, 1> dW = Eigen::Matrix<double, M, 1>::Zero();
         double total_weight = 0.0;
@@ -158,17 +121,13 @@ class IsoMesh {
         std::vector<int> index(M, 0);
         bool done = false;
         while (!done) {
-            double weight = 1.0;
-            std::array<double, M> weight_der = {0.0};
-            Eigen::Matrix<double, N, 1> temp = Eigen::Matrix<double, N, 1>::Zero();
-            
-            for (int d = 0; d < M; d++) {
-                weight *= basis_eval[d][index[d]];
-                weight_der[d] = basis_deriv_eval[d][index[d]];
-            }
-            
+            double eval = 1.0;
+            std::array<double, M> eval_der = {0.0};        
             std::array<int, M> full_indices;
+
             for (int i = 0; i < M; i++) {
+                eval *= basis_eval[i][index[i]];
+                eval_der[i] = basis_deriv_eval[i][index[i]];
                 full_indices[i] = spans[i] - order + index[i];
             }
 
@@ -181,12 +140,12 @@ class IsoMesh {
             
             double w = weights_(index);
             cp *= w;
-            Sw += weight * cp;
-            total_weight += weight * w;
+            Sw += eval * cp;
+            total_weight += eval * w;
             
             for (int j = 0; j < M; j++) {
-                double w_temp = w*weight_der[j];
-                Eigen::Matrix<double, N, 1> cp_temp = weight_der[j] *cp;
+                double w_temp = w*eval_der[j];
+                Eigen::Matrix<double, N, 1> cp_temp = eval_der[j] *cp;
                 for(int i = 0; i < M; i++){
                     if(i != j){
                         w_temp *= basis_eval[i][index[i]];
@@ -194,7 +153,7 @@ class IsoMesh {
                     }
                 }
                 dW(j) += w_temp;
-                J.col(j) += cp_temp;
+                dSw.col(j) += cp_temp;
             }
             
             for (int d = M - 1; d >= 0; d--) {
@@ -206,12 +165,12 @@ class IsoMesh {
             }
         }
         
-        // Apply derivative of the ratio Sw / total_weight
+        // Apply derivative of the ratio d/du (Sw / total_weight)
         for (int j = 0; j < M; j++) {
-            J.col(j) = (J.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
+            dSw.col(j) = (dSw.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
         }
         
-        return J;
+        return dSw;
     }
 
 
@@ -318,7 +277,7 @@ class IsoMesh {
     bool is_cell_on_boundary(const std::size_t& id) const {
         auto multi_index = compute_multi_index_(id);
         for(std::size_t i = 0; i < M; ++i){
-            if(multi_index[i] == 0 || multi_index[i] == compute_stride_(i) - 1){
+            if(multi_index[i] == 0 || multi_index[i] == compute_stride_(i,true) - 1){
                 return true;
             }
         }
@@ -395,50 +354,60 @@ class IsoMesh {
     }
 
 
-    class CellIterator { // cell_iterator, guarda triangulation.h al rigo 96, uniforma a quella implementazione
+    class cell_iterator: public internals::filtering_iterator<cell_iterator,const CellType*>   { 
+    // cell_iterator, guarda triangulation.h al rigo 96, uniforma a quella implementazione
     // public internals::filtering_iterator<cell_iterator, const CellType*>
     // call operator a riga 102
     private:
-        const IsoMesh* parentMesh_;
-        std::size_t currentIndex_;
-        IsoSquare<M,N> currentCell_; 
-    
-    public:
+        using Base = internals::filtering_iterator<cell_iterator, const CellType*>;
+        using Base::index_;
+        friend Base;
+        const IsoMesh* mesh_;
+        int marker_;
 
-        CellIterator(const IsoMesh* mesh, size_t index): 
-            parentMesh_(mesh), currentIndex_(index), currentCell_(mesh->cell(index)) {}
+        mutable CellType cell_;  // Store the actual cell (mutable for const correctness)
 
-        IsoSquare<M,N> operator*() const { return currentCell_;}
-
-        // Pointer-like access to IsoSquare
-        IsoSquare<M, N>* operator->() { return &currentCell_; }
-        const IsoSquare<M, N>* operator->() const { return &currentCell_; }
-
-        CellIterator& operator++() {
-            currentIndex_++;
-            currentCell_ = parentMesh_->cell(currentIndex_); 
+        cell_iterator& operator()(int i) {
+            cell_ = mesh_->cell(i);  // Store the value in a variable
+            Base::val_ = &cell_;  // Take the address of the variable
             return *this;
         }
 
-        // Confronto
-        bool operator==(const CellIterator& other) const { return currentIndex_ == other.currentIndex_ ;}
+    public:
+        cell_iterator() = default;
 
-        bool operator!=(const CellIterator& other) const { return !(*this == other);}
+        cell_iterator(int index, const IsoMesh* mesh, const BinaryVector<Dynamic>& filter, int marker):
+            Base(index, 0, mesh->n_cells_, filter), mesh_(mesh), marker_(marker) {
+            for (; index_ < Base::end_ && !filter[index_]; ++index_);
+            if (index_ != Base::end_) { operator()(index_); }
+        }
+
+        cell_iterator(int index, const IsoMesh* mesh, int marker):
+            cell_iterator(index, mesh, marker == TriangulationAll ? BinaryVector<Dynamic>::Ones(mesh->n_cells_) :
+                make_binary_vector(mesh->cells_markers_.begin(), mesh->cells_markers_.end(), marker), marker) { }
+
+        int marker() const { return marker_; }
+
     };
 
     // Metodi per ottenere gli iteratori
-    CellIterator beginCells() const { return CellIterator(this, 0);}
-    CellIterator endCells() const { return CellIterator(this, this->n_cells_);}
+    cell_iterator cells_begin(int marker = TriangulationAll) const { 
+        fdapde_assert(marker == TriangulationAll || (marker >= 0 && cells_markers_.size() != 0));
+        return cell_iterator(0,this,marker);}
+    cell_iterator cells_end(int marker = TriangulationAll) const { 
+        fdapde_assert(marker == TriangulationAll || (marker >= 0 && cells_markers_.size() != 0));
+        return cell_iterator(n_cells_,this,marker);}
+    
 
     class BoundaryIterator {
         private:
-            const IsoMesh* parentMesh_;
+            const IsoMesh* mesh_;
             std::size_t currentIndex_;
             IsoSquare<M,N> currentCell_;
         public:
             BoundaryIterator(const IsoMesh* mesh, std::size_t index)
-                : parentMesh_(mesh), currentIndex_(index), currentCell_(mesh->cell(index)) {
-                while (currentIndex_ < parentMesh_->n_cells_ && !parentMesh_->is_boundary(currentIndex_)) {
+                : mesh_(mesh), currentIndex_(index), currentCell_(mesh->cell(index)) {
+                while (currentIndex_ < mesh_->n_cells_ && !mesh_->is_boundary(currentIndex_)) {
                     currentIndex_++;
                 }
             }
@@ -451,9 +420,9 @@ class IsoMesh {
             BoundaryIterator& operator++() {
                 do {
                     currentIndex_++;
-                } while (currentIndex_ < parentMesh_->n_cells_ && !parentMesh_->is_boundary(currentIndex_));
-                if (currentIndex_ < parentMesh_->n_cells_) {
-                    currentCell_ = parentMesh_->cell(currentIndex_);
+                } while (currentIndex_ < mesh_->n_cells_ && !mesh_->is_boundary(currentIndex_));
+                if (currentIndex_ < mesh_->n_cells_) {
+                    currentCell_ = mesh_->cell(currentIndex_);
                 }
                 return *this;
             }
@@ -472,10 +441,7 @@ class IsoMesh {
 
     // for the test to access private members, put a public version evl_param and eval_param_derivative
     Eigen::Matrix<double, N, 1> eval_param(const std::array<double, M>& u) const { return eval_param_(u); }
-    Eigen::Matrix<double, N, 1> eval_param2(const std::array<double, M>& u) const { return eval_param2_(u); }
     Eigen::Matrix<double, N, M, Eigen::RowMajor> eval_param_derivative(const std::array<double, M>& u) const { return eval_param_derivative_(u); }
-    Eigen::Matrix<double, N, M, Eigen::RowMajor> eval_param_derivative2(const std::array<double, M>& u) const { return eval_param_derivative2_(u); }
-
 
 
     std::size_t n_cells() const { return n_cells_; }

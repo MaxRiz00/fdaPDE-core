@@ -6,8 +6,7 @@
 namespace fdapde {
 
 template <typename MeshType> class IsoSegment: public IsoCell<MeshType::local_dim, MeshType::embed_dim>{
-    fdapde_static_assert(MeshType::local_dim == 2, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
-    using Base = IsoCell<MeshType::local_dim, MeshType::embed_dim>;
+    fdapde_static_assert(MeshType::local_dim == 1, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
     public:
     // constructor
     IsoSegment() = default;
@@ -17,20 +16,6 @@ template <typename MeshType> class IsoSegment: public IsoCell<MeshType::local_di
         right_coords_ = mesh_->compute_lr_vertices_(id_)[1];
         // initialize = (){}; // da capire cosa inizializzare
     }
-
-    class EdgeType : public IsoCell<MeshType::local_dim, MeshType::embed_dim>::BoundaryCellType {
-        private:
-        int edge_id_;
-        const MeshType* mesh_;
-        public:
-        using CoordsType = Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim>; 
-        EdgeType() = default; //// da capire come adattare!!!
-        EdgeType(int edge_id, const MeshType* mesh) : edge_id_(edge_id), mesh_(mesh) {
-            for (int i = 0; i < this->n_nodes; ++i) { this->coords_.col(i) = mesh_->node(mesh_->edges()(edge_id_, i)); }
-            this->initialize();
-        }
-    };
-
 
     //getters 
     int id() const { return id_; }
