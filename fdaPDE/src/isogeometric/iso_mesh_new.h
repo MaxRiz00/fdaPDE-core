@@ -62,6 +62,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
                 n_cells_ *= knots_[i].size() - 1;
                 n_nodes_ *= knots_[i].size();
             }
+            /*
+
+            cells_.resize(n_cells_,LocalDim);
+            for(int i = 0; i < n_cells_; ++i){
+                cells_[i] = compute_multi_index_(i);
+            }
+            */
             // compute neighbors and cells, da capire se tenerli
             //neighbors_ = neighbors();
             //cells_ = cells();
@@ -257,7 +264,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
     }
 
     // Compute all cells of the mesh (dimension #cells x LocalDim ) // is_cell diventa cells, Eigen::Matrix<int, LocalDim, Dynamic>
-    Eigen::Matrix<int, Dynamic, LocalDim, Eigen::RowMajor> cells() const {
+    /*
+    Eigen::Matrix<int, Dynamic, LocalDim, Eigen::RowMajor> cells() const { // da togliere eventualmente
         Eigen::Matrix<int, Dynamic, LocalDim> cells;
         cells.resize(n_cells_,LocalDim);
         for(int i = 0; i < n_cells_; ++i){
@@ -265,6 +273,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         }
         return cells;
     }
+    */
     
     // check if a cell/node is on the boundary, usa is_node_on_boundary, is_cell_on_boundary
     bool is_node_on_boundary(const int& id) const {
@@ -443,7 +452,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
 
         // other attributes to be computed
         //Eigen::Matrix<int, Dynamic, 2 * LocalDim, Eigen::RowMajor> neighbors_ {};  // neighbors of each cell
-        //Eigen::Matrix<int, Dynamic, LocalDim, Eigen::RowMajor>  cells_ {};  // cells of the mesh
+        Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>  cells_ {};  // num_cells x num nodes per cell
         //Eigen::Matrix<double, Dynamic, LocalDim> param_nodes_ {};  // nodes of the mesh
 
 
@@ -466,27 +475,147 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
     static constexpr int n_nodes_per_edge = 2;
     static constexpr int n_edges_per_cell = 4;
     static constexpr int n_faces_per_edge = 2;
-    //using EdgeType = typename Base::CellType::EdgeType; aspettiamo le classi IsoSegment, IsoSquare, IsoCube
+
+    using EdgeType = typename Base::CellType::EdgeType; //aspettiamo le classi IsoSegment, IsoSquare, IsoCube
     //using LocationPolicy = TreeSearch<IsoMesh<2, N>>;
     //using Base::cells_; //questo manca perché è calcolato a richiesta
     using Base::embed_dim;
     using Base::local_dim;
     using Base::n_cells_;
     using Base::n_nodes_per_cell;
-    //static constexpr auto edge_pattern =
-    //  Matrix<int, binomial_coefficient(n_nodes_per_cell, n_nodes_per_edge), n_nodes_per_edge>(
-    //    combinations(n_nodes_per_edge, n_nodes_per_cell)); // ???
+    static constexpr std::array<std::array<int, 2>, 4> edge_pattern = {{
+        {0, 1},  // Left edge
+        {1, 2},  // Top edge
+        {2, 3},  // Right edge
+        {3, 0}   // Bottom edge
+    }};
 
     IsoMesh() = default;
 
     IsoMesh(std::array<std::vector<double>, 2>& knots, MdArray<double, MdExtents<Dynamic, Dynamic>>& weights,
          MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>>& control_points, int order, int flags = 0) :
-        Base(knots, weights, control_points, order, flags) { }
+        Base(knots, weights, control_points, order, flags) { 
+            // populate cache if cell caching is active
+            if(Base::flags_){ // & cache_cells
+                cell_cache_.reserve(n_cells_);
+                for(int i = 0; i < n_cells_; ++i){ cell_cache_.emplace_back(i, this);}
+            }
+            //compute cells
+            this->cells_.resize(n_cells_, n_nodes_per_cell);
+            for(int i=0;i<n_cells_; i++){
+                auto multi_index = this->compute_multi_index_(i);
+                int i_x = multi_index[0]; // Extract X index
+                int i_y = multi_index[1]; // Extract Y index
+                // Convert multi-index to actual node indices
+                int n_x = this->knots_[0].size();  // Number of nodes in X direction
+                int n_y = this->knots_[1].size();  // Number of nodes in Y direction
+                // Store quadrilateral connectivity
+                this->cells_(i, 0) = i_y * n_x + i_x; // bottom left
+                this->cells_(i, 1) = i_y * n_x + (i_x + 1); // bottom right
+                this->cells_(i, 2) = (i_y + 1) * n_x + (i_x + 1); // top right
+                this->cells_(i, 3) = (i_y + 1) * n_x + i_x; // top left
 
+            }
+            using edge_t = std::array<int, n_nodes_per_edge>;
+            using hash_t = internals::std_array_hash<int, n_nodes_per_edge>;
+            struct edge_info {
+                int edge_id, face_id;   // for each edge, its ID and the ID of one of the cells insisting on it
+            };
+            std::unordered_map<edge_t, edge_info, hash_t> edges_map;
+            std::vector<bool> boundary_edges;
+            edge_t edge;
+            cell_to_edges_.resize(n_cells_, n_edges_per_cell);
+
+            // Edge assignmen process
+            int edge_id = 0;
+            for(int i = 0; i < n_cells_; ++i){
+                for(int j= 0; j<n_edges_per_cell; ++j){ // 4 edges per quadriteral
+                    // extract and normalize the edge
+                    for(int k = 0; k<n_nodes_per_edge; k++) { // 2 edges per node
+                        edge[k] = this->cells_(i,edge_pattern[j][k]);
+                    }
+                    std::sort(edge.begin(), edge.end()); // ensure unique representation
+
+                    auto it = edges_map.find(edge);
+                    if(it == edges_map.end()){
+                        // New edge: Assign a new ID and mark as boundary
+                        edges_.insert(edges_.end(),edge.begin(),edge.end());
+                        edge_to_cells_.insert(edge_to_cells_.end(), {i,-1});
+                        boundary_edges.push_back(true);
+                        edges_map.emplace(edge,edge_info{edge_id, i});
+                        cell_to_edges_(i,j) = edge_id;
+                        edge_id++;
+                    } else{
+                        // Edge already exists: Cells i and neighbor share this edge
+                        int existing_edge_id = it->second.edge_id;
+                        cell_to_edges_(i,j) = existing_edge_id;
+                        boundary_edges[existing_edge_id] = false; // Mark internal edge
+                        edge_to_cells_[2*existing_edge_id + 1] = i;
+                        edges_map.erase(it);
+                    } 
+                }
+            }
+
+            n_edges_ = edges_.size() / 2;
+            boundary_edges_ = BinaryVector<Dynamic>(boundary_edges.begin(), boundary_edges.end(), n_edges_);
+            
+        }
+
+    // getters
     const typename Base::CellType& cell(int id) const {
-        cell_ = typename Base::CellType(id, this);
-        return cell_;
+        if (Base::flags_) {   // cell caching enabled
+            return cell_cache_[id];
+        } else {
+            cell_ = typename Base::CellType(id, this);
+            return cell_;
+        }
     }
+
+    bool is_edge_on_boundary(int id) const { return boundary_edges_[id]; }
+
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> edges() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
+          edges_.data(), n_edges_, n_nodes_per_edge);
+    }
+    Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> edge_to_cells() const {
+        return Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>>(
+          edge_to_cells_.data(), n_edges_, 2);
+    }
+
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cell_to_edges() const { return cell_to_edges_; }
+    const BinaryVector<Dynamic>& boundary_edges() const { return boundary_edges_; }
+    int n_edges() const { return n_edges_; }
+    int n_boundary_edges() const { return boundary_edges_.count(); }
+
+    class edge_iterator : public internals::filtering_iterator<edge_iterator, EdgeType> {
+        protected:
+        using Base =  internals::filtering_iterator<edge_iterator, EdgeType>;
+        using Base::index_;
+        friend Base;
+        const IsoMesh* mesh_;
+        int marker_;
+
+        edge_iterator& operator() (int i){
+            Base::val_ = EdgeType(i, mesh_);
+            return *this;
+        }
+        public:
+        using MeshType = IsoMesh<2, N>;
+        edge_iterator(int index, const MeshType* mesh, const BinaryVector<Dynamic>& filter, int marker) :
+            Base(index,0,mesh->n_edges_,filter), mesh_(mesh), marker_(marker) {
+                for(; index_<Base::end_ && !filter[index_]; ++index_);
+                if(index_ != Base::end_){ operator() (index_);}
+        }
+        edge_iterator(int index, const MeshType* mesh): //apply no filter
+            edge_iterator(index, mesh, BinaryVector<Dynamic>::Ones(mesh->n_edges_), Unmarked){}
+        edge_iterator(int index, const MeshType* mesh, int marker) : 
+            Base(index, 0, mesh->n_edges_), marker_(marker) { }
+        int marker() const { return marker_;}
+    };
+
+    edge_iterator edges_begin() const {return edge_iterator(0,this);}
+    edge_iterator edges_end() const {return edge_iterator(n_edges_,this,Unmarked);}
+
 
     protected:
     std::vector<int> edges_ {};                        // nodes (as row indexes in nodes_ matrix) composing each edge

@@ -58,8 +58,26 @@ int main(){
     IsoMesh<2, 3> mesh(nodes, weights_, control_points, order);
 
     for(auto it = mesh.cells_begin(); it != mesh.cells_end(); ++it){
-        std::cout << it->id() << std::endl;
+        //std::cout << it->id() << std::endl;
     }
+
+    // loop over the edges
+    for(auto it = mesh.edges_begin(); it != mesh.edges_end(); ++it){
+        std::cout<<"Processing edge "<<it->id()<<std::endl;
+        std::cout<<"Node indices: "<<std::endl;
+        for(int i = 0; i < mesh.n_nodes_per_edge; i++){
+            std::cout<<it->node_ids()[i]<<" ";
+        }
+        std::cout<<std::endl;
+        // check if the edge is on the boundary
+        if(it->on_boundary()){
+            std::cout<<"Edge is on the boundary"<<std::endl;
+        }
+        
+    }
+
+    // print the number of boundary edges
+    //std::cout<<"Boundary edges: "<<mesh.n_boundary_edges()<<std::endl;
     
     /*
     
