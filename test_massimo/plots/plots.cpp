@@ -8,6 +8,7 @@ template<typename T> using SpMatrix = Eigen::SparseMatrix<T>;
 using namespace fdapde;
 
 int main(){
+    /*
 
     SpMatrix<double> knots_x, knots_y, weights;
     SpMatrix<double> control_points_x, control_points_y, control_points_z;
@@ -56,12 +57,70 @@ int main(){
     
 
     IsoMesh<2, 3> mesh(nodes, weights_, control_points, order);
+    */
 
-    for(auto it = mesh.cells_begin(); it != mesh.cells_end(); ++it){
-        //std::cout << it->id() << std::endl;
+    int order = 1;
+
+    std::array<std::vector<double>,3> knots ;
+    MdArray<double,full_dynamic_extent_t<3>> weights(2,3,2);
+    MdArray<double,full_dynamic_extent_t<4>> control_points(2,3,2,3);
+
+    knots[0].resize(2);
+    knots[1].resize(3);
+    knots[2].resize(2);
+
+    for(int i = 0; i<2; i++) knots[0][i] = 1.*i;
+    for(int i = 0; i<3; i++) knots[1][i] = 0.5*i;
+    for(int i = 0; i<2; i++) knots[2][i] = 1.*i;
+
+    for(int i = 0; i<2; i++) for(int j = 0; j<3; j++) for(int k = 0; k<2; k++) weights(i,j,k) = 1.;
+
+     for(size_t i = 0; i < 3; i++){
+        for(size_t j = 0; j < 2; j++){
+            control_points(0,i,j,0) = (i<2)?-1.:1.;
+            control_points(0,i,j,1) = (i<1)?-1.:1.;
+            control_points(0,i,j,2) = (j<1)? 0.:1.;
+            control_points(1,i,j,0) = (i<2)? 0.:1.;
+            control_points(1,i,j,1) = (i<1)?-1.:0.;
+            control_points(1,i,j,2) = (j<1)? 0.:1.;
+        }
+    }
+    IsoMesh<3,3> mesh2(knots, weights, control_points, order);
+    /*
+    std::cout<<"# faces: "<<mesh2.n_boundary_faces()<<std::endl;
+    for(auto it = mesh2.boundary_faces_begin(); it!=mesh2.boundary_faces_end(); ++it){
+        std::cout<<"Processing face "<<it->id()<<std::endl;
+        std::cout<<"Node indices: "<<std::endl;
+        for(int i = 0; i < mesh2.n_nodes_per_face; i++){
+            std::cout<<it->node_ids()[i]<<" ";
+        }
+        std::cout<<std::endl;
+        // check if the edge is on the boundary
+        if(it->on_boundary()){
+            std::cout<<"Face is on the boundary"<<std::endl;
+        }
+        
+    }
+    */
+
+    // nuber of cells
+    std::cout<<"Number of cells: "<<mesh2.n_cells()<<std::endl;
+
+    // print the neighbors of the cells
+    auto neighbors = mesh2.neighbors();
+    for(int i = 0; i < neighbors.rows(); i++){
+        for(int j = 0; j < neighbors.cols(); j++){
+            std::cout<<neighbors(i,j)<<" ";
+        }
+        std::cout<<std::endl;
     }
 
-    // loop over the edges
+    //for(auto it = mesh.cells_begin(); it != mesh.cells_end(); ++it){
+        //std::cout << it->id() << std::endl;
+   // }
+
+    // loop over the edgesss
+    /*
     for(auto it = mesh.edges_begin(); it != mesh.edges_end(); ++it){
         std::cout<<"Processing edge "<<it->id()<<std::endl;
         std::cout<<"Node indices: "<<std::endl;
@@ -75,6 +134,22 @@ int main(){
         }
         
     }
+    */
+    /*
+    for(auto it = mesh.boundary_edges_begin(); it != mesh.boundary_edges_end(); ++it){
+        std::cout<<"Processing edge "<<it->id()<<std::endl;
+        std::cout<<"Node indices: "<<std::endl;
+        for(int i = 0; i < mesh.n_nodes_per_edge; i++){
+            std::cout<<it->node_ids()[i]<<" ";
+        }
+        std::cout<<std::endl;
+        // check if the edge is on the boundary
+        if(it->on_boundary()){
+            std::cout<<"Edge is on the boundary"<<std::endl;
+        }
+        
+    }
+    */
 
     // print the number of boundary edges
     //std::cout<<"Boundary edges: "<<mesh.n_boundary_edges()<<std::endl;

@@ -5,8 +5,8 @@
 namespace fdapde {
 
 template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, MeshType::embed_dim>{
-    fdapde_static_assert(MeshType::local_dim == 2, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
-    using Base = IsoCell<MeshType::local_dim, MeshType::embed_dim>;
+    fdapde_static_assert(MeshType::local_dim == 3, THIS_CLASS_IS_FOR_3D_MESHES_ONLY);
+    //using Base = IsoCell<MeshType::local_dim, MeshType::embed_dim>;
     public:
     // constructor
     IsoCube() = default;
@@ -15,23 +15,59 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
         this->left_coords_ = mesh_->compute_lr_vertices_(id_)[0];
         this->right_coords_ = mesh_->compute_lr_vertices_(id_)[1];
         // initialize = (){}; // da capire cosa inizializzare
+        // da mettere edge_indices
     }
 
-    /*
+    
 
-    class EdgeType : public IsoCell<MeshType::local_dim, MeshType::embed_dim>::BoundaryCellType {
-        private:
+    class EdgeType : public IsoCell<1, MeshType::embed_dim> {
+        using Base = IsoCell<1, MeshType::embed_dim>;
         int edge_id_;
         const MeshType* mesh_;
         public:
         using CoordsType = Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim>; 
         EdgeType() = default; //// da capire come adattare!!!
         EdgeType(int edge_id, const MeshType* mesh) : edge_id_(edge_id), mesh_(mesh) {
-            for (int i = 0; i < this->n_nodes; ++i) { this->coords_.col(i) = mesh_->node(mesh_->edges()(edge_id_, i)); }
+            for (int i = 0; i < this->n_nodes; ++i) { 
+                this->left_coords_[0] =  mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
+                this->right_coords_[0] = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
+            }
             //this->initialize();
         }
+        //bool on_boundary() const { return mesh_->is_edge_on_boundary(edge_id_); }
+        Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->edges().row(edge_id_); }
+        int id() const { return edge_id_; }
+        const std::unordered_set<int>& adjacent_cells() const { return mesh_->edge_to_cells().at(edge_id_); }
+        int marker() const {   // mesh edge's marker
+            return mesh_->edges_markers().size() > edge_id_ ? mesh_->edges_markers()[edge_id_] : Unmarked;
+        }
     };
-    */
+
+    class FaceType : public IsoCell<2,MeshType::embed_dim>{
+        using Base = IsoCell<2,MeshType::embed_dim>;
+        int face_id_;
+        const MeshType* mesh_;
+        public:
+        using CoordsType = Eigen::Matrix<double, MeshType::embed_dim, 4>;
+        FaceType() = default;
+        FaceType(int face_id, const MeshType* mesh): face_id_(face_id), mesh_(mesh) {
+            this->left_coords_[0] =  mesh_->parametric_nodes()(mesh_->faces()(face_id_,0), 0);
+            this->right_coords_[0] = mesh_->parametric_nodes()(mesh_->faces()(face_id_,0), 1);
+            this->left_coords_[1] =  mesh_->parametric_nodes()(mesh_->faces()(face_id_,1), 0);
+            this->right_coords_[1] = mesh_->parametric_nodes()(mesh_->faces()(face_id_,1), 1);
+            // initialize
+        }
+        bool on_boundary() const { return mesh_->is_face_on_boundary(face_id_); }
+        Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->faces().row(face_id_); }
+        Eigen::Matrix<int, Dynamic, 1> edge_ids() const { return mesh_->face_to_edges().row(face_id_); }
+        int id() const { return face_id_; }
+        EdgeType edge(int n) const { return EdgeType(mesh_->face_to_edges()(face_id_, n), mesh_); }
+        Eigen::Matrix<int, Dynamic, 1> adjacent_cells() const { return mesh_->face_to_cells().row(face_id_); }
+        int marker() const {   // mesh face's marker
+            return mesh_->faces_markers().size() > face_id_ ? mesh_->faces_markers()[face_id_] : Unmarked;
+        }
+    };
+    
 
    // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
     // left_coords
@@ -62,9 +98,53 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
     Eigen::Matrix<int, 1, MeshType::local_dim> node_ids() const { return mesh_->cells().row(id_); }
     bool on_boundary() const { return boundary_; }
     operator bool() const { return mesh_ != nullptr; }
+    EdgeType edge(int n) const { return EdgeType(edge_ids_[n], mesh_); }
+    FaceType face(int n) const { return FaceType(mesh_->cell_to_faces()(id_, n), mesh_); }
+    // cell marker
+    int marker() const { return mesh_->cells_markers().size() > id_ ? mesh_->cells_markers()[id_] : Unmarked; }
+
+    // iterator over tetrahedron edges
+    class edge_iterator : public internals::index_iterator<edge_iterator, EdgeType> {
+        using Base = internals::index_iterator<edge_iterator, EdgeType>;
+        using Base::index_;
+        friend Base;
+        const IsoCube* c_;
+        // access to i-th edge
+        edge_iterator& operator()(int i) {
+            Base::val_ = c_->edge(i);
+            return *this;
+        }
+       public:
+        edge_iterator(int index, const IsoCube* c) : Base(index, 0, c->n_edges), c_(c) {
+            if (index_ < c_->n_edges) operator()(index_);
+        }
+    };
+    edge_iterator edges_begin() const { return edge_iterator(0, this); }
+    edge_iterator edges_end() const { return edge_iterator(this->n_edges, this); }
+
+    // iterator over tetrahedron faces
+    class face_iterator : public internals::index_iterator<face_iterator, FaceType> {
+        using Base = internals::index_iterator<face_iterator, FaceType>;
+        using Base::index_;
+        friend Base;
+        const IsoCube* c_;
+        // access to i-th face
+        face_iterator& operator()(int i) {
+            Base::val_ = c_->face(i);
+            return *this;
+        }
+       public:
+        face_iterator(int index, const IsoCube* c) : Base(index, 0, c->n_faces), c_(c) {
+            if (index_ < c_->n_faces) operator()(index_);
+        }
+    };
+    face_iterator faces_begin() const { return face_iterator(0, this); }
+    face_iterator faces_end() const { return face_iterator(this->n_faces, this); }
+
 
     protected:
     int id_ = 0;   // segment ID in the physical mesh
+    std::array<int,12> edge_ids_;
     const MeshType* mesh_ = nullptr;
     bool boundary_ = false;   // true if the element has at least one vertex on the boundary
 };

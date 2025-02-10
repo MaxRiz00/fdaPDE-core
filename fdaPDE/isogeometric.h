@@ -11,7 +11,7 @@
 #include "src/isogeometric/iso_segment.h"
 #include "src/isogeometric/iso_square.h"
 #include "src/isogeometric/iso_cube.h"
-#include "src/isogeometric/iso_mesh_new.h"
+#include "src/isogeometric/iso_mesh.h"
 
 #include "src/isogeometric/iso_integration.h"
 
