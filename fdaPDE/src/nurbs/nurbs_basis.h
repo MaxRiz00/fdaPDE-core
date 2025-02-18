@@ -44,7 +44,9 @@ namespace fdapde {
             //          })
             NurbsBasis(std::array<std::vector<double>,M>& knots,MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : order_(order) {
             // construct knots vector
-
+            std::cout<<"Constructing the basis"<<std::endl;
+            auto knots_ = knots;
+            /*
             std::array<std::vector<double>,M> knots_ ;
             // pad the knot vector to obtain a full basis for the whole knot span [u_0, u_n]
                 for(std::size_t i=0; i < M; ++i){
@@ -63,6 +65,9 @@ namespace fdapde {
                         }
                     }
                 }
+                std::cout<<"Knots padded"<<std::endl;
+                */
+
                 // define basis system
                 int basis_size=1;
                 for(std::size_t i=0; i< M;++i){
@@ -79,11 +84,22 @@ namespace fdapde {
                 for(int k=0;k<M;++k){
                     M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_);
                 }
+                std::cout<<"Basis instantialized"<<std::endl;
+                std::cout<<"Basis size: "<<basis_size<<std::endl;
 
 
                 for(int i=0;i<basis_size;++i){
+                    // print the index
+                    /*
+                    std::cout<<"Index: ";
+                    for(int j=0;j<M;++j){
+                        std::cout<<index[j]<<" ";
+                    }
+                    std::cout<<std::endl;
+                    */
                     
                     basis_.emplace_back(M_spline_basis, weights, index);
+                    //std::cout<<"Basis "<<i<<" created"<<std::endl;
 
                     // Update the index with carry-over logic
                     std::size_t j = M - 1;
@@ -96,6 +112,7 @@ namespace fdapde {
                         ++index[j];    // Increment the previous coordinate
                     }
                 }
+                std::cout<<"Basis created"<<std::endl;
             }
             
             // overload constructor for 1D case TO DO

@@ -21,6 +21,24 @@
 
 namespace fdapde {
 
+
+std::vector<double> pad_knots(const std::vector<double>& knots, int order) {
+    int n = knots.size();
+    std::vector<double> padded_knots(n + 2 * order);
+    for (int i = 0; i < n + 2 * order; ++i) {
+        if (i < order) {
+            padded_knots[i] = knots[0];
+        } else {
+            if (i < n + order) {
+                padded_knots[i] = knots[i - order];
+            } else {
+                padded_knots[i] = knots[n - 1];
+            }
+        }
+    }
+    return padded_knots;
+}
+
 // given vector of knots u_1, u_2, ..., u_N, this class represents the set of N + order - 1 spline basis functions
 // {l_1(x), l_2(x), ..., l_{N + order - 1}(x)} centered at knots u_1, u_2, ..., u_N
 class BSplineBasis {
@@ -42,8 +60,9 @@ class BSplineBasis {
     BSplineBasis(KnotsVectorType&& knots, int order) : order_(order) {
         //fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
         int n = knots.size();
-        knots_.resize(n);
-        for (int i = 0; i < n; ++i) { knots_[i] = knots[i]; }
+        //knots_.resize(n + 2 * order_);
+        //knots_ = pad_knots(knots, order);
+        knots_ = knots;
         // define basis system
         basis_.reserve(n - order_ + 1);
         for (int i = 0; i < n - order_ - 1; ++i) { basis_.emplace_back(knots_, i, order_); }
@@ -72,10 +91,43 @@ class BSplineBasis {
         for (int i = 0; i < knots_.size() - order_ - 1; ++i) { basis_.emplace_back(knots_, i, order_); }
     }
 
+    // Algorithm A2.1 from NURBS book
+    int find_span(double x) const {
+        /*
+        std::cout<<"Knots:"<<std::endl;
+        for(auto k:knots_){
+            std::cout<<k<<" ";
+        }
+        std::cout<<std::endl;
+        */
+
+
+        //std::cout<<"Computing span"<<std::endl;
+
+        // find the span of the knot vector
+        int n = knots_.size() - order_ - 1 ;
+        if (x == knots_.back()) return n - 1;
+        int low = order_;
+        int high = n;
+        int mid = (low + high) / 2;
+        while (x < knots_[mid] || x >= knots_[mid + 1]) {
+            if (x < knots_[mid]) {
+                high = mid;
+            } else {
+                low = mid;
+            }
+            mid = (low + high) / 2;
+        }
+        return mid;
+
+    }
+
+
     //Algorithm A2. 2 from NURBS book pag. 70 computes all the nonvanishing
     //basis functions and stores them in the array N [0] , ... ,N [p]
     // padded with zeros
     std::vector<double> evaluate_basis(double x, bool pad = true) const {
+        //std::cout<<"x: "<<x<<std::endl;
 
         std::vector<double> N(order_+1 , 0.0);
         std::vector<double> left(order_+1, 0.0);
@@ -83,8 +135,7 @@ class BSplineBasis {
         N[0] = 1.0;
 
         // find the span of the knot vector
-        int i = 0;
-        while (x >= knots_[i+1] && i < knots_.size() - order_ - 1) i++;
+        int i = find_span(x);
 
         for (int j=1;j<=order_;j++){
             left[j] = x - knots_[i+1-j];
@@ -99,14 +150,17 @@ class BSplineBasis {
             N[j] = saved;
         }
 
-        if (!pad) 
-            return N;
-        else {
-        // create a vector of the same size of the basis functions, copy N in the right position, zeros elsewhere
-            std::vector<double> basis_eval(knots_.size() - order_ + 1, 0.0);
-            for (int j = 0; j < order_ + 1; ++j) { basis_eval[i - order_ + j] = N[j]; }
-            return basis_eval;
+        // **PADDING STEP**
+        if (pad) {
+            std::vector<double> padded_N(knots_.size() - order_ - 1, 0.0);  // Full-size vector
+            int start_index = i - order_;  // Insert at the correct position
+            for (int j = 0; j <= order_; j++) {
+                padded_N[start_index + j] = N[j];
+            }
+            return padded_N;
         }
+
+        return N;
         
     }
 
@@ -114,8 +168,7 @@ class BSplineBasis {
     std::vector<double> evaluate_der_basis(double x, int n=1, bool pad = true) const {
         // Degree (p) and knot vector (U) from the class
 
-        int i = 0;
-        while (x >= knots_[i+1] && i < knots_.size() - order_ - 1) i++;
+        int i = find_span(x);
 
         // Output for derivatives
         std::vector<std::vector<double>> ders(n + 1, std::vector<double>(order_ + 1, 0.0));

@@ -10,7 +10,7 @@
 
 namespace fdapde{
 
-    // Fai un check computazionale confrontando le nurbs evaluation con quelle di  DeGaspari
+// Fai un check computazionale confrontando le nurbs evaluation con quelle di  DeGaspari
 
 // multi-contract function (iterative version)    
 template<int M>
@@ -79,6 +79,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 })
             Nurbs(std::array<KnotsVectorType,M>&& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>&& index, int order): 
                  index_(std::move(index)), order_(order){
+                
 
                 // we suppose the knots are not padded
                 // build a spline basis for each dimension
@@ -102,6 +103,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                             }
                         }
                     }
+                    
                     spline_basis_[i] = std::make_shared<BSplineBasis>(knots_, order_);
 
                     // compute the minIdx and extents for each dimension
@@ -161,11 +163,21 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     maxIdx[i] = (minIdx_[i] + extents_[i]-1);
                     
                 }
+                /*
+                std::cout<<"Knots padded ECCOCI"<<std::endl;
+
+                // print the index
+                for(int j=0;j<M;++j){
+                    std::cout<<index_[j]<<" ";
+                }
+                std::cout<<std::endl;
+                */
 
                 // allocate for the gradient
                 for (std::size_t i = 0; i < M; ++i){
                     gradient_[i] = FirstDerivative(spline_basis_, weights, index, i);
                     }
+                //std::cout<<"Knots padded ECCOCI1"<<std::endl;
 
                 // initialize the hessian
                 for (std::size_t i = 0; i < M; ++i){
@@ -173,6 +185,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                         hessian_(i,j) = SecondDerivative(spline_basis_, weights, index, i, j);
                     }
                 }
+                //std::cout<<"Knots padded ECCOCI2"<<std::endl;
 
                 // allocate space for the weights
                 weights_.resize(extents_);
@@ -258,6 +271,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     order_ = spline_basis[0]->order();
 
                     std::array<std::size_t, M> maxIdx;
+                    //std::cout<<"NURBS derivative initialized"<<std::endl;
                     for (std::size_t i = 0; i < M; ++i) {
 
                         // compute the minIdx and extents for each dimension
@@ -266,12 +280,18 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                         maxIdx[i] = (minIdx_[i] + extents_[i]-1);
                     }
 
+                    //std::cout<<"NURBS derivative initialized2"<<std::endl;
+
                     // allocate space for the weights
                     weights_.resize(extents_);
                     // fill the block of weights with only the necessary values;
                     weights_ = weights.block(minIdx_, maxIdx);
+
+                    //std::cout<<"NURBS derivative initialized3"<<std::endl;
                     // compute the starting numerator  
+                    
                     num0_ = weights(index_);  
+                    //num0_ = weights_(index_ - minIdx_); // rivedi
 
                     //std::cout << "NURBS derivative correctly initialized! " << std::endl;
 

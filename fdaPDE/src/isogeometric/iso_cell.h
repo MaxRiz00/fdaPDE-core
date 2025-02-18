@@ -22,7 +22,7 @@ template<int LocalDim_, int EmbedDim_> class IsoCell{
     IsoCell(const std::array<int, local_dim>& left_coords, const std::array<int, local_dim>& right_coords ): 
         left_coords_(left_coords), right_coords_(right_coords){} 
 
-
+    //commenta le funzioni
     std::array<double, LocalDim_> affine_map(const std::array<double, LocalDim_> & p) const {
             std::array<double, LocalDim_> x;
             for(std::size_t i = 0; i < LocalDim_; ++i){

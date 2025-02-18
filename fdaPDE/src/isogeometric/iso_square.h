@@ -12,8 +12,10 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
     IsoSquare() = default;
     IsoSquare(int id, const MeshType* mesh) : id_(id), mesh_(mesh), boundary_(false) {
         boundary_ = mesh_->is_cell_on_boundary(id_);
-        this->left_coords_ = mesh_->compute_lr_vertices_(id_)[0];
-        this->right_coords_ = mesh_->compute_lr_vertices_(id_)[1];
+        //prova se sta in una riga
+        auto [left_coords, right_coords] = mesh_->compute_lr_vertices_(id_);
+        this->left_coords_ = left_coords;
+        this->right_coords_ = right_coords;
         // initialize = (){}; // da capire cosa inizializzare
     }
 

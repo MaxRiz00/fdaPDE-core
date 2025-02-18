@@ -8,19 +8,22 @@ template<typename T> using SpMatrix = Eigen::SparseMatrix<T>;
 using namespace fdapde;
 
 int main(){
-    /*
+
+    // order
+    std::string folder = "torus";
+    std::string path = "../data/" + folder + "/";
 
     SpMatrix<double> knots_x, knots_y, weights;
     SpMatrix<double> control_points_x, control_points_y, control_points_z;
 
-    Eigen::loadMarket(knots_x, "../data/curlyplate_kx_ref3.mtx");
-    Eigen::loadMarket(knots_y, "../data/curlyplate_ky_ref3.mtx");
+    Eigen::loadMarket(knots_x, path + "knots_x.mtx");
+    Eigen::loadMarket(knots_y, path + "knots_y.mtx");
 
-    Eigen::loadMarket(weights, "../data/curlyplate_weights_ref3.mtx");
+    Eigen::loadMarket(weights, path + "weights.mtx");
 
-    Eigen::loadMarket(control_points_x, "../data/curlyplate_cpx_ref3.mtx");
-    Eigen::loadMarket(control_points_y, "../data/curlyplate_cpy_ref3.mtx");
-    Eigen::loadMarket(control_points_z, "../data/curlyplate_cpz_ref3.mtx");
+    Eigen::loadMarket(control_points_x, path + "ctrlpts_x.mtx");
+    Eigen::loadMarket(control_points_y, path + "ctrlpts_y.mtx");
+    Eigen::loadMarket(control_points_z, path + "ctrlpts_z.mtx");
 
     std::array<std::vector<double>,2> nodes;
     MdArray<double, full_dynamic_extent_t<2>> weights_(weights.rows(), weights.cols());
@@ -50,112 +53,57 @@ int main(){
             control_points(i, j, 2) = control_points_z.coeff(i, j);
         }
     }
+
     
 
     int order = 2;
 
-    
-
     IsoMesh<2, 3> mesh(nodes, weights_, control_points, order);
-    */
 
-    int order = 1;
+    // size of knots
+    std::cout<<"# knots sizes : "<<mesh.knots()[0].size()<<" "<<mesh.knots()[1].size()<<std::endl;
 
-    std::array<std::vector<double>,3> knots ;
-    MdArray<double,full_dynamic_extent_t<3>> weights(2,3,2);
-    MdArray<double,full_dynamic_extent_t<4>> control_points(2,3,2,3);
+    
+    // Export physical nodes
+    std::ofstream nodes_file("../nodes.txt");
+    std::ofstream edges_file("../edges.txt");
 
-    knots[0].resize(2);
-    knots[1].resize(3);
-    knots[2].resize(2);
+    std::cout<<"# nodes: "<<mesh.n_nodes()<<std::endl;
 
-    for(int i = 0; i<2; i++) knots[0][i] = 1.*i;
-    for(int i = 0; i<3; i++) knots[1][i] = 0.5*i;
-    for(int i = 0; i<2; i++) knots[2][i] = 1.*i;
-
-    for(int i = 0; i<2; i++) for(int j = 0; j<3; j++) for(int k = 0; k<2; k++) weights(i,j,k) = 1.;
-
-     for(size_t i = 0; i < 3; i++){
-        for(size_t j = 0; j < 2; j++){
-            control_points(0,i,j,0) = (i<2)?-1.:1.;
-            control_points(0,i,j,1) = (i<1)?-1.:1.;
-            control_points(0,i,j,2) = (j<1)? 0.:1.;
-            control_points(1,i,j,0) = (i<2)? 0.:1.;
-            control_points(1,i,j,1) = (i<1)?-1.:0.;
-            control_points(1,i,j,2) = (j<1)? 0.:1.;
-        }
-    }
-    IsoMesh<3,3> mesh2(knots, weights, control_points, order);
-    /*
-    std::cout<<"# faces: "<<mesh2.n_boundary_faces()<<std::endl;
-    for(auto it = mesh2.boundary_faces_begin(); it!=mesh2.boundary_faces_end(); ++it){
-        std::cout<<"Processing face "<<it->id()<<std::endl;
-        std::cout<<"Node indices: "<<std::endl;
-        for(int i = 0; i < mesh2.n_nodes_per_face; i++){
-            std::cout<<it->node_ids()[i]<<" ";
-        }
-        std::cout<<std::endl;
-        // check if the edge is on the boundary
-        if(it->on_boundary()){
-            std::cout<<"Face is on the boundary"<<std::endl;
-        }
-        
-    }
-    */
-
-    // nuber of cells
-    std::cout<<"Number of cells: "<<mesh2.n_cells()<<std::endl;
-
-    // print the neighbors of the cells
-    auto neighbors = mesh2.neighbors();
-    for(int i = 0; i < neighbors.rows(); i++){
-        for(int j = 0; j < neighbors.cols(); j++){
-            std::cout<<neighbors(i,j)<<" ";
-        }
-        std::cout<<std::endl;
+    for(int i = 0; i < mesh.n_nodes(); i++){
+        //std::cout<<"Processing node "<<i<<std::endl;
+        auto p = mesh.phys_node(i);
+        nodes_file << p[0] << " " << p[1] << " " << p[2] << std::endl;
     }
 
-    //for(auto it = mesh.cells_begin(); it != mesh.cells_end(); ++it){
-        //std::cout << it->id() << std::endl;
-   // }
+    auto edges = mesh.edges();
 
-    // loop over the edgesss
-    /*
+    std::cout<<"# edges: "<<edges.rows()<<std::endl;
+
+    for(int i = 0; i < edges.rows(); i++){
+        for(int j = 0; j < edges.cols(); j++){
+            edges_file<<edges(i,j)<<" ";
+        }
+        edges_file<<std::endl;
+    }
+
+    // iterate over edges and print the nodes
+
+    std::ofstream boundary_edges_file("../boundary_edges.txt");
+
     for(auto it = mesh.edges_begin(); it != mesh.edges_end(); ++it){
-        std::cout<<"Processing edge "<<it->id()<<std::endl;
-        std::cout<<"Node indices: "<<std::endl;
-        for(int i = 0; i < mesh.n_nodes_per_edge; i++){
-            std::cout<<it->node_ids()[i]<<" ";
-        }
-        std::cout<<std::endl;
-        // check if the edge is on the boundary
-        if(it->on_boundary()){
-            std::cout<<"Edge is on the boundary"<<std::endl;
-        }
-        
+        if(it->on_boundary()) boundary_edges_file<<1<<std::endl;
+        else boundary_edges_file<<0<<std::endl;
     }
-    */
-    /*
-    for(auto it = mesh.boundary_edges_begin(); it != mesh.boundary_edges_end(); ++it){
-        std::cout<<"Processing edge "<<it->id()<<std::endl;
-        std::cout<<"Node indices: "<<std::endl;
-        for(int i = 0; i < mesh.n_nodes_per_edge; i++){
-            std::cout<<it->node_ids()[i]<<" ";
-        }
-        std::cout<<std::endl;
-        // check if the edge is on the boundary
-        if(it->on_boundary()){
-            std::cout<<"Edge is on the boundary"<<std::endl;
-        }
-        
-    }
-    */
 
-    // print the number of boundary edges
-    //std::cout<<"Boundary edges: "<<mesh.n_boundary_edges()<<std::endl;
-    
-    /*
-    
+    // save the control points
+    std::ofstream control_points_file("../control_points.txt");
+    for(int i = 0; i < control_points.extent(0); i++){
+        for(int j = 0; j < control_points.extent(1); j++){
+            control_points_file<<control_points(i, j, 0)<<" "<<control_points(i, j, 1)<<" "<<control_points(i, j, 2)<<std::endl;
+        }
+    }
+
     // compute a linspace in the parametric domain
     int N =100;
 
@@ -171,12 +119,8 @@ int main(){
             double x = nodes[0].front() + i*step_x;
             double y = nodes[1].front() + j*step_y;
             auto p = mesh.eval_param({x, y});
-            std::cout << p[0] << " " << p[1] << " " << p[2] << std::endl;
             result<< p[0] << " " << p[1] << " " << p[2] << std::endl;
         }
     }
-    */
-    
-    
 
 }
