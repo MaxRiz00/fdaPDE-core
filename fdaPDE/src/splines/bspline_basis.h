@@ -21,21 +21,32 @@
 
 namespace fdapde {
 
+template <typename KnotsVectorType>
+requires(requires(KnotsVectorType knots, int i) {
+            { knots[i] } -> std::convertible_to<double>;
+            { knots.size() } -> std::convertible_to<std::size_t>;
+        })
+std::vector<double> pad_knots(const KnotsVectorType& kn, int order) {
+    int n = kn.size();
+    std::vector<double> knots(kn.begin(), kn.end());
 
-std::vector<double> pad_knots(const std::vector<double>& knots, int order) {
-    int n = knots.size();
-    std::vector<double> padded_knots(n + 2 * order);
-    for (int i = 0; i < n + 2 * order; ++i) {
-        if (i < order) {
-            padded_knots[i] = knots[0];
-        } else {
-            if (i < n + order) {
-                padded_knots[i] = knots[i - order];
-            } else {
-                padded_knots[i] = knots[n - 1];
-            }
+    // Check if knots are already padded correctly
+    bool is_padded = (n >= 2 * order + 1);
+    for (int i = 0; i < order + 1 && is_padded; ++i) {
+        if (knots[i] != knots[0] || knots[n - 1 - i] != knots[n - 1]) {
+            is_padded = false;
         }
     }
+    if (is_padded) return knots;
+
+    // If not padded, construct the padded knot vector
+    std::vector<double> padded_knots;
+    padded_knots.reserve(n + 2 * order);
+
+    padded_knots.insert(padded_knots.end(), order, knots[0]);
+    padded_knots.insert(padded_knots.end(), knots.begin(), knots.end());
+    padded_knots.insert(padded_knots.end(), order, knots[n - 1]);
+
     return padded_knots;
 }
 
@@ -52,116 +63,80 @@ class BSplineBasis {
     // constructors
     constexpr BSplineBasis() : order_(0) { }
     // constructor from user defined knot vector
+    
     template <typename KnotsVectorType>
-        requires(requires(KnotsVectorType knots, int i) {
-                    { knots[i] } -> std::convertible_to<double>;
-                    { knots.size() } -> std::convertible_to<std::size_t>;
-                })
-    BSplineBasis(KnotsVectorType&& knots, int order) : order_(order) {
-        //fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
+    requires(requires(KnotsVectorType knots, int i) {
+                { knots[i] } -> std::convertible_to<double>;
+                { knots.size() } -> std::convertible_to<std::size_t>;
+            })
+    BSplineBasis(KnotsVectorType&& knots, int order)
+        : order_(order), knots_(pad_knots(knots, order)) {
         int n = knots.size();
-        //knots_.resize(n + 2 * order_);
-        //knots_ = pad_knots(knots, order);
-        knots_ = knots;
-        // define basis system
         basis_.reserve(n - order_ + 1);
-        for (int i = 0; i < n - order_ - 1; ++i) { basis_.emplace_back(knots_, i, order_); }
+        for (int i = 0; i < n - order_ - 1; ++i) {
+            basis_.emplace_back(knots_, i, order_);
+        }
     }
-    // constructor from geometric interval (no repeated knots)
-    BSplineBasis(const Triangulation<1, 1>& interval, int order) : order_(order) {
-        // construct knots vector
-        Eigen::Matrix<double, Dynamic, 1> knots = interval.nodes();
-        fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end() FDAPDE_COMMA std::less_equal<double>()));
+    // Constructor from geometric interval (no repeated knots)
+    BSplineBasis(const Triangulation<1, 1>& interval, int order)
+        : order_(order) {
+        Eigen::VectorXd knots = interval.nodes();
+        fdapde_assert(std::is_sorted(knots.begin(), knots.end(), std::less_equal<double>()));
+        knots_ = pad_knots(std::vector<double>(knots.data(), knots.data() + knots.size()), order);
+
         int n = knots.size();
-        knots_.resize(n + 2 * order_);
-        // pad the knot vector to obtain a full basis for the whole knot span [knots[0], knots[n-1]]
-            for (int i = 0; i < n + 2 * order_; ++i) {
-                if (i < order_) {
-                    knots_[i] = knots[0];
-                } else {
-                    if (i < n + order_) {
-                        knots_[i] = knots[i - order_];
-                    } else {
-                        knots_[i] = knots[n - 1];
-                    }
-                }
-	}
-        // define basis system
-        basis_.reserve(knots_.size() - order_ + 1);
-        for (int i = 0; i < knots_.size() - order_ - 1; ++i) { basis_.emplace_back(knots_, i, order_); }
+        basis_.reserve(n - order_ + 1);
+        for (int i = 0; i < n - order_ - 1; ++i) {
+            basis_.emplace_back(knots_, i, order_);
+        }
     }
 
     // Algorithm A2.1 from NURBS book
     int find_span(double x) const {
-        /*
-        std::cout<<"Knots:"<<std::endl;
-        for(auto k:knots_){
-            std::cout<<k<<" ";
-        }
-        std::cout<<std::endl;
-        */
-
-
-        //std::cout<<"Computing span"<<std::endl;
-
-        // find the span of the knot vector
-        int n = knots_.size() - order_ - 1 ;
+        int n = knots_.size() - order_ - 1;
         if (x == knots_.back()) return n - 1;
-        int low = order_;
-        int high = n;
-        int mid = (low + high) / 2;
-        while (x < knots_[mid] || x >= knots_[mid + 1]) {
-            if (x < knots_[mid]) {
-                high = mid;
-            } else {
-                low = mid;
-            }
+        int low = order_, high = n, mid;
+        while (low < high - 1) {
             mid = (low + high) / 2;
+            (x < knots_[mid]) ? high = mid : low = mid;
         }
-        return mid;
-
+        return low;
     }
 
 
     //Algorithm A2. 2 from NURBS book pag. 70 computes all the nonvanishing
     //basis functions and stores them in the array N [0] , ... ,N [p]
     // padded with zeros
+    // Evaluate basis functions at x
     std::vector<double> evaluate_basis(double x, bool pad = true) const {
-        //std::cout<<"x: "<<x<<std::endl;
-
-        std::vector<double> N(order_+1 , 0.0);
-        std::vector<double> left(order_+1, 0.0);
-        std::vector<double> right(order_ +1, 0.0);
+        std::vector<double> N(order_ + 1, 0.0);
+        std::vector<double> left(order_ + 1), right(order_ + 1);
         N[0] = 1.0;
 
-        // find the span of the knot vector
         int i = find_span(x);
 
-        for (int j=1;j<=order_;j++){
-            left[j] = x - knots_[i+1-j];
-            right[j] = knots_[i+j] - x;
+        for (int j = 1; j <= order_; ++j) {
+            left[j] = x - knots_[i + 1 - j];
+            right[j] = knots_[i + j] - x;
             double saved = 0.0;
-            for (int r=0;r<j;r++){
-                double denominator = right[r + 1] + left[j - r];
-                double temp = (denominator == 0) ? 0.0 : N[r] / denominator;
-                N[r] = saved + right[r+1]*temp;
-                saved = left[j-r]*temp;
+
+            for (int r = 0; r < j; ++r) {
+                double denom = right[r + 1] + left[j - r];
+                double temp = (denom == 0) ? 0.0 : N[r] / denom;
+                N[r] = saved + right[r + 1] * temp;
+                saved = left[j - r] * temp;
             }
             N[j] = saved;
         }
 
-        // **PADDING STEP**
-        if (pad) {
-            std::vector<double> padded_N(knots_.size() - order_ - 1, 0.0);  // Full-size vector
-            int start_index = i - order_;  // Insert at the correct position
-            for (int j = 0; j <= order_; j++) {
-                padded_N[start_index + j] = N[j];
-            }
-            return padded_N;
-        }
+        if (!pad) return N;
 
-        return N;
-        
+        std::vector<double> padded_N(knots_.size() - order_ - 1, 0.0);
+        int start_index = i - order_;
+        for (int j = 0; j <= order_; j++) {
+            padded_N[start_index + j] = N[j];
+        }
+        return padded_N;
     }
 
     // A2.3 Evaluate the nth derivative of B-spline basis functions at x, padded with zeros

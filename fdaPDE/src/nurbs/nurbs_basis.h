@@ -28,91 +28,62 @@ namespace fdapde {
 // M = embedding dimension
     template<int M> class NurbsBasis {
         private:
-            int order_;
+            std::array<int,M> order_;
+            std::array<std::vector<double>,M> knots_;
             std::vector<Nurbs<M>> basis_ {};
 
         public:
             static constexpr int StaticInputSize = M;
-            static constexpr int Order = Dynamic;
+            //static constexpr int Order = Dynamic;
             // constructors
-            constexpr NurbsBasis() : order_(0) { } 
+            constexpr NurbsBasis() : order_({0}) { } 
 
             //template <typename KnotsVectorType> da capire come fare
             //   requires(requires(KnotsVectorType knots, int i) {
             //               { knots[i] } -> std::convertible_to<std::vector<double>>;
             //               { knots.size() } -> std::convertible_to<std::size_t>;
             //          })
-            NurbsBasis(std::array<std::vector<double>,M>& knots,MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : order_(order) {
-            // construct knots vector
-            std::cout<<"Constructing the basis"<<std::endl;
-            auto knots_ = knots;
-            /*
-            std::array<std::vector<double>,M> knots_ ;
-            // pad the knot vector to obtain a full basis for the whole knot span [u_0, u_n]
-                for(std::size_t i=0; i < M; ++i){
-                    // reserve space
-                    auto n=knots[i].size();
-                    knots_[i].resize(n + 2 * order_);
-                    for (std::size_t j = 0; j < n + 2 * order_; ++j) {
-                        if (j < order_) {
-                            knots_[i][j] = knots[i][0];
-                        } else {
-                            if (j < n + order_) {
-                                knots_[i][j] = knots[i][j - order_];
-                            } else {
-                                knots_[i][j] = knots[i][n - 1];
-                            }
-                        }
-                    }
-                }
-                std::cout<<"Knots padded"<<std::endl;
-                */
-
+            NurbsBasis(std::array<std::vector<double>,M>& knots,MdArray<double, full_dynamic_extent_t<M>>& weights, std::array<int,M> order) : order_(order){
                 // define basis system
+                for(int i=0;i<M;i++){
+                    int n = knots[i].size();
+                    knots_[i].resize(n + 2 * order_[i]);
+                    knots_[i] = pad_knots(knots[i], order_[i]);
+                }
+                
                 int basis_size=1;
                 for(std::size_t i=0; i< M;++i){
-                    basis_size*=(knots_[i].size()-order_-1); // tensor product dim = product of dims
+                    basis_size*=(knots_[i].size()-order_[i]-1); // tensor product dim = product of dims
                 }
-                basis_.reserve(basis_size);
+                //basis_.reserve(basis_size);
+                
 
                 // loop over all the possible combinations of the knots, full with zeros
                 std::array<int, M> index = {0};
 
                 // instantialize the shared pointers of spline basis functions for each dimension
                 std::array<std::shared_ptr<BSplineBasis>, M> M_spline_basis;
-
+                
                 for(int k=0;k<M;++k){
-                    M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_);
+                    M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_[k]);
                 }
-                std::cout<<"Basis instantialized"<<std::endl;
-                std::cout<<"Basis size: "<<basis_size<<std::endl;
-
-
-                for(int i=0;i<basis_size;++i){
-                    // print the index
-                    /*
-                    std::cout<<"Index: ";
-                    for(int j=0;j<M;++j){
-                        std::cout<<index[j]<<" ";
-                    }
-                    std::cout<<std::endl;
-                    */
                     
+                
+                for(int i=0;i<basis_size;++i){
                     basis_.emplace_back(M_spline_basis, weights, index);
-                    //std::cout<<"Basis "<<i<<" created"<<std::endl;
-
+                    //basis_.emplace_back(knots, weights, index, order);
                     // Update the index with carry-over logic
                     std::size_t j = M - 1;
                     // Increment the last index
                     ++index[j];
                     // Carry-over when reaching the maximum allowed size
-                    while (j > 0 && index[j] == knots_[j].size() - order_ - 1) {
+                    while (j > 0 && index[j] == knots_[j].size() - order_[j] - 1) {
                         index[j] = 0;  // Reset the current index
                         --j;           // Move to the previous coordinate
                         ++index[j];    // Increment the previous coordinate
                     }
                 }
-                std::cout<<"Basis created"<<std::endl;
+                    
             }
             
             // overload constructor for 1D case TO DO
@@ -121,7 +92,7 @@ namespace fdapde {
             constexpr int multiindex_to_index(const std::array<int, M>& multiIndex) const {
                 int idx = 0;
                 for (int j = 0; j < M; ++j) {
-                    idx += (basis_[j].size() - order_ - 1)*idx + multiIndex[j];
+                    idx += (basis_[j].size() - order_[j] - 1)*idx + multiIndex[j];
                 }
                 return idx;
             }
@@ -134,7 +105,7 @@ namespace fdapde {
             // getters
             constexpr const Nurbs<M>& operator[](int i) const { return basis_[i]; }
             constexpr int size() const { return basis_.size(); }
-            constexpr int order() const { return order_; }
+            constexpr std::array<int,M> order() const { return order_; }
             constexpr const std::vector<Nurbs<M>>& spline_basis() const { return basis_; }
 
             auto begin() const { return basis_.begin(); }

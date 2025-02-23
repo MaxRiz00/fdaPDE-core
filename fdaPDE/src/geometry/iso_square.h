@@ -37,6 +37,41 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
         int marker() const {   // mesh edge's marker
             return mesh_->edges_markers().size() > edge_id_ ? mesh_->edges_markers()[edge_id_] : Unmarked;
         }
+
+        Eigen::Matrix<double, Eigen::Dynamic, MeshType::embed_dim> evaluation(int n) const {
+            // n linspace evaluations the edge points in the physical domain 
+            Eigen::Matrix<double, Eigen::Dynamic, MeshType::embed_dim> res(n, MeshType::embed_dim);
+        
+            // Get the node ids
+            auto nodes = node_ids(); // Expected to be Eigen::Matrix<int, 2, 1>
+            
+            // Get parametric nodes from the mesh
+            Eigen::Matrix<double, Eigen::Dynamic, MeshType::local_dim> parametric_nodes = mesh_->parametric_nodes();
+            
+            // Extract rows corresponding to nodes
+            Eigen::Matrix<double, 1, MeshType::local_dim> n1 = parametric_nodes.row(nodes(0));
+            Eigen::Matrix<double, 1, MeshType::local_dim> n2 = parametric_nodes.row(nodes(1));
+
+            // Interpolated points matrix
+            Eigen::Matrix<double, Eigen::Dynamic, MeshType::local_dim> interpolated_points(n, MeshType::local_dim);
+        
+            for (int i = 0; i < n; ++i) {
+                double t = static_cast<double>(i) / (n - 1);  // Normalized parameter (0 to 1)
+                interpolated_points.row(i) = (1 - t) * n1 + t * n2;  // Linear interpolation
+            }
+        
+            // Evaluate mapped coordinates in the embedded space
+            for (int i = 0; i < n; ++i) {
+                std::array<double, MeshType::local_dim> p;
+                for (int j = 0; j < MeshType::local_dim; ++j) {
+                    p[j] = interpolated_points(i, j);
+                }
+                res.row(i) = mesh_->eval_param(p);
+            }
+        
+            return res;
+        }
+        
     };
 
     // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M

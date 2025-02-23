@@ -41,7 +41,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
     IsoMeshBase() = default;
 
     IsoMeshBase(std::array<std::vector<double>,LocalDim> & knots,MdArray<double,full_dynamic_extent_t<LocalDim>> & weights, 
-         MdArray<double,full_dynamic_extent_t<LocalDim+1>> & control_points, int order, int flags=0): knots_(knots), weights_(weights), control_points_(control_points), flags_(flags){
+         MdArray<double,full_dynamic_extent_t<LocalDim+1>> & control_points, std::array<int,LocalDim> order, int flags=0): weights_(weights), control_points_(control_points), flags_(flags){
+
+            for(int i=0;i<LocalDim;i++){
+                int n = knots[i].size();
+                knots_[i].resize(n + 2 * order[i]);
+                knots_[i] = pad_knots(knots[i], order[i]);
+            }
 
             // compute the basis
             basis_ = NurbsBasis<LocalDim>(knots, weights, order);
@@ -82,7 +88,11 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
 
     protected:
     int compute_stride_(int dim, bool is_cell) const {
-        return is_cell ? this->param_nodes_[dim].size() - 1 : this->param_nodes_[dim].size();   
+        int stride = 1;
+        for (int d = 0; d < dim; ++d) {
+            stride *= is_cell ? (this->param_nodes_[dim - d - 1].size() - 1) : this->param_nodes_[dim - d - 1].size();
+        }
+        return stride;
     }
 
    // Algo A4.3 from NURBS book pag. 103, evaluation of a NURBS curve
@@ -90,7 +100,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         for(int i = 0; i < LocalDim; i++) fdapde_assert(u[i] >= knots_[i].front() && u[i] <= knots_[i].back());
         std::vector<std::vector<double>> basis_eval(LocalDim);
         std::array<int,LocalDim> spans= {0};
-        auto order= this->basis_[0].order();
+        auto order = this->basis_.order();
         auto nurb = this->basis_[0];
         double total_weight = 0.0;
         
@@ -109,7 +119,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
             std::array<int,LocalDim> full_indices;
             for(int i = 0; i < LocalDim; i++){
                 eval *= basis_eval[i][index[i]];
-                full_indices[i] = spans[i] - order + index[i];
+                full_indices[i] = spans[i] - order[i] + index[i];
             }
 
             Eigen::Matrix<double, EmbedDim, 1> cp;
@@ -118,13 +128,14 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
                 cp(i) = cp_slice(full_indices);
             }
 
+
             double w = weights_(full_indices);  // Retrieve weight from weight array
             cp *= w;  // Apply weight to control point
             Sw += eval * cp; // Accumulate weighted control point           
             total_weight += eval * w ;  // Accumulate total weight
 
             for (int d = LocalDim - 1; d >= 0; d--) {
-            if (++index[d] > order) {
+            if (++index[d] > order[d]) {
                 index[d] = 0;
                 if (d == 0) done = true;
             } else 
@@ -139,13 +150,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         std::vector<std::vector<double>> basis_eval(LocalDim);
         std::vector<std::vector<double>> basis_deriv_eval(LocalDim);
         std::array<int, LocalDim> spans = {0};
-        auto order = this->basis_[0].order();
+        auto order = this->basis_.order();
         auto nurb = this->basis_[0];
         
         for (int i = 0; i < LocalDim; i++) {
             basis_eval[i] = nurb.spline_basis()[i]->evaluate_basis(u[i], false);
             basis_deriv_eval[i] = nurb.spline_basis()[i]->evaluate_der_basis(u[i],1,false);
-            spans[i] = std::distance(knots_[i].begin(), std::upper_bound(knots_[i].begin(), knots_[i].end(), u[i])) - 1 + order;
+            spans[i] = std::distance(knots_[i].begin(), std::upper_bound(knots_[i].begin(), knots_[i].end(), u[i])) - 1 + order[i];
         }
         
         Eigen::Matrix<double, EmbedDim, LocalDim, Eigen::RowMajor> dSw = Eigen::Matrix<double, EmbedDim, LocalDim>::Zero();
@@ -163,7 +174,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
             for (int i = 0; i < LocalDim; i++) {
                 eval *= basis_eval[i][index[i]];
                 eval_der[i] = basis_deriv_eval[i][index[i]];
-                full_indices[i] = spans[i] - order + index[i];
+                full_indices[i] = spans[i] - order[i] + index[i];
             }
 
             
@@ -192,7 +203,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
             }
             
             for (int d = LocalDim - 1; d >= 0; d--) {
-                if (++index[d] > order) {
+                if (++index[d] > order[d]) {
                     index[d] = 0;
                     if (d == 0) done = true;
                 } else 
@@ -221,7 +232,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
     std::array<int, LocalDim> compute_multi_index_(int id, bool is_cell=true) const {
         std::array<int, LocalDim> multi_index;
         for (int i = LocalDim - 1; i >= 0; --i) {  // Process most significant index first
-            int stride = (i == 0) ? 1 : compute_stride_(i - 1, is_cell);  
+            int stride = (i == 0) ? 1 : compute_stride_(i , is_cell); 
             multi_index[i] = id / stride;  // Extract the coordinate
             id %= stride;  // Reduce ID for the next dimension 
         }
@@ -311,12 +322,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         for (int i = 0; i < n_cells_; ++i) {
             // Compute the multi-index for the current cell
             auto multi_index = compute_multi_index_(i);
-            
-            std::cout<<"Ecco, multi_index: "<<std::endl;
-            for(int i = 0; i < LocalDim; i++){
-                std::cout<<multi_index[i]<<" ";
-            }
-            std::cout<<std::endl; 
 
             // Loop through each dimension
             for (int j = 0; j < LocalDim; ++j) {
@@ -333,12 +338,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
                 if (multi_index[j] < compute_stride_(j, true) - 1) {
                     auto updated_index = multi_index;
                     updated_index[j] += 1; // Update the index in the positive direction
-                    /*
-                    std::cout<<"Ecco, updated_index: "<<std::endl;
-                    for(int i = 0; i < LocalDim; i++){
-                        std::cout<<updated_index[i]<<" ";
-                    }
-                    */
                     neighbors(i, 2 * j + 1) = compute_id_(updated_index);
                 } else {
                     neighbors(i, 2 * j + 1) = -1; // No neighbor in the positive direction
@@ -522,7 +521,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
     IsoMesh() = default;
 
     IsoMesh(std::array<std::vector<double>, 2>& knots, MdArray<double, MdExtents<Dynamic, Dynamic>>& weights,
-         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>>& control_points, int order, int flags = 0) :
+         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>>& control_points, std::array<int,2> order, int flags = 0) :
         Base(knots, weights, control_points, order, flags) { 
             // populate cache if cell caching is active
             if(Base::flags_ & cache_cells){ // & cache_cells
@@ -758,7 +757,7 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
     
     IsoMesh() =  default;
     IsoMesh(std::array<std::vector<double>, 3>& knots,MdArray<double, MdExtents<Dynamic, Dynamic, Dynamic>>& weights,
-         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic,Dynamic>>& control_points, int order, int flags = 0):
+         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic,Dynamic>>& control_points, std::array<int,3> order, int flags = 0):
          Base(knots, weights, control_points, order, flags) {
         
         using face_t = std::array<int, n_nodes_per_face>;
@@ -800,6 +799,7 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
             this->cells_(i, 5) = (i_z + 1) * n_x * n_y + i_y * n_x + (i_x + 1); // Top-right-front
             this->cells_(i, 6) = (i_z + 1) * n_x * n_y + (i_y + 1) * n_x + (i_x + 1); // Top-right-back
             this->cells_(i, 7) = (i_z + 1) * n_x * n_y + (i_y + 1) * n_x + i_x; // Top-left-back
+
         }
 
         // Edge assignment process
@@ -825,6 +825,8 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
                     boundary_edges[existing_edge_id] = false;
                     edge_to_cells_[existing_edge_id].insert(i); // Corrected assignment
                 }
+                
+
             }
         }
 

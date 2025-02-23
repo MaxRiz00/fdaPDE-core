@@ -178,7 +178,6 @@ template <typename Triangulation_, typename Xpr_, int Options_, typename... Quad
     }
 };
 
-/*
 
 // generic integration loop to integrate scalar expressions over physical domains (ISO version)
 template <typename Igamesh_, typename Xpr_, int Options_, typename... Quadrature_> class std_ISO_integration_loop{
@@ -208,7 +207,7 @@ template <typename Igamesh_, typename Xpr_, int Options_, typename... Quadrature
     Quadrature quadrature_;
    public:
     std_ISO_integration_loop() = default;
-    std_ISO_ntegration_loop(const Xpr_& xpr, iterator begin, iterator end, const Quadrature_&... quadrature) :
+    std_ISO_integration_loop(const Xpr_& xpr, iterator begin, iterator end, const Quadrature_&... quadrature) :
         xpr_(xpr), begin_(begin), end_(end), quadrature_(quadrature...) { }
 
     double operator()() const {
@@ -237,7 +236,6 @@ template <typename Igamesh_, typename Xpr_, int Options_, typename... Quadrature
   }
 };
 
-*/
 // main assembly loop dispatching type. This class instantiates the correctly assembly loop for the form to integrate
 template <typename Triangulation, int Options, typename... Quadrature> class integrator_dispatch {
     fdapde_static_assert(sizeof...(Quadrature) < 2, THIS_CLASS_ACCEPTS_AT_MOST_ONE_QUADRATURE_RULE);
@@ -313,6 +311,15 @@ auto integral(
     return internals::integrator_dispatch<Triangulation, FaceMajor, Quadrature...>(
       range.first, range.second, quadrature...);
 }
+
+/*
+
+template <typename Igamesh, typename... Quadrature>
+auto ISO_integral(const Igamesh& igamesh, Quadrature... quadrature) {
+   return internals::std_ISO_integration_loop<Igamesh, CellMajor, Quadrature...>(
+     igamesh, igamesh.cells_begin(), igamesh.cells_end(), quadrature...);
+
+ */
   
 }   // namespace fdapde
 

@@ -41,3 +41,25 @@ TEST(mesh_test, simple_surface){
     }
 
 }
+
+// Spline basis on knots[0]
+BSplineBasis basis(knots[0], order);
+
+// linspace of 100 points from 0 to 1
+std::vector<double> linspace ;
+linspace.resize(101);
+double step = 5.0/100;
+for(int i = 0; i < 101; i++){
+    linspace[i] = i*step;
+}
+
+// evaluate the basis functions on the linspace
+for(int i = 0; i < 101; i++){
+    std::cout<<"x: "<<linspace[i]<<std::endl;
+    auto N = basis.evaluate_basis(linspace[i]);
+    std::cout<<"N: ";
+    for(int j = 0; j < N.size(); j++){
+        std::cout<<N[j]<<" ";
+    }
+    std::cout<<std::endl;
+}

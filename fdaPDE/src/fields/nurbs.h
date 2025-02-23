@@ -61,7 +61,8 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
             std::array<std::shared_ptr<BSplineBasis>, M> spline_basis_;
             MdArray<double,full_dynamic_extent_t<M>> weights_;
             std::array<int,M> index_ ;
-            int order_ = 0;
+            //int order_ = 0;
+            std::array<int,M> order_;
 
             double num0_ = 0.0;
             std::array<std::size_t, M> minIdx_;
@@ -77,7 +78,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     { knots[i] } -> std::convertible_to<double>;
                     { knots.size() } -> std::convertible_to<std::size_t>;
                 })
-            Nurbs(std::array<KnotsVectorType,M>&& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>&& index, int order): 
+            Nurbs(std::array<KnotsVectorType,M>&& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>&& index, std::array<int,M>& order): 
                  index_(std::move(index)), order_(order){
                 
 
@@ -87,30 +88,24 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 std::array<std::size_t, M> maxIdx;
                 
                 for (std::size_t i = 0; i < M; ++i) {
-
                     std::vector<double> knots_ ;
-                    // pad the knot vector to obtain a full basis for the whole knot span [u_0, u_n]
-                    auto n=knots[i].size();
-                    knots_.resize(n + 2 * order_);
-                    for (std::size_t j = 0; j < n + 2 * order_; ++j) {
-                        if (j < order_) {
-                            knots_[j] = knots[i][0];
-                        } else {
-                            if (j < n + order_) {
-                                knots_[j] = knots[i][j - order_];
-                            } else {
-                                knots_[j] = knots[i][n - 1];
-                            }
-                        }
-                    }
                     
-                    spline_basis_[i] = std::make_shared<BSplineBasis>(knots_, order_);
+                    int n = knots[i].size();
+                    knots_.resize(n + 2 * order_[i]);
+                    knots_ = pad_knots(knots[i], order_[i]);
+                    
+                    
 
+                    spline_basis_[i] = std::make_shared<BSplineBasis>(knots_, order_[i]);
+                    
                     // compute the minIdx and extents for each dimension
-                    minIdx_[i] = (index_[i] >= order_)? (index_[i]-order_) : 0;
-                    extents_[i] = (index_[i] + order_ < weights.extent(i))? (index_[i]+order_+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
+                    minIdx_[i] = (index_[i] >= order_[i])? (index_[i]-order_[i]) : 0;
+                    extents_[i] = (index_[i] + order_[i] < weights.extent(i))? (index_[i]+order_[i]+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
                     maxIdx[i] = (minIdx_[i] + extents_[i]-1);
+                    
                 }
+                    
+                
 
                 // initialize the gradient
                 for (std::size_t i = 0; i < M; ++i){
@@ -123,6 +118,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                         hessian_(i,j) = SecondDerivative(spline_basis_, weights, index, i, j);
                     }
                 }
+                    
 
                 // allocate space for the weights
                 weights_.resize(extents_);
@@ -130,6 +126,8 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 weights_ = weights.block(minIdx_, maxIdx);
                 // compute the starting numerator  
                 num0_ = weights(index_); 
+                
+                
 
             };
 
@@ -139,45 +137,38 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     { knots.size() } -> std::convertible_to<std::size_t>;
                 })
             Nurbs(KnotsVectorType& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, int index, int order): 
-            Nurbs(std::array<std::vector<double>,M>{std::move(knots)}, weights, std::array<int,M>{index}, order) {
+            Nurbs(std::array<std::vector<double>,M>{std::move(knots)}, weights, std::array<int,M>{index}, std::array<int,M>{order}) {
                 fdapde_static_assert(M == 1, THIS_METHOD_IS_ONLY_FOR_1D_NURBS);
             };
 
             // constructor with shared pointers, used by the NurbsBasis
             Nurbs(std::array<std::shared_ptr<BSplineBasis>, M> spline_basis, MdArray<double,full_dynamic_extent_t<M>>& weights,std::array<int,M>& index) : spline_basis_(spline_basis), index_(index) { 
                 // questo viene usato da NurbsBasis
-
+                
+                
                 //decalre maxIdx
                 std::array<std::size_t, M> maxIdx;
 
                 // vector of knots
                 std::array<std::vector<double>, M> knots;
 
-                order_ = spline_basis[0]->order();
-
+                //order_ = spline_basis[0]->order();
+                
                 // like in the previous constructor
                 for (std::size_t i = 0; i < M; ++i) {
+                    order_[i] = spline_basis[i]->order();
                     // compute the minIdx and extents for each dimension
-                    minIdx_[i] = (index_[i] >= order_)? (index_[i]-order_) : 0;
-                    extents_[i] = (index_[i] + order_ < weights.extent(i))? (index_[i]+order_+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
+                    minIdx_[i] = (index_[i] >= order_[i])? (index_[i]-order_[i]) : 0;
+                    extents_[i] = (index_[i] + order_[i] < weights.extent(i))? (index_[i]+order_[i]+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
                     maxIdx[i] = (minIdx_[i] + extents_[i]-1);
                     
                 }
-                /*
-                std::cout<<"Knots padded ECCOCI"<<std::endl;
-
-                // print the index
-                for(int j=0;j<M;++j){
-                    std::cout<<index_[j]<<" ";
-                }
-                std::cout<<std::endl;
-                */
+                
 
                 // allocate for the gradient
                 for (std::size_t i = 0; i < M; ++i){
                     gradient_[i] = FirstDerivative(spline_basis_, weights, index, i);
                     }
-                //std::cout<<"Knots padded ECCOCI1"<<std::endl;
 
                 // initialize the hessian
                 for (std::size_t i = 0; i < M; ++i){
@@ -185,15 +176,15 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                         hessian_(i,j) = SecondDerivative(spline_basis_, weights, index, i, j);
                     }
                 }
-                //std::cout<<"Knots padded ECCOCI2"<<std::endl;
 
                 // allocate space for the weights
                 weights_.resize(extents_);
                 // fill the block of weights with only the necessary values;
                 weights_ = weights.block(minIdx_, maxIdx);
-
                 // compute the starting numerator
                 num0_ = weights(index_);
+                
+                
 
             // STAI SALTANDO L'INIZIALIZZAZIONE DELLA BASE SPLINE, QUINDI SE CREO 1000 Nurbs questo è più efficiente
             
@@ -207,11 +198,6 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 double num = num0_;
                 std::array<std::vector<double>,M> spline_evaluation {};
                 double den;
-
-                // Initialize each vector to the appropriate size
-                //for (std::size_t i = 0; i < M; ++i) {
-                //    spline_evaluation[i].resize(extents_[i]);
-                //}
 
                 for(std::size_t i=0;i<M;i++){
 
@@ -252,7 +238,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 std::array<std::shared_ptr<BSplineBasis>, M> spline_basis_;
                 MdArray<double,full_dynamic_extent_t<M>> weights_;
                 std::array<int,M> index_ ;
-                int order_;
+                std::array<int,M> order_;
 
                 std::array<std::size_t, M> minIdx_;
                 double num0_ = 0.0;
@@ -268,15 +254,13 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
 
                     // build a spline basis for each dimension
 
-                    order_ = spline_basis[0]->order();
-
                     std::array<std::size_t, M> maxIdx;
                     //std::cout<<"NURBS derivative initialized"<<std::endl;
                     for (std::size_t i = 0; i < M; ++i) {
-
+                        order_[i] = spline_basis[i]->order();
                         // compute the minIdx and extents for each dimension
-                        minIdx_[i] = (index_[i] >= order_)? (index_[i]-order_) : 0;
-                        extents_[i] = (index_[i] + order_ < weights.extent(i))? (index_[i]+order_+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
+                        minIdx_[i] = (index_[i] >= order_[i])? (index_[i]-order_[i]) : 0;
+                        extents_[i] = (index_[i] + order_[i] < weights.extent(i))? (index_[i]+order_[i]+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
                         maxIdx[i] = (minIdx_[i] + extents_[i]-1);
                     }
 
@@ -380,7 +364,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 std::array<std::shared_ptr<BSplineBasis>, M> spline_basis_;
                 MdArray<double,full_dynamic_extent_t<M>> weights_;
                 std::array<int,M> index_ ;
-                int order_ = 0;
+                std::array<int,M> order_ ;
 
                 std::array<std::size_t, M> minIdx_;
                 double num0_ = 0.0;
@@ -397,16 +381,12 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
 
                     // build a spline basis for each dimension
 
-                    order_ = spline_basis[0]->order();
-
-                    //std::cout<<"Ecco l'ordine: "<<order_<<std::endl;
-
                     std::array<std::size_t, M> maxIdx;
                     for (std::size_t i = 0; i < M; ++i) {
-
+                        order_[i] = spline_basis[i]->order();
                         // compute the minIdx and extents for each dimension
-                        minIdx_[i] = (index_[i] >= order_)? (index_[i]-order_) : 0;
-                        extents_[i] = (index_[i] + order_ < weights.extent(i))? (index_[i]+order_+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
+                        minIdx_[i] = (index_[i] >= order_[i])? (index_[i]-order_[i]) : 0;
+                        extents_[i] = (index_[i] + order_[i] < weights.extent(i))? (index_[i]+order_[i]+1-minIdx_[i]) : (weights.extent(i)-minIdx_[i]);
                         maxIdx[i] = (minIdx_[i] + extents_[i]-1);
                     }
 
@@ -554,7 +534,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 constexpr SecondDerivative deriveTwice(int i=0, int j=0) const { return hessian_(i,j); }
 
                 // getters
-                constexpr int order() const { return order_; }
+                constexpr std::array<int,M> order() const { return order_; }
                 constexpr int size() const { return weights_.size(); }
                 constexpr const MdArray<double,full_dynamic_extent_t<M>>& weights() const { return weights_; }
                 constexpr const std::array<int,M>& index() const { return index_; }
