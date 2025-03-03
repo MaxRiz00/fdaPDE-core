@@ -50,7 +50,6 @@ namespace fdapde {
                     knots_[i].resize(n + 2 * order_[i]);
                     knots_[i] = pad_knots(knots[i], order_[i]);
                 }
-                
                 int basis_size=1;
                 for(std::size_t i=0; i< M;++i){
                     basis_size*=(knots_[i].size()-order_[i]-1); // tensor product dim = product of dims

@@ -45,13 +45,7 @@
 #include "src/geometry/dcel.h"
 #include "src/geometry/polygon.h"
 
-//isogeometric analysis
 
-#include "src/geometry/iso_cell.h"
-#include "src/geometry/iso_segment.h"
-#include "src/geometry/iso_square.h"
-#include "src/geometry/iso_cube.h"
-#include "src/geometry/iso_mesh.h"
 
 
 

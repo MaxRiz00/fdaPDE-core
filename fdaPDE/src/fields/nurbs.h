@@ -3,9 +3,6 @@
 #define __NURBS_H__
 
 #include "header_check.h"
-
-#include "linear_algebra.h"
-#include "fields.h"
 #include "splines.h"
 
 namespace fdapde{

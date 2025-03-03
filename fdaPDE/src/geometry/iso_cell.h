@@ -1,6 +1,8 @@
 #ifndef __FDAPDE_ISO_CELL_H__
 #define __FDAPDE_ISO_CELL_H__
 
+#include "header_check.h"
+
 
 namespace fdapde {
 

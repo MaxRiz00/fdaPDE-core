@@ -38,6 +38,8 @@
 
 #include "src/fields/polynomial.h"
 #include "src/fields/spline.h"
+#include "src/fields/nurbs.h"
+
 
 // clang-format on
 

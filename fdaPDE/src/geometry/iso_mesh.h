@@ -1,18 +1,14 @@
 #ifndef __ISO_MESH_H__
 #define __ISO_MESH_H__
 
-
-#include "nurbs.h"
-#include "iso_square.h"
+#include "header_check.h"
 
 
 namespace fdapde {
 
-// function that checks the initial knots are padded in in theginning and in the end with p+1 points return true or false
-
 template <int LocalDim, int EmbedDim> class IsoMesh;
 
-template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typname Derived
+template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ 
     public:
     static constexpr int local_dim = LocalDim;
     static constexpr int embed_dim = EmbedDim;
@@ -20,8 +16,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
     static constexpr int n_neighbors_per_cell = 2*LocalDim;
     static constexpr bool is_manifold = !(local_dim == embed_dim);
 
-    using CellType = std::conditional_t<
-      local_dim == 1, IsoSegment<Derived>, std::conditional_t<local_dim == 2, IsoSquare<Derived>, IsoCube<Derived>>>;
+    using CellType = std::conditional_t<local_dim == 1, IsoSegment<Derived>, std::conditional_t<local_dim == 2, IsoSquare<Derived>, IsoCube<Derived>>>;
     using MeshType = Derived;
     
 
@@ -41,40 +36,61 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
     IsoMeshBase() = default;
 
     IsoMeshBase(std::array<std::vector<double>,LocalDim> & knots,MdArray<double,full_dynamic_extent_t<LocalDim>> & weights, 
-         MdArray<double,full_dynamic_extent_t<LocalDim+1>> & control_points, std::array<int,LocalDim> order, int flags=0): weights_(weights), control_points_(control_points), flags_(flags){
-
-            for(int i=0;i<LocalDim;i++){
-                int n = knots[i].size();
-                knots_[i].resize(n + 2 * order[i]);
-                knots_[i] = pad_knots(knots[i], order[i]);
-            }
-
-            // compute the basis
-            basis_ = NurbsBasis<LocalDim>(knots, weights, order);
-
-            n_cells_ = 1; // is_cell cambialo in cells, ovunque
-            n_nodes_ = 1; //
-
-            // compute the parametric nodes starting from the knots (note that the knots habe repetitions, so we need to remove them)
-            
-            for(int i = 0; i < LocalDim; i++){
-                std::vector<double> unique_knots = knots[i];
-                unique_knots.erase(std::unique(unique_knots.begin(), unique_knots.end()), unique_knots.end());
-                param_nodes_[i] = unique_knots;
-                n_cells_ *= unique_knots.size() - 1;
-                n_nodes_ *= unique_knots.size();
-            }
-
-            // compute number of cells and nodes
-            /*
-
-            cells_.resize(n_cells_,LocalDim);
-            for(int i = 0; i < n_cells_; ++i){
-                cells_[i] = compute_multi_index_(i);
-            }
-            */
-
+         MdArray<double,full_dynamic_extent_t<LocalDim+1>> & control_points, std::array<int,LocalDim> order, int flags=0) {
+            initialize(knots, weights, control_points, order, flags);
         };
+
+    void initialize(std::array<std::vector<double>, LocalDim> & knots,
+            MdArray<double, full_dynamic_extent_t<LocalDim>> & weights,
+            MdArray<double, full_dynamic_extent_t<LocalDim + 1>> & control_points,
+            std::array<int, LocalDim> order,
+            int flags = 0) {
+                // Assign to internal data members
+                flags_          = flags;
+                order_          = order;
+                control_points_ = control_points;
+                weights_        = weights;
+
+                // Pad and store the knots
+                for(int i = 0; i < LocalDim; i++){
+                    int n = knots[i].size();
+                    knots_[i].resize(n + 2 * order[i]);
+                    knots_[i] = pad_knots(knots[i], order[i]);
+                }
+
+                std::cout<<"knots:"<<std::endl;
+                for(int i = 0; i < LocalDim; i++){
+                    for(int j = 0; j < knots[i].size(); j++){
+                        std::cout<<knots[i][j]<<" ";
+                    }
+                    std::cout<<std::endl;
+                }
+                
+
+                // Compute the basis
+                basis_ = NurbsBasis<LocalDim>(knots, weights, order);
+
+                // Compute the parametric nodes
+                n_cells_ = 1; 
+                n_nodes_ = 1;
+                for(int i = 0; i < LocalDim; i++){
+                    // Make a local copy, then remove duplicates
+                    std::vector<double> unique_knots = knots[i];
+                    unique_knots.erase(
+                        std::unique(unique_knots.begin(), unique_knots.end()),
+                        unique_knots.end()
+                    );
+
+                    param_nodes_[i] = unique_knots;
+                    // Update counters
+                    n_cells_ *= (unique_knots.size() - 1);
+                    n_nodes_ *= unique_knots.size();
+                }
+
+                std::cout<<"n_cells: "<<n_cells_<<std::endl;
+                std::cout<<"n_nodes: "<<n_nodes_<<std::endl;
+            }
+
 
 
     // getters
@@ -82,7 +98,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
     const MdArray<double, full_dynamic_extent_t<LocalDim+1>>& control_points() const { return control_points_; }
     const std::array<std::vector<double>,LocalDim>& knots() const { return knots_; } // this contains also the repetitions (if any)
     const std::array<std::vector<double>,LocalDim>& param_nodes() const { return param_nodes_; } // (only unique knots)
-    //const Eigen::Matrix<double, LocalDim, Dynamic>& param_nodes() const { return param_nodes_; } // (only unique knots)
     int n_cells() const { return n_cells_; }
     int n_nodes() const { return n_nodes_; }
 
@@ -95,8 +110,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         return stride;
     }
 
-   // Algo A4.3 from NURBS book pag. 103, evaluation of a NURBS curve
-    Eigen::Matrix<double, EmbedDim, 1> eval_param_(const std::array<double, LocalDim>& u) const {
+    public:
+    // Algo A4.3 from NURBS book pag. 103, evaluation of a NURBS curve
+    Eigen::Matrix<double, EmbedDim, 1> eval_param(const std::array<double, LocalDim>& u) const {
         for(int i = 0; i < LocalDim; i++) fdapde_assert(u[i] >= knots_[i].front() && u[i] <= knots_[i].back());
         std::vector<std::vector<double>> basis_eval(LocalDim);
         std::array<int,LocalDim> spans= {0};
@@ -145,24 +161,25 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         return Sw/total_weight;
     }
 
-    // Algo A4.3 from NURBS book pag. 103, evaluation of the physical derivative a NURBS curve (da aggiustare)
-    Eigen::Matrix<double, EmbedDim, LocalDim, Eigen::RowMajor> eval_param_derivative_(const std::array<double, LocalDim>& u) const {
+    // Algo A4.3 from NURBS book pag. 103, evaluation of the physical derivative of a NURBS curve 
+    Eigen::Matrix<double, EmbedDim, LocalDim, Eigen::RowMajor> eval_param_derivative(const std::array<double, LocalDim>& u) const {
+        for(int i = 0; i < LocalDim; i++) fdapde_assert(u[i] >= knots_[i].front() && u[i] <= knots_[i].back());
         std::vector<std::vector<double>> basis_eval(LocalDim);
         std::vector<std::vector<double>> basis_deriv_eval(LocalDim);
-        std::array<int, LocalDim> spans = {0};
+        std::array<int,LocalDim> spans= {0};
         auto order = this->basis_.order();
         auto nurb = this->basis_[0];
+        double total_weight = 0.0;
         
-        for (int i = 0; i < LocalDim; i++) {
-            basis_eval[i] = nurb.spline_basis()[i]->evaluate_basis(u[i], false);
-            basis_deriv_eval[i] = nurb.spline_basis()[i]->evaluate_der_basis(u[i],1,false);
-            spans[i] = std::distance(knots_[i].begin(), std::upper_bound(knots_[i].begin(), knots_[i].end(), u[i])) - 1 + order[i];
+        for(int i = 0; i < LocalDim; i++){
+            auto basis = nurb.spline_basis()[i];
+            basis_eval[i] = basis->evaluate_basis(u[i], false); // evaluate basis functions, padding = false
+            spans[i] = basis->find_span(u[i]); // find the span of the knot vector
         }
         
         Eigen::Matrix<double, EmbedDim, LocalDim, Eigen::RowMajor> dSw = Eigen::Matrix<double, EmbedDim, LocalDim>::Zero();
         Eigen::Matrix<double, EmbedDim, 1> Sw = Eigen::Matrix<double, EmbedDim, 1>::Zero();
         Eigen::Matrix<double, LocalDim, 1> dW = Eigen::Matrix<double, LocalDim, 1>::Zero();
-        double total_weight = 0.0;
         
         std::vector<int> index(LocalDim, 0);
         bool done = false;
@@ -219,6 +236,233 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         return dSw;
     }  
 
+    // Algo A5.5 from NURBS book pag. 127, knot refinement of a mesh 
+    void refine_knots(const std::array<int, LocalDim>& density = std::array<int, LocalDim>{{1}}, std::array<std::vector<double>, LocalDim> add_knot_list = {}){
+
+        std::array<std::vector<double>,LocalDim> knots_to_add {};
+
+        for (int j = 0; j < LocalDim; j++) {
+            for (size_t i = 0; i < param_nodes_[j].size() - 1; i++) {
+                double left_knot = param_nodes_[j][i];
+                double right_knot = param_nodes_[j][i + 1];
+                // Insert `density[j]` uniformly spaced knots in the interval
+                for (int d = 1; d <= density[j]; d++) {
+                    double refined_knot = left_knot + (d / static_cast<double>(density[j] + 1)) * (right_knot - left_knot);
+                    knots_to_add[j].push_back(refined_knot);
+                }
+            }
+        }
+
+        // Add the knots in the list (to add the check of the multiplicity)
+        for(int j = 0; j < LocalDim; j++){
+            for (size_t i = 0; i < add_knot_list[j].size(); i++) {
+                knots_to_add[j].push_back(add_knot_list[j][i]);
+            }
+        }
+        // sort the knots
+        std::array<int,LocalDim> dims_w;
+        std::array<int,LocalDim+1> dims_cp;
+
+        for(int j = 0; j < LocalDim; j++){
+            std::sort(knots_to_add[j].begin(), knots_to_add[j].end());
+            dims_w[j] = (knots_to_add[j].size() + weights_.extent(j));
+            dims_cp[j] = (knots_to_add[j].size() + weights_.extent(j));
+        }
+        dims_cp[LocalDim] = EmbedDim;
+
+        std::array<std::vector<double>,LocalDim> new_knots {};
+
+        // resize the weights and control points inplace
+        MdArray<double,full_dynamic_extent_t<LocalDim>> new_total_weights;
+        MdArray<double,full_dynamic_extent_t<LocalDim+1>> new_control_points;
+        new_total_weights.resize(dims_w);
+        new_control_points.resize(dims_cp);
+
+        MdArray<double,full_dynamic_extent_t<LocalDim+1>> temp_control_points = control_points_;
+        MdArray<double,full_dynamic_extent_t<LocalDim>> temp_weights = weights_;
+
+        for(int k = 0; k < LocalDim; k++){ // Fix one dimension k
+            if(knots_to_add[k].size() == 0){
+                new_knots[k] = knots_[k];
+                continue;
+            } 
+            std::cout << "Fixing dimension k = " << k << std::endl;
+            new_knots[k].resize(knots_[k].size() + knots_to_add[k].size());
+            // resize the temp, refine in all dimensione leq than k
+            std::array<int, LocalDim+1> dims_cp_temp;
+            std::array<int, LocalDim> dims_w_temp;
+            for(int j = 0; j < LocalDim; j++){
+                if(j <= k){
+                    dims_cp_temp[j] = dims_cp[j];
+                    dims_w_temp[j] = dims_w[j];
+                } else{
+                    dims_cp_temp[j] = control_points_.extent(j);
+                    dims_w_temp[j] = weights_.extent(j);
+                }
+            }
+            dims_cp_temp[LocalDim] = EmbedDim;
+            new_control_points.resize(dims_cp_temp);
+            new_total_weights.resize(dims_w_temp);
+
+            std::array<int, LocalDim> index = {0};  // Initialize all indices to 0
+            int ref_size = 1;
+            for(int j = 0; j < LocalDim; j++) {
+                if (j != k) ref_size *= temp_weights.extent(j);
+            }
+            // Iterate over all dimensions except k
+            // print the number of cp in the fixed dimension
+            for(int i = 0; i < ref_size; i++){
+
+                MdArray<double, MdExtents<Dynamic,Dynamic>> old_cp;
+                MdArray<double, MdExtents<Dynamic>> old_w;
+                MdArray<double, MdExtents<Dynamic,Dynamic>> new_cp;
+                MdArray<double, MdExtents<Dynamic>> new_w;
+
+                old_cp.resize(weights_.extent(k), EmbedDim);
+                old_w.resize(weights_.extent(k));
+
+                new_cp.resize(dims_cp[k], EmbedDim);
+                new_w.resize(dims_w[k]);
+
+                for(int m=0;m<weights_.extent(k);m++){
+                    std::array<int, LocalDim> current_index = index;
+                    current_index[k] = m ;
+                    for(int n=0;n<EmbedDim;n++){
+                        std::array<int, LocalDim+1> current_index_cp;
+                        for(int l=0;l<LocalDim;l++){
+                            current_index_cp[l] = current_index[l];
+                        }
+                        current_index_cp[LocalDim] = n;
+                        old_cp(m,n) = temp_control_points(current_index_cp);
+                    }
+                    old_w(m) = temp_weights(current_index);
+                }
+
+                /// ALGO A5.5
+                // get the number of control points
+                int n = old_cp.extent(0) - 1;
+                int cp_size = EmbedDim;
+                int m = order_[k] + n + 1;
+
+                int r = knots_to_add[k].size() - 1;
+
+                // get the span
+                auto old_basis  = BSplineBasis(knots_[k], order_[k]);
+                int a = old_basis.find_span(knots_to_add[k][0]);
+                int b = old_basis.find_span(knots_to_add[k][r]) + 1;
+
+
+                // get the new control points
+                for(int j=0; j<=a-order_[k]; j++) {
+                    new_w(j) = old_w(j);
+                    for(int i=0; i<cp_size; i++) {
+                        new_cp(j,i) = old_cp(j,i);
+                    }
+                }
+
+                for(int j=b-1; j<=n; j++) {
+                    new_w(j+r+1) = old_w(j);
+                    for(int i=0; i<cp_size; i++) {
+                        new_cp(j+r+1,i) = old_cp(j,i);
+                    }
+                }
+
+                // get the new knots
+                
+                for(int j=0; j<=a; j++) {
+                    new_knots[k][j] = knots_[k][j];}
+                for(int j=b+order_[k]; j<=m; j++) new_knots[k][j+r+1] = knots_[k][j]; // ?????????
+
+                // get the new control points
+                int ii = b + order_[k] - 1;
+                int kk = b + order_[k] + r;
+
+                for(int j=r; j>=0; j--) {
+                    while(knots_to_add[k][j] <= knots_[k][ii] && ii > a) {
+                        new_w(kk-order_[k]-1) = old_w(ii-order_[k]-1);
+                        for(int l=0; l<cp_size; l++) {
+                            new_cp(kk-order_[k]-1,l) = old_cp(ii-order_[k]-1,l);
+                        }
+                        new_knots[k][kk] = knots_[k][ii];
+                        kk = kk - 1;
+                        ii = ii - 1;
+                    }
+                    
+                    new_w(kk-order_[k]-1) = new_w(kk-order_[k]);
+                    for(int l =0;l<cp_size;l++) {
+                        new_cp(kk-order_[k]-1,l) = new_cp(kk-order_[k],l);
+                    }
+                    for(int l = 1; l<=order_[k]; l++) {
+                        int ind = kk-order_[k]+l;
+                        double alpha = new_knots[k][kk+l] - knots_to_add[k][j];
+                        if(alpha == 0.0) {
+                            new_w(ind-1) = new_w(ind);
+                            for(int m=0; m<cp_size; m++) {
+                                new_cp(ind-1,m) = new_cp(ind,m);
+                            }
+                        } else {
+                            alpha = alpha / (new_knots[k][kk+l] - knots_[k][ii-order_[k]+l]);
+                            new_w(ind-1) = alpha * new_w(ind-1) + (1.0 - alpha) * new_w(ind);
+                            for(int m=0; m<cp_size; m++) {
+                                new_cp(ind-1,m) = alpha * new_cp(ind-1,m) + (1.0 - alpha) * new_cp(ind,m);
+                            }
+                        }
+                    }
+                    new_knots[k][kk] = knots_to_add[k][j];
+                    kk = kk - 1;  
+                    
+                }
+
+                //////
+
+                // Put the weinghts and cp in the total tensors
+                for(int m=0;m<new_w.extent(0);m++){
+                    std::array<int, LocalDim> current_index = index;
+                    current_index[k] = m;
+                    new_total_weights(current_index) = new_w(m);
+                    
+                    for(int n=0;n<EmbedDim;n++){
+                        std::array<int, LocalDim+1> current_index_cp;
+                        
+                        for(int l=0;l<LocalDim;l++){
+                            current_index_cp[l] = current_index[l];
+                        }
+                        current_index_cp[LocalDim] = n;
+                        // Assign the newly refined control points for this step
+                        new_control_points(current_index_cp) = new_cp(m,n);
+                    }
+                }
+
+                // Increment indices except for the fixed dimension k
+                for (int j = LocalDim - 1; j >= 0; j--) {
+                    if (j == k) continue;  // Skip fixed dimension
+                    index[j]++;
+                    if (index[j] < temp_weights.extent(j)) break;  // No carry-over needed
+                    else index[j] = 0;  // Reset and carry over to next dimension
+                    
+                }
+            }
+            // Copy refined control points before refining in a new direction
+            temp_control_points = new_control_points;
+            temp_weights = new_total_weights;
+
+        }
+        // Update the mesh
+        initialize(new_knots, new_total_weights, new_control_points, order_, flags_);
+
+        // print the new param_nodes
+        std::cout<<"New param nodes:"<<std::endl;
+        for(int j = 0; j < LocalDim; j++){
+            for(int i = 0; i < param_nodes_[j].size(); i++){
+                std::cout<<param_nodes_[j][i]<<" ";
+            }
+            std::cout<<std::endl;
+        }
+
+    }
+
+
+    protected:
     // Compute the id of a cell (or a node if is_cell is false) from the multi-index
     int compute_id_(const std::array<int, LocalDim>& multi_index, bool is_cell=true) const {
         int id = multi_index[0]; // Start with the first index
@@ -241,7 +485,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
     public:
 
     // Compute the vertices of a square (cell) given its id, fai MdArray , sono metodi pirvati
-    std::array<std::array<int, LocalDim>,2> compute_lr_vertices_(const int& id)const {
+    std::array<std::array<int, LocalDim>,2> compute_lr_vertices(const int& id)const {
         auto multi_index = compute_multi_index_(id);
         std::array<std::array<int, LocalDim>,2> vertices;
         for(int i = 0; i < LocalDim; ++i){
@@ -258,8 +502,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         for (int i = 0; i < LocalDim; ++i) {
             u[i] = param_nodes_[i][multi_index[i]];
         }
-        return eval_param_(u);
+        return eval_param(u);
     }
+    
     // da testare
     Eigen::Matrix<double, Dynamic, LocalDim> parametric_nodes() const {
         Eigen::Matrix<double, Dynamic, LocalDim> nodes;
@@ -272,21 +517,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         }
         return nodes;
     }
-        
-
-    // Compute all cells of the mesh (dimension #cells x LocalDim ) // is_cell diventa cells, Eigen::Matrix<int, LocalDim, Dynamic>
-    /*
-    Eigen::Matrix<int, Dynamic, LocalDim, Eigen::RowMajor> cells() const { // da togliere eventualmente
-        Eigen::Matrix<int, Dynamic, LocalDim> cells;
-        cells.resize(n_cells_,LocalDim);
-        for(int i = 0; i < n_cells_; ++i){
-            cells[i] = compute_multi_index_(i);
-        }
-        return cells;
-    }
-    */
-    
-    // check if a cell/node is on the boundary, usa is_node_on_boundary, is_cell_on_boundary
+  
+    // check if a cell/node is on the boundary
     bool is_node_on_boundary(const int& id) const {
         auto multi_index = compute_multi_index_(id,false);
         for(int i = 0; i < LocalDim; ++i){
@@ -305,27 +537,17 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         }
         return false;
     }
-
-    //guarda triangulation.h per vedere come fare, riga 83
     
-    // Compute the id neighbors of a cell given its id (dimension #cells x 2M(at most))
-    //   - Colonne `2*j` : Voisin dans la direction négative pour la dimension `j`.
-    //   - Colonne `2*j + 1` : Voisin dans la direction positive pour la dimension `j`.
-    // - Si un voisin n'existe pas dans une direction, la valeur est -1.
-    
+    // Compute the id neighbors of a cell given its id (dimension #cells x 2M)
+    //   - Column `2*j` : neighbor on the negative direction for the dimension `j`.
+    //   - Colonne `2*j + 1` : neighbor on the positive direction for the dimension `j`.
+    //   - If a neighbor does not exist, the value is -1.
     Eigen::Matrix<int, Dynamic, 2 * LocalDim, Eigen::RowMajor> neighbors() const {
-        // Initialize the neighbors matrix with dynamic rows and 2 * LocalDim columns
         Eigen::Matrix<int, Eigen::Dynamic, 2 * LocalDim, Eigen::RowMajor> neighbors;
         neighbors.resize(n_cells_, 2 * LocalDim);
-
-        // Loop through each cell
         for (int i = 0; i < n_cells_; ++i) {
-            // Compute the multi-index for the current cell
             auto multi_index = compute_multi_index_(i);
-
-            // Loop through each dimension
             for (int j = 0; j < LocalDim; ++j) {
-                // Handle the neighbor in the negative direction
                 if (multi_index[j] > 0) {
                     auto updated_index = multi_index;
                     updated_index[j] -= 1; // Update the index in the negative direction
@@ -333,8 +555,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
                 } else {
                     neighbors(i, 2 * j) = -1; // No neighbor in the negative direction
                 }
-
-                // Handle the neighbor in the positive direction
                 if (multi_index[j] < compute_stride_(j, true) - 1) {
                     auto updated_index = multi_index;
                     updated_index[j] += 1; // Update the index in the positive direction
@@ -344,8 +564,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
                 }
             }
         }
-        // order the neighbors rows in increasing order, but put the -1 at the end
-        // ONLY FOR THE TESTS
+        // order the neighbors rows in increasing order, but put the -1 at the end (ONLY FOR TESTS)
         /*
         for(int i = 0; i < n_cells_; ++i){
             std::vector<int> row(neighbors.row(i).data(), neighbors.row(i).data() + neighbors.cols());
@@ -369,27 +588,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         return patch;
     }
     */
-
-    // capire se mettere una parametric_measure
-
-    // Access individual cells, Create a cell object given its id
-    // cell(id) -> IsoSquare
-    // da cambiare una volta che hai IsoSegment, IsoSquare, IsoCube (portato la)
-
-    // Make eval_param and eval_param_derivative public, oly for the tests // togli quella privata
-    Eigen::Matrix<double, EmbedDim, 1> eval_param(const std::array<double, LocalDim>& u) const {
-        return eval_param_(u);
-    }
-    // poui togliere Eigen::RowMajor
-    Eigen::Matrix<double, EmbedDim, LocalDim, Eigen::RowMajor> eval_param_derivative(const std::array<double, LocalDim>& u) const {
-        return eval_param_derivative_(u);
-    }
     
-    // 
+    // Iterator for cells
     class cell_iterator: public internals::filtering_iterator<cell_iterator,const CellType*>   { 
-    // cell_iterator, guarda triangulation.h al rigo 96, uniforma a quella implementazione
-    // public internals::filtering_iterator<cell_iterator, const CellType*>
-    // call operator a riga 102
     private:
         using Base = internals::filtering_iterator<cell_iterator, const CellType*>;
         using Base::index_;
@@ -478,20 +679,17 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{ //typ
         MdArray<double,full_dynamic_extent_t<LocalDim+1>> control_points_; // control points in each direction
         NurbsBasis<LocalDim> basis_; // basis of the mesh
 
-        // other attributes to be computed
         //Eigen::Matrix<int, Dynamic, 2 * LocalDim, Eigen::RowMajor> neighbors_ {};  // neighbors of each cell
         Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>  cells_ {};  // num_cells x num nodes per cell
         //Eigen::Matrix<double, LocalDim, Dynamic> param_nodes_ {};  // nodes of the mesh , puoi pensare di chacharli
-
-
         //BinaryVector<Dynamic> boundary_markers_ {};   // j-th element is 1 \iff node j is on boundary
+
+        std::array<int,LocalDim> order_ {};
 
         int n_nodes_ = 0, n_cells_ = 0;
         int flags_ = 0;
         std::vector<int> cells_markers_ {};   // marker associated to i-th cell
         std::vector<int> nodes_markers_ {};   // marker associated to i-th node
-
-
 };
 
 
@@ -504,9 +702,8 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
     static constexpr int n_edges_per_cell = 4;
     static constexpr int n_faces_per_edge = 2;
 
-    using EdgeType = typename Base::CellType::EdgeType; //aspettiamo le classi IsoSegment, IsoSquare, IsoCube
+    using EdgeType = typename Base::CellType::EdgeType; 
     //using LocationPolicy = TreeSearch<IsoMesh<2, N>>;
-    //using Base::cells_; //questo manca perché è calcolato a richiesta
     using Base::embed_dim;
     using Base::local_dim;
     using Base::n_cells_;
@@ -523,71 +720,88 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
     IsoMesh(std::array<std::vector<double>, 2>& knots, MdArray<double, MdExtents<Dynamic, Dynamic>>& weights,
          MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>>& control_points, std::array<int,2> order, int flags = 0) :
         Base(knots, weights, control_points, order, flags) { 
-            // populate cache if cell caching is active
-            if(Base::flags_ & cache_cells){ // & cache_cells
-                cell_cache_.reserve(n_cells_);
-                for(int i = 0; i < n_cells_; ++i){ cell_cache_.emplace_back(i, this);}
-            }
-            //compute cells
-            this->cells_.resize(n_cells_, n_nodes_per_cell);
-            for(int i=0;i<n_cells_; i++){
-                auto multi_index = this->compute_multi_index_(i);
-                int i_x = multi_index[0]; // Extract X index
-                int i_y = multi_index[1]; // Extract Y index
-                // Convert multi-index to actual node indices
-                int n_x = this->param_nodes_[0].size();  // Number of nodes in X direction
-                int n_y = this->param_nodes_[1].size();  // Number of nodes in Y direction
-                // Store quadrilateral connectivity
-                this->cells_(i, 0) = i_y * n_x + i_x; // bottom left
-                this->cells_(i, 1) = i_y * n_x + (i_x + 1); // bottom right
-                this->cells_(i, 2) = (i_y + 1) * n_x + (i_x + 1); // top right
-                this->cells_(i, 3) = (i_y + 1) * n_x + i_x; // top left
-
-            }
-            using edge_t = std::array<int, n_nodes_per_edge>;
-            using hash_t = internals::std_array_hash<int, n_nodes_per_edge>;
-            struct edge_info {
-                int edge_id, face_id;   // for each edge, its ID and the ID of one of the cells insisting on it
-            };
-            std::unordered_map<edge_t, edge_info, hash_t> edges_map;
-            std::vector<bool> boundary_edges;
-            edge_t edge;
-            cell_to_edges_.resize(n_cells_, n_edges_per_cell);
-
-            // Edge assignmen process
-            int edge_id = 0;
-            for(int i = 0; i < n_cells_; ++i){
-                for(int j= 0; j<n_edges_per_cell; ++j){ // 4 edges per quadriteral
-                    // extract and normalize the edge
-                    for(int k = 0; k<n_nodes_per_edge; k++) { // 2 edges per node
-                        edge[k] = this->cells_(i,edge_pattern[j][k]);
-                    }
-                    std::sort(edge.begin(), edge.end()); // ensure unique representation
-
-                    auto it = edges_map.find(edge);
-                    if(it == edges_map.end()){
-                        // New edge: Assign a new ID and mark as boundary
-                        edges_.insert(edges_.end(),edge.begin(),edge.end());
-                        edge_to_cells_.insert(edge_to_cells_.end(), {i,-1});
-                        boundary_edges.push_back(true);
-                        edges_map.emplace(edge,edge_info{edge_id, i});
-                        cell_to_edges_(i,j) = edge_id;
-                        edge_id++;
-                    } else{
-                        // Edge already exists: Cells i and neighbor share this edge
-                        int existing_edge_id = it->second.edge_id;
-                        cell_to_edges_(i,j) = existing_edge_id;
-                        boundary_edges[existing_edge_id] = false; // Mark internal edge
-                        edge_to_cells_[2*existing_edge_id + 1] = i;
-                        edges_map.erase(it);
-                    } 
-                }
-            }
-
-            n_edges_ = edges_.size() / 2;
-            boundary_edges_ = BinaryVector<Dynamic>(boundary_edges.begin(), boundary_edges.end(), n_edges_);
-            
+            // populate cache if cell caching is active   
+            compute_cells_();  
         }
+
+    protected:
+    void compute_cells_(){
+
+        edges_ = {};
+        edge_to_cells_ = {};
+        boundary_edges_ = {};
+        cell_to_edges_ = {};
+
+        if(Base::flags_ & cache_cells){ // & cache_cells
+            cell_cache_.reserve(n_cells_);
+            for(int i = 0; i < n_cells_; ++i){ cell_cache_.emplace_back(i, this);}
+        }
+        //compute cells
+        this->cells_.resize(n_cells_, n_nodes_per_cell);
+        for(int i=0;i<n_cells_; i++){
+            auto multi_index = this->compute_multi_index_(i);
+            int i_x = multi_index[0]; // Extract X index
+            int i_y = multi_index[1]; // Extract Y index
+            // Convert multi-index to actual node indices
+            int n_x = this->param_nodes_[0].size();  // Number of nodes in X direction
+            int n_y = this->param_nodes_[1].size();  // Number of nodes in Y direction
+            // Store quadrilateral connectivity
+            this->cells_(i, 0) = i_y * n_x + i_x; // bottom left
+            this->cells_(i, 1) = i_y * n_x + (i_x + 1); // bottom right
+            this->cells_(i, 2) = (i_y + 1) * n_x + (i_x + 1); // top right
+            this->cells_(i, 3) = (i_y + 1) * n_x + i_x; // top left
+
+        }
+        using edge_t = std::array<int, n_nodes_per_edge>;
+        using hash_t = internals::std_array_hash<int, n_nodes_per_edge>;
+        struct edge_info {
+            int edge_id, face_id;   // for each edge, its ID and the ID of one of the cells insisting on it
+        };
+        std::unordered_map<edge_t, edge_info, hash_t> edges_map;
+        std::vector<bool> boundary_edges;
+        edge_t edge;
+        cell_to_edges_.resize(n_cells_, n_edges_per_cell);
+
+        // Edge assignmen process
+        int edge_id = 0;
+        for(int i = 0; i < n_cells_; ++i){
+            for(int j= 0; j<n_edges_per_cell; ++j){ // 4 edges per quadriteral
+                // extract and normalize the edge
+                for(int k = 0; k<n_nodes_per_edge; k++) { // 2 edges per node
+                    edge[k] = this->cells_(i,edge_pattern[j][k]);
+                }
+                std::sort(edge.begin(), edge.end()); // ensure unique representation
+
+                auto it = edges_map.find(edge);
+                if(it == edges_map.end()){
+                    // New edge: Assign a new ID and mark as boundary
+                    edges_.insert(edges_.end(),edge.begin(),edge.end());
+                    edge_to_cells_.insert(edge_to_cells_.end(), {i,-1});
+                    boundary_edges.push_back(true);
+                    edges_map.emplace(edge,edge_info{edge_id, i});
+                    cell_to_edges_(i,j) = edge_id;
+                    edge_id++;
+                } else{
+                    // Edge already exists: Cells i and neighbor share this edge
+                    int existing_edge_id = it->second.edge_id;
+                    cell_to_edges_(i,j) = existing_edge_id;
+                    boundary_edges[existing_edge_id] = false; // Mark internal edge
+                    edge_to_cells_[2*existing_edge_id + 1] = i;
+                    edges_map.erase(it);
+                } 
+            }
+        }
+
+        n_edges_ = edges_.size() / 2;
+        boundary_edges_ = BinaryVector<Dynamic>(boundary_edges.begin(), boundary_edges.end(), n_edges_);
+    }
+
+    public:
+
+    void refine_knots(const std::array<int, 2>& density = std::array<int, 2>{{1, 1}}, std::array<std::vector<double>, 2> add_knot_list = {}) {
+        Base::refine_knots(density, add_knot_list);
+        compute_cells_();
+    }
 
     // getters
     const typename Base::CellType& cell(int id) const {
@@ -759,6 +973,20 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
     IsoMesh(std::array<std::vector<double>, 3>& knots,MdArray<double, MdExtents<Dynamic, Dynamic, Dynamic>>& weights,
          MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic,Dynamic>>& control_points, std::array<int,3> order, int flags = 0):
          Base(knots, weights, control_points, order, flags) {
+            compute_cells_();
+    }
+
+    protected:
+
+    void compute_cells_(){
+        edges_ = {};
+        edge_to_cells_ = {};
+        boundary_edges_ = {};
+        cell_to_edges_ = {};
+        faces_ = {};
+        face_to_cells_ = {};
+        boundary_faces_ = {};
+        cell_to_faces_ = {};
         
         using face_t = std::array<int, n_nodes_per_face>;
         using edge_t = std::array<int, n_nodes_per_edge>;
@@ -867,7 +1095,15 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
 
         n_faces_ = faces_.size() / n_nodes_per_face;
         boundary_faces_ = BinaryVector<Dynamic>(boundary_faces.begin(), boundary_faces.end(), n_faces_);
-       
+
+    }
+
+    public:
+
+    void refine_knots(const std::array<int, 3>& density = std::array<int, 3>{{1, 1, 1}}, std::array<std::vector<double>, 3> add_knot_list = {}) {
+        Base::refine_knots(density, add_knot_list);
+        std::cout<<"Refined knots"<<std::endl;
+        compute_cells_();
     }
 
     bool is_face_on_boundary(int id) const { return boundary_faces_[id]; }
