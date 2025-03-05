@@ -92,8 +92,8 @@ class BSplineBasis {
     }
 
     // Algorithm A2.1 from NURBS book
-    int find_span(double x) const {
-        int n = knots_.size() - order_ - 1;
+    int find_span(double x, int n = - 1) const {
+        if (n == -1) n = knots_.size() - order_ - 1;
         if (x == knots_.back()) return n - 1;
         int low = order_, high = n, mid;
         while (low < high - 1) {

@@ -58,17 +58,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     knots_[i] = pad_knots(knots[i], order[i]);
                 }
 
-                std::cout<<"knots:"<<std::endl;
-                for(int i = 0; i < LocalDim; i++){
-                    for(int j = 0; j < knots[i].size(); j++){
-                        std::cout<<knots[i][j]<<" ";
-                    }
-                    std::cout<<std::endl;
-                }
-                
-
                 // Compute the basis
-                basis_ = NurbsBasis<LocalDim>(knots, weights, order);
+                basis_ = NurbsBasis<LocalDim>(knots_, weights, order);
 
                 // Compute the parametric nodes
                 n_cells_ = 1; 
@@ -98,6 +89,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     const MdArray<double, full_dynamic_extent_t<LocalDim+1>>& control_points() const { return control_points_; }
     const std::array<std::vector<double>,LocalDim>& knots() const { return knots_; } // this contains also the repetitions (if any)
     const std::array<std::vector<double>,LocalDim>& param_nodes() const { return param_nodes_; } // (only unique knots)
+    const MdArray<double, full_dynamic_extent_t<LocalDim>>& weights() const { return weights_; }
+    const std::array<int,LocalDim>& order() const { return order_; }
     int n_cells() const { return n_cells_; }
     int n_nodes() const { return n_nodes_; }
 
@@ -242,15 +235,33 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         std::array<std::vector<double>,LocalDim> knots_to_add {};
 
         for (int j = 0; j < LocalDim; j++) {
-            for (size_t i = 0; i < param_nodes_[j].size() - 1; i++) {
-                double left_knot = param_nodes_[j][i];
-                double right_knot = param_nodes_[j][i + 1];
-                // Insert `density[j]` uniformly spaced knots in the interval
-                for (int d = 1; d <= density[j]; d++) {
-                    double refined_knot = left_knot + (d / static_cast<double>(density[j] + 1)) * (right_knot - left_knot);
-                    knots_to_add[j].push_back(refined_knot);
+            std::vector<double> knot_list, refined_knots;
+            knot_list.assign(param_nodes_[j].begin(), param_nodes_[j].end());
+        
+            // Step 2: Increase knot density by adding midpoints
+            for (int d = 0; d < density[j]; d++) {
+                std::vector<double> rknots;
+                for (size_t i = 0; i < knot_list.size() - 1; i++) {
+                    double midpoint = (knot_list[i] + knot_list[i + 1]) / 2.0;
+                    rknots.push_back(knot_list[i]);
+                    rknots.push_back(midpoint);
+                }
+                rknots.push_back(knot_list.back());
+                knot_list = rknots;  // Update the refined knot list
+            }
+        
+            // Step 3: Compute how many times each knot should be inserted
+            std::vector<double> X;
+            for (double mk : knot_list) {
+                int s = std::count(knots_[j].begin(), knots_[j].end(), mk);  // Find multiplicity
+                int r = order_[j] - s;  // Number of insertions required
+                for (int _ = 0; _ < r; _++) {
+                    X.push_back(mk);
                 }
             }
+        
+            // Step 4: Insert final refined knots
+            knots_to_add[j].insert(knots_to_add[j].end(), X.begin(), X.end());
         }
 
         // Add the knots in the list (to add the check of the multiplicity)
@@ -286,7 +297,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 new_knots[k] = knots_[k];
                 continue;
             } 
-            std::cout << "Fixing dimension k = " << k << std::endl;
+            std::cout << "Refining along dimension k = " << k << std::endl;
             new_knots[k].resize(knots_[k].size() + knots_to_add[k].size());
             // resize the temp, refine in all dimensione leq than k
             std::array<int, LocalDim+1> dims_cp_temp;
@@ -341,37 +352,35 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 /// ALGO A5.5
                 // get the number of control points
                 int n = old_cp.extent(0) - 1;
-                int cp_size = EmbedDim;
                 int m = order_[k] + n + 1;
 
                 int r = knots_to_add[k].size() - 1;
 
                 // get the span
                 auto old_basis  = BSplineBasis(knots_[k], order_[k]);
-                int a = old_basis.find_span(knots_to_add[k][0]);
-                int b = old_basis.find_span(knots_to_add[k][r]) + 1;
+                int a = old_basis.find_span(knots_to_add[k][0], n);
+                int b = old_basis.find_span(knots_to_add[k][r], n) + 1 ;
 
 
                 // get the new control points
                 for(int j=0; j<=a-order_[k]; j++) {
                     new_w(j) = old_w(j);
-                    for(int i=0; i<cp_size; i++) {
+                    for(int i=0; i<EmbedDim; i++) {
                         new_cp(j,i) = old_cp(j,i);
                     }
                 }
 
                 for(int j=b-1; j<=n; j++) {
                     new_w(j+r+1) = old_w(j);
-                    for(int i=0; i<cp_size; i++) {
+                    for(int i=0; i<EmbedDim; i++) {
                         new_cp(j+r+1,i) = old_cp(j,i);
                     }
                 }
 
                 // get the new knots
                 
-                for(int j=0; j<=a; j++) {
-                    new_knots[k][j] = knots_[k][j];}
-                for(int j=b+order_[k]; j<=m; j++) new_knots[k][j+r+1] = knots_[k][j]; // ?????????
+                for(int j=0; j<=a; j++) new_knots[k][j] = knots_[k][j];
+                for(int j=b+order_[k]; j<=m; j++) new_knots[k][j+r+1] = knots_[k][j]; 
 
                 // get the new control points
                 int ii = b + order_[k] - 1;
@@ -380,7 +389,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 for(int j=r; j>=0; j--) {
                     while(knots_to_add[k][j] <= knots_[k][ii] && ii > a) {
                         new_w(kk-order_[k]-1) = old_w(ii-order_[k]-1);
-                        for(int l=0; l<cp_size; l++) {
+                        for(int l=0; l<EmbedDim; l++) {
                             new_cp(kk-order_[k]-1,l) = old_cp(ii-order_[k]-1,l);
                         }
                         new_knots[k][kk] = knots_[k][ii];
@@ -389,33 +398,31 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     }
                     
                     new_w(kk-order_[k]-1) = new_w(kk-order_[k]);
-                    for(int l =0;l<cp_size;l++) {
-                        new_cp(kk-order_[k]-1,l) = new_cp(kk-order_[k],l);
-                    }
+                    for(int l =0;l<EmbedDim;l++) new_cp(kk-order_[k]-1,l) = new_cp(kk-order_[k],l);
+
                     for(int l = 1; l<=order_[k]; l++) {
                         int ind = kk-order_[k]+l;
                         double alpha = new_knots[k][kk+l] - knots_to_add[k][j];
                         if(alpha == 0.0) {
                             new_w(ind-1) = new_w(ind);
-                            for(int m=0; m<cp_size; m++) {
+                            for(int m=0; m<EmbedDim; m++) {
                                 new_cp(ind-1,m) = new_cp(ind,m);
                             }
                         } else {
-                            alpha = alpha / (new_knots[k][kk+l] - knots_[k][ii-order_[k]+l]);
-                            new_w(ind-1) = alpha * new_w(ind-1) + (1.0 - alpha) * new_w(ind);
-                            for(int m=0; m<cp_size; m++) {
-                                new_cp(ind-1,m) = alpha * new_cp(ind-1,m) + (1.0 - alpha) * new_cp(ind,m);
+                            alpha = alpha / (new_knots[k][kk+l] - knots_[k][ii-order_[k]+l]);         
+                            for(int m=0; m<EmbedDim; m++) {
+                                new_cp(ind-1,m) = (alpha * new_w(ind-1)*new_cp(ind-1,m) + (1.0 - alpha) * new_w(ind)*new_cp(ind,m))/(alpha*new_w(ind-1) + (1.0 - alpha )*new_w(ind));
                             }
+                            new_w(ind-1) = alpha * new_w(ind-1) + (1.0 - alpha) * new_w(ind);
                         }
                     }
                     new_knots[k][kk] = knots_to_add[k][j];
                     kk = kk - 1;  
-                    
                 }
 
-                //////
+                ////// end of ALGO A5.5
 
-                // Put the weinghts and cp in the total tensors
+                // Put the weights and cp in the total tensors
                 for(int m=0;m<new_w.extent(0);m++){
                     std::array<int, LocalDim> current_index = index;
                     current_index[k] = m;
@@ -449,16 +456,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         }
         // Update the mesh
         initialize(new_knots, new_total_weights, new_control_points, order_, flags_);
-
-        // print the new param_nodes
-        std::cout<<"New param nodes:"<<std::endl;
-        for(int j = 0; j < LocalDim; j++){
-            for(int i = 0; i < param_nodes_[j].size(); i++){
-                std::cout<<param_nodes_[j][i]<<" ";
-            }
-            std::cout<<std::endl;
-        }
-
     }
 
 
