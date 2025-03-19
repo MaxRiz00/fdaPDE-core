@@ -2,6 +2,7 @@
 #define __ISO_MESH_H__
 
 #include "header_check.h"
+#include <chrono>
 
 
 namespace fdapde {
@@ -105,8 +106,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
     public:
     // Algo A4.3 from NURBS book pag. 103, evaluation of a NURBS curve
-    Eigen::Matrix<double, EmbedDim, 1> eval_param(const std::array<double, LocalDim>& u) const {
-        for(int i = 0; i < LocalDim; i++) fdapde_assert(u[i] >= knots_[i].front() && u[i] <= knots_[i].back());
+    Eigen::Matrix<double, EmbedDim, 1> eval_param(const Eigen::Matrix<double, LocalDim,1>& u) const {
+        for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
         std::vector<std::vector<double>> basis_eval(LocalDim);
         std::array<int,LocalDim> spans= {0};
         auto order = this->basis_.order();
@@ -115,8 +116,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         
         for(int i = 0; i < LocalDim; i++){
             auto basis = nurb.spline_basis()[i];
-            basis_eval[i] = basis->evaluate_basis(u[i], false); // evaluate basis functions, padding = false
-            spans[i] = basis->find_span(u[i]); // find the span of the knot vector
+            basis_eval[i] = basis->evaluate_basis(u(i), false); // evaluate basis functions, padding = false
+            spans[i] = basis->find_span(u(i)); // find the span of the knot vector
         }
 
         Eigen::Matrix<double, EmbedDim, 1> Sw = Eigen::Matrix<double, EmbedDim, 1>::Zero();
@@ -155,8 +156,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     }
 
     // Algo A4.3 from NURBS book pag. 103, evaluation of the physical derivative of a NURBS curve 
-    Eigen::Matrix<double, EmbedDim, LocalDim, Eigen::RowMajor> eval_param_derivative(const std::array<double, LocalDim>& u) const {
-        for(int i = 0; i < LocalDim; i++) fdapde_assert(u[i] >= knots_[i].front() && u[i] <= knots_[i].back());
+    Eigen::Matrix<double, EmbedDim, LocalDim> eval_param_derivative(const Eigen::Matrix<double, LocalDim,1>& u) const {
+        for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
         std::vector<std::vector<double>> basis_eval(LocalDim);
         std::vector<std::vector<double>> basis_deriv_eval(LocalDim);
         std::array<int,LocalDim> spans= {0};
@@ -166,11 +167,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         
         for(int i = 0; i < LocalDim; i++){
             auto basis = nurb.spline_basis()[i];
-            basis_eval[i] = basis->evaluate_basis(u[i], false); // evaluate basis functions, padding = false
-            spans[i] = basis->find_span(u[i]); // find the span of the knot vector
+            basis_eval[i] = basis->evaluate_basis(u(i), false); // evaluate basis functions, padding = false
+            basis_deriv_eval[i] = basis->evaluate_der_basis(u(i), 1, false);
+            spans[i] = basis->find_span(u(i)); // find the span of the knot vector
         }
         
-        Eigen::Matrix<double, EmbedDim, LocalDim, Eigen::RowMajor> dSw = Eigen::Matrix<double, EmbedDim, LocalDim>::Zero();
+        Eigen::Matrix<double, EmbedDim, LocalDim> dSw = Eigen::Matrix<double, EmbedDim, LocalDim>::Zero();
         Eigen::Matrix<double, EmbedDim, 1> Sw = Eigen::Matrix<double, EmbedDim, 1>::Zero();
         Eigen::Matrix<double, LocalDim, 1> dW = Eigen::Matrix<double, LocalDim, 1>::Zero();
         
@@ -225,20 +227,149 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         for (int j = 0; j < LocalDim; j++) {
             dSw.col(j) = (dSw.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
         }
-        
+
         return dSw;
     }  
 
+    // Algo A4.3 from NURBS book pag. 103, evaluation of the hessian of a NURBS curve 
+    MdArray<double, MdExtents<EmbedDim, LocalDim, LocalDim>> eval_param_second_derivative(const Eigen::Matrix<double, LocalDim,1>& u) const {
+        for (int i = 0; i < LocalDim; i++) 
+            fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
+    
+        std::vector<std::vector<double>> basis_eval(LocalDim);
+        std::vector<std::vector<double>> basis_deriv_eval(LocalDim);
+        std::vector<std::vector<double>> basis_second_deriv_eval(LocalDim);
+        std::array<int, LocalDim> spans = {0};
+        auto order = this->basis_.order();
+        auto nurb = this->basis_[0];
+        double total_weight = 0.0;
+    
+        for (int i = 0; i < LocalDim; i++) {
+            auto basis = nurb.spline_basis()[i];
+            basis_eval[i] = basis->evaluate_basis(u(i), false); // Basis functions
+            basis_deriv_eval[i] = basis->evaluate_der_basis(u(i), 1, false); // First derivative
+            basis_second_deriv_eval[i] = basis->evaluate_der_basis(u(i), 2, false); // Second derivative
+            spans[i] = basis->find_span(u(i));
+
+        }
+
+    
+        Eigen::Matrix<double, EmbedDim, LocalDim> dSw = Eigen::Matrix<double, EmbedDim, LocalDim>::Zero();
+        Eigen::Matrix<double, EmbedDim, 1> Sw = Eigen::Matrix<double, EmbedDim, 1>::Zero();
+        Eigen::Matrix<double, LocalDim, 1> dW = Eigen::Matrix<double, LocalDim, 1>::Zero();
+    
+        MdArray<double, MdExtents<EmbedDim, LocalDim, LocalDim>> d2Sw;  // Second derivative tensor
+        d2Sw.set_constant(0.0);
+        Eigen::Matrix<double, LocalDim, LocalDim> d2W = Eigen::Matrix<double, LocalDim, LocalDim>::Zero();
+    
+        std::vector<int> index(LocalDim, 0);
+        bool done = false;
+    
+        while (!done) {
+            double eval = 1.0;
+            std::array<double, LocalDim> eval_der = {0.0};        
+            std::array<double, LocalDim> eval_sec_der = {0.0};        
+            std::array<int, LocalDim> full_indices;
+    
+            for (int i = 0; i < LocalDim; i++) {
+                eval *= basis_eval[i][index[i]];
+                eval_der[i] = basis_deriv_eval[i][index[i]];
+                eval_sec_der[i] = basis_second_deriv_eval[i][index[i]];
+                full_indices[i] = spans[i] - order[i] + index[i];
+            }
+    
+            Eigen::Matrix<double, EmbedDim, 1> cp;
+            for (int i = 0; i < EmbedDim; i++) {
+                const auto cp_slice = this->control_points_.template slice<LocalDim>(i);
+                cp(i) = cp_slice(full_indices);
+            }
+    
+            double w = weights_(index);
+            cp *= w;
+            Sw += eval * cp;
+            total_weight += eval * w;
+    
+            for (int j = 0; j < LocalDim; j++) {
+                double w_temp = w * eval_der[j];
+                Eigen::Matrix<double, EmbedDim, 1> cp_temp = eval_der[j] * cp;
+                for (int i = 0; i < LocalDim; i++) {
+                    if (i != j) {
+                        w_temp *= basis_eval[i][index[i]];
+                        cp_temp *= basis_eval[i][index[i]];
+                    }
+                }
+                dW(j) += w_temp;
+                dSw.col(j) += cp_temp;
+    
+                // Compute second derivatives
+                double w_temp_2 = w * eval_sec_der[j];
+                Eigen::Matrix<double, EmbedDim, 1> cp_temp_2 = eval_sec_der[j] * cp;
+    
+                for (int i = 0; i < LocalDim; i++) {
+                    if (i != j) {
+                        w_temp_2 *= basis_eval[i][index[i]];
+                        cp_temp_2 *= basis_eval[i][index[i]];
+                    }
+                }
+    
+                d2W(j, j) += w_temp_2;
+
+                for (int h = 0 ; h < EmbedDim; h++) d2Sw(h, j, j) += cp_temp_2(h);
+                
+    
+                for (int k = 0; k < LocalDim; k++) {
+                    if (j != k) {
+                        double w_mixed = w * eval_der[j] * eval_der[k];
+                        Eigen::Matrix<double, EmbedDim, 1> cp_mixed = eval_der[j] * eval_der[k] * cp;
+    
+                        for (int i = 0; i < LocalDim; i++) {
+                            if (i != j && i != k) {
+                                w_mixed *= basis_eval[i][index[i]];
+                                cp_mixed *= basis_eval[i][index[i]];
+                            }
+                        }
+    
+                        d2W(j, k) += w_mixed;
+                        for (int h = 0; h < EmbedDim; h++) d2Sw(h, j, k) += cp_mixed(h);
+                    }
+                }
+            }
+    
+            for (int d = LocalDim - 1; d >= 0; d--) {
+                if (++index[d] > order[d]) {
+                    index[d] = 0;
+                    if (d == 0) done = true;
+                } else {
+                    break;
+                }
+            }
+        }
+
+
+        // Apply the quotient rule for second derivatives
+        for (int j = 0; j < LocalDim; j++) {
+            for (int k = 0; k < LocalDim; k++) {
+                for(int h = 0; h < EmbedDim; h++){
+                    d2Sw(h, j, k) = (d2Sw(h, j, k) 
+                    - (dSw(h, j) * dW(k) + dSw(h, k) * dW(j) + Sw(h) * d2W(j, k)) / total_weight + 2*Sw(h)*dW(j)*dW(k)/ (total_weight* total_weight) ) / total_weight;
+                }
+                
+            }
+        }
+        return d2Sw;
+    }
+    
     // Algo A5.5 from NURBS book pag. 127, knot refinement of a mesh 
+    // To implement: inplace version
     void refine_knots(const std::array<int, LocalDim>& density = std::array<int, LocalDim>{{1}}, std::array<std::vector<double>, LocalDim> add_knot_list = {}){
 
-        std::array<std::vector<double>,LocalDim> knots_to_add {};
+        std::array<std::vector<double>,LocalDim> refinement_knots {};
 
+        // Step 1: Generate new knots for refinement
         for (int j = 0; j < LocalDim; j++) {
-            std::vector<double> knot_list, refined_knots;
-            knot_list.assign(param_nodes_[j].begin(), param_nodes_[j].end());
+            std::vector<double> refined_knots, knot_list(param_nodes_[j].begin(), param_nodes_[j].end());
         
-            // Step 2: Increase knot density by adding midpoints
+            // Insert midpoint knots iteratively for the required density
             for (int d = 0; d < density[j]; d++) {
                 std::vector<double> rknots;
                 for (size_t i = 0; i < knot_list.size() - 1; i++) {
@@ -247,81 +378,82 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     rknots.push_back(midpoint);
                 }
                 rknots.push_back(knot_list.back());
-                knot_list = rknots;  // Update the refined knot list
+                knot_list = rknots;  
             }
         
-            // Step 3: Compute how many times each knot should be inserted
-            std::vector<double> X;
+            // Compute valid knot insertions
+            std::vector<double> valid_knots;
             for (double mk : knot_list) {
-                int s = std::count(knots_[j].begin(), knots_[j].end(), mk);  // Find multiplicity
-                int r = order_[j] - s;  // Number of insertions required
-                for (int _ = 0; _ < r; _++) {
-                    X.push_back(mk);
-                }
+                int s = std::count(knots_[j].begin(), knots_[j].end(), mk);  
+                int r = order_[j] - s;  
+                for (int _ = 0; _ < r; _++) valid_knots.push_back(mk);
             }
-        
-            // Step 4: Insert final refined knots
-            knots_to_add[j].insert(knots_to_add[j].end(), X.begin(), X.end());
+
+            refinement_knots[j].insert(refinement_knots[j].end(), valid_knots.begin(), valid_knots.end());
         }
 
-        // Add the knots in the list (to add the check of the multiplicity)
+        // Step 2: Add user-specified knots
         for(int j = 0; j < LocalDim; j++){
             for (size_t i = 0; i < add_knot_list[j].size(); i++) {
-                knots_to_add[j].push_back(add_knot_list[j][i]);
+                refinement_knots[j].push_back(add_knot_list[j][i]);
             }
         }
-        // sort the knots
-        std::array<int,LocalDim> dims_w;
-        std::array<int,LocalDim+1> dims_cp;
+
+
+        std::array<int,LocalDim> weights_dims;
+        std::array<int,LocalDim+1> cp_dims;
+        std::array<std::vector<double>,LocalDim> updated_knots {};
 
         for(int j = 0; j < LocalDim; j++){
-            std::sort(knots_to_add[j].begin(), knots_to_add[j].end());
-            dims_w[j] = (knots_to_add[j].size() + weights_.extent(j));
-            dims_cp[j] = (knots_to_add[j].size() + weights_.extent(j));
+            std::sort(refinement_knots[j].begin(), refinement_knots[j].end());
+            weights_dims[j] = (refinement_knots[j].size() + weights_.extent(j));
+            cp_dims[j] = weights_dims[j];
         }
-        dims_cp[LocalDim] = EmbedDim;
+        cp_dims[LocalDim] = EmbedDim;
 
-        std::array<std::vector<double>,LocalDim> new_knots {};
+        // Step 4: Resize control points and weights
+        MdArray<double,full_dynamic_extent_t<LocalDim>> refined_weights;
+        MdArray<double,full_dynamic_extent_t<LocalDim+1>> refined_cp;
+        refined_weights.resize(weights_dims);
+        refined_cp.resize(cp_dims);
+        
+        MdArray<double,full_dynamic_extent_t<LocalDim>> previous_weights = weights_;
+        MdArray<double,full_dynamic_extent_t<LocalDim+1>> previous_cp = control_points_;
+        
 
-        // resize the weights and control points inplace
-        MdArray<double,full_dynamic_extent_t<LocalDim>> new_total_weights;
-        MdArray<double,full_dynamic_extent_t<LocalDim+1>> new_control_points;
-        new_total_weights.resize(dims_w);
-        new_control_points.resize(dims_cp);
-
-        MdArray<double,full_dynamic_extent_t<LocalDim+1>> temp_control_points = control_points_;
-        MdArray<double,full_dynamic_extent_t<LocalDim>> temp_weights = weights_;
-
-        for(int k = 0; k < LocalDim; k++){ // Fix one dimension k
-            if(knots_to_add[k].size() == 0){
-                new_knots[k] = knots_[k];
+        // Step 5: Apply Knot Refinement for each dimension
+        for(int k = 0; k < LocalDim; k++){ 
+            if(refinement_knots[k].empty()){
+                updated_knots[k] = knots_[k];
                 continue;
             } 
+            
             std::cout << "Refining along dimension k = " << k << std::endl;
-            new_knots[k].resize(knots_[k].size() + knots_to_add[k].size());
-            // resize the temp, refine in all dimensione leq than k
-            std::array<int, LocalDim+1> dims_cp_temp;
-            std::array<int, LocalDim> dims_w_temp;
+            updated_knots[k].resize(knots_[k].size() + refinement_knots[k].size());
+
+            std::array<int, LocalDim+1> temp_cp_dims;
+            std::array<int, LocalDim> temp_weights_dims;
             for(int j = 0; j < LocalDim; j++){
                 if(j <= k){
-                    dims_cp_temp[j] = dims_cp[j];
-                    dims_w_temp[j] = dims_w[j];
+                    temp_cp_dims[j] = cp_dims[j];
+                    temp_weights_dims[j] = weights_dims[j];
                 } else{
-                    dims_cp_temp[j] = control_points_.extent(j);
-                    dims_w_temp[j] = weights_.extent(j);
+                    temp_cp_dims[j] = control_points_.extent(j);
+                    temp_weights_dims[j] = weights_.extent(j);
                 }
             }
-            dims_cp_temp[LocalDim] = EmbedDim;
-            new_control_points.resize(dims_cp_temp);
-            new_total_weights.resize(dims_w_temp);
+            temp_cp_dims[LocalDim] = EmbedDim;
 
-            std::array<int, LocalDim> index = {0};  // Initialize all indices to 0
+            refined_cp.resize(temp_cp_dims);
+            refined_weights.resize(temp_weights_dims);
+
+            // Compute how many 1D knots to refine
             int ref_size = 1;
             for(int j = 0; j < LocalDim; j++) {
-                if (j != k) ref_size *= temp_weights.extent(j);
+                if (j != k) ref_size *= previous_weights.extent(j);
             }
-            // Iterate over all dimensions except k
-            // print the number of cp in the fixed dimension
+
+            std::array<int, LocalDim> index = {0};
             for(int i = 0; i < ref_size; i++){
 
                 MdArray<double, MdExtents<Dynamic,Dynamic>> old_cp;
@@ -331,10 +463,10 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
                 old_cp.resize(weights_.extent(k), EmbedDim);
                 old_w.resize(weights_.extent(k));
+                new_cp.resize(cp_dims[k], EmbedDim);
+                new_w.resize(weights_dims[k]);
 
-                new_cp.resize(dims_cp[k], EmbedDim);
-                new_w.resize(dims_w[k]);
-
+                // Get the old control points and weights
                 for(int m=0;m<weights_.extent(k);m++){
                     std::array<int, LocalDim> current_index = index;
                     current_index[k] = m ;
@@ -344,79 +476,70 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                             current_index_cp[l] = current_index[l];
                         }
                         current_index_cp[LocalDim] = n;
-                        old_cp(m,n) = temp_control_points(current_index_cp);
+                        old_cp(m,n) = previous_cp(current_index_cp);
                     }
-                    old_w(m) = temp_weights(current_index);
+                    old_w(m) = previous_weights(current_index);
                 }
 
-                /// ALGO A5.5
+                // ALGO A5.4 pag. 164 NURBS book
+                
                 // get the number of control points
                 int n = old_cp.extent(0) - 1;
                 int m = order_[k] + n + 1;
 
-                int r = knots_to_add[k].size() - 1;
+                int r = refinement_knots[k].size() - 1;
 
                 // get the span
                 auto old_basis  = BSplineBasis(knots_[k], order_[k]);
-                int a = old_basis.find_span(knots_to_add[k][0], n);
-                int b = old_basis.find_span(knots_to_add[k][r], n) + 1 ;
+                int a = old_basis.find_span(refinement_knots[k][0], n);
+                int b = old_basis.find_span(refinement_knots[k][r], n) + 1 ;
 
 
                 // get the new control points
                 for(int j=0; j<=a-order_[k]; j++) {
                     new_w(j) = old_w(j);
-                    for(int i=0; i<EmbedDim; i++) {
-                        new_cp(j,i) = old_cp(j,i);
-                    }
+                    for(int i=0; i<EmbedDim; i++) new_cp(j,i) = old_cp(j,i);
                 }
 
                 for(int j=b-1; j<=n; j++) {
                     new_w(j+r+1) = old_w(j);
-                    for(int i=0; i<EmbedDim; i++) {
-                        new_cp(j+r+1,i) = old_cp(j,i);
-                    }
+                    for(int i=0; i<EmbedDim; i++) new_cp(j+r+1,i) = old_cp(j,i);
                 }
 
                 // get the new knots
-                
-                for(int j=0; j<=a; j++) new_knots[k][j] = knots_[k][j];
-                for(int j=b+order_[k]; j<=m; j++) new_knots[k][j+r+1] = knots_[k][j]; 
+                for(int j=0; j<=a; j++) updated_knots[k][j] = knots_[k][j];
+                for(int j=b+order_[k]; j<=m; j++) updated_knots[k][j+r+1] = knots_[k][j]; 
 
                 // get the new control points
                 int ii = b + order_[k] - 1;
                 int kk = b + order_[k] + r;
 
                 for(int j=r; j>=0; j--) {
-                    while(knots_to_add[k][j] <= knots_[k][ii] && ii > a) {
+                    while(refinement_knots[k][j] <= knots_[k][ii] && ii > a) {
                         new_w(kk-order_[k]-1) = old_w(ii-order_[k]-1);
-                        for(int l=0; l<EmbedDim; l++) {
-                            new_cp(kk-order_[k]-1,l) = old_cp(ii-order_[k]-1,l);
-                        }
-                        new_knots[k][kk] = knots_[k][ii];
+                        for(int h=0; h<EmbedDim; h++) new_cp(kk-order_[k]-1,h) = old_cp(ii-order_[k]-1,h);
+                        updated_knots[k][kk] = knots_[k][ii];
                         kk = kk - 1;
                         ii = ii - 1;
                     }
                     
                     new_w(kk-order_[k]-1) = new_w(kk-order_[k]);
-                    for(int l =0;l<EmbedDim;l++) new_cp(kk-order_[k]-1,l) = new_cp(kk-order_[k],l);
+                    for(int h =0; h < EmbedDim; h++) new_cp(kk-order_[k]-1,h) = new_cp(kk-order_[k],h);
 
                     for(int l = 1; l<=order_[k]; l++) {
                         int ind = kk-order_[k]+l;
-                        double alpha = new_knots[k][kk+l] - knots_to_add[k][j];
+                        double alpha = updated_knots[k][kk+l] - refinement_knots[k][j];
                         if(alpha == 0.0) {
                             new_w(ind-1) = new_w(ind);
-                            for(int m=0; m<EmbedDim; m++) {
-                                new_cp(ind-1,m) = new_cp(ind,m);
-                            }
+                            for(int h=0; h<EmbedDim; h++) new_cp(ind-1,h) = new_cp(ind,h);
                         } else {
-                            alpha = alpha / (new_knots[k][kk+l] - knots_[k][ii-order_[k]+l]);         
-                            for(int m=0; m<EmbedDim; m++) {
-                                new_cp(ind-1,m) = (alpha * new_w(ind-1)*new_cp(ind-1,m) + (1.0 - alpha) * new_w(ind)*new_cp(ind,m))/(alpha*new_w(ind-1) + (1.0 - alpha )*new_w(ind));
-                            }
+                            alpha = alpha / (updated_knots[k][kk+l] - knots_[k][ii-order_[k]+l]);         
+                            for(int h=0; h<EmbedDim; h++) new_cp(ind-1,h) = (alpha * new_w(ind-1)*new_cp(ind-1,h) + 
+                                                            (1.0 - alpha) * new_w(ind)*new_cp(ind,h))/(alpha*new_w(ind-1) + (1.0 - alpha )*new_w(ind));
                             new_w(ind-1) = alpha * new_w(ind-1) + (1.0 - alpha) * new_w(ind);
                         }
                     }
-                    new_knots[k][kk] = knots_to_add[k][j];
+                    updated_knots[k][kk] = refinement_knots[k][j];
                     kk = kk - 1;  
                 }
 
@@ -426,17 +549,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 for(int m=0;m<new_w.extent(0);m++){
                     std::array<int, LocalDim> current_index = index;
                     current_index[k] = m;
-                    new_total_weights(current_index) = new_w(m);
-                    
+                    refined_weights(current_index) = new_w(m); 
                     for(int n=0;n<EmbedDim;n++){
                         std::array<int, LocalDim+1> current_index_cp;
-                        
-                        for(int l=0;l<LocalDim;l++){
-                            current_index_cp[l] = current_index[l];
-                        }
+                        for(int l=0;l<LocalDim;l++) current_index_cp[l] = current_index[l];
                         current_index_cp[LocalDim] = n;
-                        // Assign the newly refined control points for this step
-                        new_control_points(current_index_cp) = new_cp(m,n);
+                        refined_cp(current_index_cp) = new_cp(m,n);
                     }
                 }
 
@@ -444,20 +562,185 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 for (int j = LocalDim - 1; j >= 0; j--) {
                     if (j == k) continue;  // Skip fixed dimension
                     index[j]++;
-                    if (index[j] < temp_weights.extent(j)) break;  // No carry-over needed
+                    if (index[j] < previous_weights.extent(j)) break;  // No carry-over needed
                     else index[j] = 0;  // Reset and carry over to next dimension
                     
                 }
             }
             // Copy refined control points before refining in a new direction
-            temp_control_points = new_control_points;
-            temp_weights = new_total_weights;
+            previous_cp = refined_cp;
+            previous_weights = refined_weights;
 
         }
         // Update the mesh
-        initialize(new_knots, new_total_weights, new_control_points, order_, flags_);
+        initialize(updated_knots, refined_weights, refined_cp, order_, flags_);
     }
 
+    // Point inversion algorithm: takes a point p in the physical domain and returns a point u in the parametric domain
+    // Implementation of the mathod explained at page 230 of the NURBS book
+    Eigen::Matrix<double, local_dim,1> invert_point(Eigen::Matrix<double, embed_dim, 1>& p, 
+        double tol1=1e-8, double tol2=1e-8, int max_iters = 1000, int n=5) {
+        Eigen::Matrix<double, local_dim,1> u_old, u ;
+        u.setZero();
+        u_old.setZero();
+
+        auto Cp = this->control_points_;
+
+        std::array<decltype(Cp.template slice<local_dim>(0)), embed_dim> cp_slices;
+        for (int i = 0; i < embed_dim; ++i)
+            cp_slices[i] = Cp.template slice<local_dim>(i);
+
+        std::array<int, local_dim> index = this->order_;
+        std::vector<std::array<int, local_dim>> valid_spans;
+
+        // loop over each span and check if the point ins in the AABB box of the span
+        bool done = false;
+        do {
+            // print the index
+            std::array<int,local_dim> new_index;
+            for(int i = 0; i < local_dim; i++) {
+                new_index[i] = index[i] -  this->order_[i] ;
+            }
+            Eigen::Matrix<double, embed_dim, 1> P_min, P_max;
+            P_min.setConstant(std::numeric_limits<double>::max());
+            P_max.setConstant(std::numeric_limits<double>::lowest());
+
+            bool span_done = false;
+
+            do{
+                Eigen::Matrix<double, embed_dim, 1> cp;
+                for(int i = 0; i<embed_dim; i++)
+                    cp(i) = cp_slices[i](new_index);
+                
+                    P_min = P_min.cwiseMin(cp);
+                    P_max = P_max.cwiseMax(cp);
+
+                    for (int d = local_dim - 1; d >= 0; --d) {
+                        if (++new_index[d] > index[d]) {
+                            new_index[d] = index[d] - this->order_[d];
+                            if (d == 0) span_done = true;
+                        } else
+                            break;
+                    }
+            } while(!span_done);
+            
+            bool inside = true;
+            for (int i = 0; i < embed_dim && inside; i++) 
+                if (p(i) < P_min(i) || p(i) > P_max(i)) inside = false;
+
+            if (inside) valid_spans.push_back(index);
+            
+
+            for (int d = local_dim - 1; d >= 0; d--) {
+                if (++index[d] > this->weights_.extent(d) - 1) {
+                    index[d] = this->order_[d];
+                    if (d == 0) done = true;
+                } else 
+                    break;
+            }
+
+        } while(!done);
+
+        /*
+        // print the valid spans
+        for(int i = 0; i < valid_spans.size(); i++){
+            std::cout<<"Span "<<i<<": ";
+            for(int j = 0; j < local_dim; j++){
+                std::cout<<valid_spans[i][j]<<" ";
+            }
+            std::cout<<std::endl;
+        }
+        std::cout<<"Number of valid spans: "<<valid_spans.size()<<std::endl;
+        */
+        
+        
+
+        // initialize u and u_old using a grid search over the valid spans
+        double min_dist = std::numeric_limits<double>::max();
+        for (const auto& span : valid_spans) {
+            Eigen::Matrix<double, local_dim, 1> u_start, steps;
+            for (int d = 0; d < local_dim; ++d) {
+                u_start(d) = this->knots_[d][span[d]];
+                steps(d) = (this->knots_[d][span[d]+1] - this->knots_[d][span[d]]) / n;
+            }
+
+            Eigen::Matrix<double, local_dim, 1> u_add;
+            u_add.setZero();
+
+            for (int iter = 0; iter < std::pow(n, local_dim); ++iter) {
+                Eigen::Matrix<double, embed_dim, 1> cp;
+                for (int i = 0; i < embed_dim; ++i)
+                    cp(i) = cp_slices[i](span);
+
+                double dist = (cp - p).norm();
+                if (dist < min_dist) {
+                    min_dist = dist;
+                    u_old = u_start + u_add;
+                }
+
+                for (int k = local_dim - 1; k >= 0; --k) {
+                    u_add(k) += steps(k);
+                    if (u_add(k) >= steps(k) * n)
+                        u_add(k) = 0;
+                    else
+                        break;
+                }
+            }
+        }
+
+        int counter = 0;
+        u = u_old;
+        bool conv1 = false;
+        bool conv2 = false;
+        while(counter < max_iters && !conv1 && !conv2){
+            auto S = this->eval_param(u_old);
+            Eigen::Matrix<double, embed_dim, 1> r = S - p;
+
+            if(r.norm() < tol1) conv1 = true;
+
+            auto S_deriv = this->eval_param_derivative(u_old);
+            auto S_sec_deriv = this->eval_param_second_derivative(u_old);
+
+            Eigen::Matrix<double, local_dim, 1> kappa;
+            Eigen::Matrix<double, local_dim, local_dim> J;
+
+            // Compute Jacobian and kappa vector for general local_dim
+            for (int i = 0; i < local_dim; ++i) {
+                Eigen::Matrix<double, embed_dim, 1> S_i = S_deriv.col(i);
+                kappa(i) = - r.dot(S_deriv.col(i));
+                for (int j = 0; j < local_dim; ++j) {
+                    Eigen::Matrix<double, embed_dim, 1> S_ij;
+                    for (int k = 0; k < embed_dim; ++k) {
+                        S_ij(k) = S_sec_deriv(k, i, j);
+                    }
+                    J(i, j) = S_deriv.col(i).dot(S_deriv.col(j)) + r.dot(S_ij);
+                }
+            }
+
+
+
+            auto delta = J.lu().solve(kappa);
+
+            u = u_old + delta;
+
+            // enforce parametric bounds (TO ADD CLOSED MANIFLODS)
+            for (int k = 0; k < local_dim; k++) {
+                u(k) = std::clamp(u(k), this->param_nodes_[k].front(), this->param_nodes_[k].back());
+            }
+
+            if (delta.norm() < tol2)
+                conv2 = true;
+
+            u_old = u;
+
+            ++counter;
+        }
+        if(counter == max_iters){
+            std::cout<<"Max iterations reached"<<std::endl;
+        }
+
+        return u;
+    }
 
     protected:
     // Compute the id of a cell (or a node if is_cell is false) from the multi-index
@@ -482,12 +765,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     public:
 
     // Compute the vertices of a square (cell) given its id, fai MdArray , sono metodi pirvati
-    std::array<std::array<int, LocalDim>,2> compute_lr_vertices(const int& id)const {
+    std::array<Eigen::Matrix<double, LocalDim, 1> ,2> compute_lr_vertices(const int& id)const {
         auto multi_index = compute_multi_index_(id);
-        std::array<std::array<int, LocalDim>,2> vertices;
+        std::array<Eigen::Matrix<double, LocalDim, 1> ,2> vertices;
         for(int i = 0; i < LocalDim; ++i){
-            vertices[0][i] = multi_index[i];
-            vertices[1][i] = multi_index[i] + 1;
+            vertices[0](i) = param_nodes_[i][multi_index[i]];
+            vertices[1](i) = param_nodes_[i][multi_index[i] + 1];
         }
         return vertices;
     }
@@ -495,9 +778,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     // Compute the physical coordinate of a node given its id
     Eigen::Matrix<double, EmbedDim, 1> phys_node(const int id) const {
         auto multi_index = compute_multi_index_(id, false);
-        std::array<double, LocalDim> u;
+        Eigen::Matrix<double, LocalDim,1> u;
         for (int i = 0; i < LocalDim; ++i) {
-            u[i] = param_nodes_[i][multi_index[i]];
+            u(i) = param_nodes_[i][multi_index[i]];
         }
         return eval_param(u);
     }
@@ -592,14 +875,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         using Base = internals::filtering_iterator<cell_iterator, const CellType*>;
         using Base::index_;
         friend Base;
-        const Derived* mesh_;
-        int marker_;
-
-        mutable CellType cell_;  // Store the actual cell (mutable for const correctness)
+        const Derived* mesh_ = nullptr;
+        int marker_ ; 
+        std::shared_ptr<CellType> cell_ptr_;  // Store the actual cell (mutable for const correctness)
 
         cell_iterator& operator()(int i) {
-            cell_ = mesh_->cell(i);  // Store the value in a variable
-            Base::val_ = &cell_;  // Take the address of the variable
+            *cell_ptr_ = mesh_->cell(i);
+            Base::val_ = cell_ptr_.get();
             return *this;
         }
 
@@ -608,7 +890,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         cell_iterator() = default;
 
         cell_iterator(int index, const Derived* mesh, const BinaryVector<Dynamic>& filter, int marker):
-            Base(index, 0, mesh->n_cells_, filter), mesh_(mesh), marker_(marker) {
+            Base(index, 0, mesh->n_cells_, filter), mesh_(mesh), marker_(marker), cell_ptr_(std::make_shared<CellType>()) {
             for (; index_ < Base::end_ && !filter[index_]; ++index_);
             if (index_ != Base::end_) { operator()(index_); }
         }
@@ -669,6 +951,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     
     // get cells_
     const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cells() const { return cells_; }
+
+    // get IsoMeshData object
+    IsoMeshData<LocalDim> data() const {
+        return IsoMeshData<LocalDim>{knots_, weights_, control_points_, order_};
+    }
+
     protected:
         std::array<std::vector<double>,LocalDim> knots_; // knots in each direction
         std::array<std::vector<double>,LocalDim> param_nodes_; // nodes in each direction (only unique knots)
@@ -798,6 +1086,55 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
     void refine_knots(const std::array<int, 2>& density = std::array<int, 2>{{1, 1}}, std::array<std::vector<double>, 2> add_knot_list = {}) {
         Base::refine_knots(density, add_knot_list);
         compute_cells_();
+    }
+
+
+    static IsoMesh<2,N> sphere(double r = 1.0) {
+        fdapde_static_assert(N == 3, THIS_METHOD_IS_ONLY_FOR_3D_MANIFOLDS);
+
+        // Create a semicircle as a 1D Mesh embdedded in 3D
+        std::array<std::vector<double>, 1> start_knots = {std::vector<double>{0,0,0,0.25,0.25,0.5,0.5,0.75,0.75,1,1,1}};
+        std::array<int,1> start_order = {2};
+        int num_ctrl_points = start_knots[0].size() - start_order[0] - 1;
+
+        // Define weights
+        std::vector<double> wj = {1, 0.707, 1, 0.707, 1, 0.707, 1, 0.707, 1};
+
+        // Define control points
+        std::vector<std::vector<double>> Pj = {
+            {r, 0, 0},  {r, r, 0},  {0, r, 0},
+            {-r, r, 0}, {-r, 0, 0}, {-r, -r, 0},
+            {0, -r, 0}, {r, -r, 0}, {r, 0, 0}
+        };
+
+        // Initialize `MdArray`
+        MdArray<double, MdExtents<Dynamic>> start_weights(num_ctrl_points);
+        MdArray<double, MdExtents<Dynamic, Dynamic>> start_cp(num_ctrl_points, 3);
+
+        // Fill `start_weights` with values from `wj`
+        for (int i = 0; i < num_ctrl_points; i++) {
+            start_weights(i) = wj[i];
+        }
+
+        // Fill `start_cp` with control points `Pj`
+        for (int i = 0; i < num_ctrl_points; i++) {
+            for (int j = 0; j < 3; j++) {
+                start_cp(i, j) = Pj[i][j];
+            }
+        }
+
+        // Create a IsoMeshData object
+        IsoMeshData<1> semicircle(start_knots, start_weights, start_cp, start_order);
+
+        // Create a 2D mesh by rotating the 1D mesh around the z-axis
+        IsoMeshData<2> sphere = iso_algorithms::create_revolved_ISO_surface(semicircle, M_PI);
+
+        // Create the IsoMesh object
+
+        IsoMesh<2, N> mesh(sphere.knots, sphere.weights, sphere.control_points, sphere.order);
+        mesh.refine_knots({2,2});
+        return mesh;
+
     }
 
     // getters
@@ -1131,6 +1468,8 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
     int n_boundary_faces() const { return boundary_faces_.count(); }
     int n_boundary_edges() const { return boundary_edges_.count(); }
 
+    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cell_to_edges() const { return cell_to_edges_; }
+
     // iterator over edges
     class edge_iterator: public internals::filtering_iterator<edge_iterator, EdgeType> {
         protected:
@@ -1259,6 +1598,16 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
 
     void clear_face_markers() {
         std::for_each(faces_markers_.begin(), faces_markers_.end(), [](int& marker) { marker = Unmarked; });
+    }
+
+    // getters
+    const typename Base::CellType& cell(int id) const {
+        if (Base::flags_) {   // cell caching enabled
+            return cell_cache_[id];
+        } else {
+            cell_ = typename Base::CellType(id, this);
+            return cell_;
+        }
     }
 
     // mesh surface

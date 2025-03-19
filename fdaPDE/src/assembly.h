@@ -125,15 +125,18 @@ assembly_add_op<Lhs, Rhs> operator+(const assembly_xpr_base<Lhs>& lhs, const ass
     return assembly_add_op<Lhs, Rhs>(lhs.derived(), rhs.derived());
 }
 
+template <typename Mesh, typename Xpr_, int Options_, typename... Quadrature_> class std_integration_loop { }; // definition primary template
+
 // generic integration loop to integrate scalar expressions over physical domains
-template <typename Triangulation_, typename Xpr_, int Options_, typename... Quadrature_> class std_integration_loop {
+template <int LocalDim, int EmbedDim, typename Xpr_, int Options_, typename... Quadrature_>
+  class std_integration_loop<Triangulation<LocalDim, EmbedDim>, Xpr_, Options_, Quadrature_...> {
     fdapde_static_assert(is_scalar_field_v<Xpr_>, THIS_CLASS_IS_FOR_SCALAR_FIELDS_ONLY);
-    using Triangulation = std::decay_t<Triangulation_>;
-    static constexpr int local_dim = Triangulation::local_dim;
-    static constexpr int embed_dim = Triangulation::embed_dim;
+    using Triangulation_ = Triangulation<LocalDim, EmbedDim>;
+    static constexpr int local_dim = Triangulation_::local_dim;
+    static constexpr int embed_dim = Triangulation_::embed_dim;
     static constexpr int Options = Options_;
     using iterator = std::conditional_t<
-      Options == CellMajor, typename Triangulation::cell_iterator, typename Triangulation::boundary_iterator>;
+      Options == CellMajor, typename Triangulation_::cell_iterator, typename Triangulation_::boundary_iterator>;
 
     template <typename... Quad_> struct empty_quadrature {
         static constexpr int order = 0;
@@ -161,9 +164,9 @@ template <typename Triangulation_, typename Xpr_, int Options_, typename... Quad
         if constexpr (Quadrature::order == 0) {
             fdapde_static_assert(false, THIS_METHOD_REQUIRES_A_QUADRATURE_RULE);
         } else {
-            fdapde_static_assert(Triangulation::local_dim == Quadrature::local_dim, INVALID_QUADRATURE_RULE);
+            fdapde_static_assert(Triangulation_::local_dim == Quadrature::local_dim, INVALID_QUADRATURE_RULE);
             constexpr int n_quadrature_nodes = Quadrature::order;
-            Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, Triangulation::local_dim, Eigen::RowMajor>>
+            Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, Triangulation_::local_dim, Eigen::RowMajor>>
               ref_quad_nodes(quadrature_.nodes.data());
             for (iterator it = begin_; it != end_; ++it) {
                 double partial = 0;
@@ -180,14 +183,15 @@ template <typename Triangulation_, typename Xpr_, int Options_, typename... Quad
 
 
 // generic integration loop to integrate scalar expressions over physical domains (ISO version)
-template <typename Igamesh_, typename Xpr_, int Options_, typename... Quadrature_> class std_ISO_integration_loop{
+template <int LocalDim, int EmbedDim, typename Xpr_, int Options_, typename... Quadrature_>
+class std_integration_loop<IsoMesh<LocalDim, EmbedDim>, Xpr_, Options_, Quadrature_...> {
     fdapde_static_assert(is_scalar_field_v<Xpr_>, THIS_CLASS_IS_FOR_SCALAR_FIELDS_ONLY);
-    using Igamesh = std::decay_t<Igamesh_>;
-    static constexpr int local_dim = Igamesh::local_dim;
-    static constexpr int embed_dim = Igamesh::embed_dim;
+    using IsoMesh_ = IsoMesh<LocalDim, EmbedDim>;
+    static constexpr int local_dim = IsoMesh_::local_dim;
+    static constexpr int embed_dim = IsoMesh_::embed_dim;
     static constexpr int Options = Options_;
     using iterator = std::conditional_t<
-      Options == CellMajor, typename Igamesh::cell_iterator, typename Igamesh::boundary_iterator>;
+      Options == CellMajor, typename IsoMesh_::cell_iterator, typename IsoMesh_::boundary_iterator>;
 
     template <typename... Quad_> struct empty_quadrature {
         static constexpr int order = 0;
@@ -206,8 +210,8 @@ template <typename Igamesh_, typename Xpr_, int Options_, typename... Quadrature
     iterator begin_, end_;
     Quadrature quadrature_;
    public:
-    std_ISO_integration_loop() = default;
-    std_ISO_integration_loop(const Xpr_& xpr, iterator begin, iterator end, const Quadrature_&... quadrature) :
+    std_integration_loop() = default;
+    std_integration_loop(const Xpr_& xpr, iterator begin, iterator end, const Quadrature_&... quadrature) :
         xpr_(xpr), begin_(begin), end_(end), quadrature_(quadrature...) { }
 
     double operator()() const {
@@ -215,11 +219,11 @@ template <typename Igamesh_, typename Xpr_, int Options_, typename... Quadrature
         if constexpr (Quadrature::order == 0) {
             fdapde_static_assert(false, THIS_METHOD_REQUIRES_A_QUADRATURE_RULE);
         } else {
-            fdapde_static_assert(Igamesh::local_dim == Quadrature::local_dim, INVALID_QUADRATURE_RULE);
+            fdapde_static_assert(IsoMesh_::local_dim == Quadrature::local_dim, INVALID_QUADRATURE_RULE);
             constexpr int n_quadrature_nodes = Quadrature::order;
-            Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, Igamesh::local_dim, Eigen::RowMajor>>
+            Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, IsoMesh_::local_dim, Eigen::RowMajor>>
               ref_quad_nodes(quadrature_.nodes.data());
-            for(iterator it = begin_; it != end_; ++it) {
+            for(iterator it = begin_; it != end_ ; ++it) {
               double partial = 0;
               for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
                 // Compute the physical coordinates of the quadrature node
@@ -229,7 +233,7 @@ template <typename Igamesh_, typename Xpr_, int Options_, typename... Quadrature
                 // Compute the value of the scalar field at the physical coordinates
                 partial += xpr_(x) * quadrature_.weights[q_k] * det_metric;
               }
-              integral_ += partial; // this does not work beacuse the metric determinant depends on the point p 
+              integral_ += (partial * it->parametric_measure()); 
             }
         }
         return integral_;
@@ -312,14 +316,6 @@ auto integral(
       range.first, range.second, quadrature...);
 }
 
-/*
-
-template <typename Igamesh, typename... Quadrature>
-auto ISO_integral(const Igamesh& igamesh, Quadrature... quadrature) {
-   return internals::std_ISO_integration_loop<Igamesh, CellMajor, Quadrature...>(
-     igamesh, igamesh.cells_begin(), igamesh.cells_end(), quadrature...);
-
- */
   
 }   // namespace fdapde
 

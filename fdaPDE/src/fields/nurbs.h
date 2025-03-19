@@ -3,7 +3,6 @@
 #define __NURBS_H__
 
 #include "header_check.h"
-#include "splines.h"
 
 namespace fdapde{
 

@@ -176,7 +176,7 @@ static constexpr Vector<double, order> weights {
 };
 };
 
-// 3D 27 point formula
+// 3D 27 point formula (not working)
 template <> struct iso_quadrature_gauss_legendre<3, 27> : public iso_quadrature_gauss_base {
     static constexpr int local_dim = 3;
     static constexpr int order = 27;

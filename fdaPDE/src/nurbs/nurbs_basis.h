@@ -17,9 +17,7 @@
 #ifndef __NURBS_BASIS_H__
 #define __NURBS_BASIS_H__
 
-
-#include "../fields/nurbs.h"
-
+#include "header_check.h"
 
 namespace fdapde {
 

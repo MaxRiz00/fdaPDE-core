@@ -8,6 +8,8 @@
 #include "fields.h"
 #include "geometry.h"
 
+#include "src/splines/bspline_basis.h"
+#include "src/fields/nurbs.h"
 #include "src/nurbs/nurbs_basis.h"
 
 

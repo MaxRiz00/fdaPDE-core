@@ -15,5 +15,5 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifndef __FDAPDE_SPLINES_MODULE_H__
-#    error "Include fdaPDE/splines.h instead of including internal headers directly."
+//#    error "Include fdaPDE/splines.h instead of including internal headers directly."
 #endif

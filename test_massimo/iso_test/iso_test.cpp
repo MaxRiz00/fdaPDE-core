@@ -35,7 +35,7 @@ TEST(nurbs_test, nurbs_basis_1D) {
     MdArray<double,MdExtents<Dynamic>> weights(7);
     nodes[0].resize(5);
 
-    int order = 3;
+    std::array<int,1> order = {3};
 
     // open uniform knot vector
     for(size_t i = 0; i < 5; i++)nodes[0][i]=1.*i;
@@ -64,7 +64,7 @@ TEST(nurbs_test, nurbs_basis_2D) {
     nodes[0].resize(2);
     nodes[1].resize(3);
 
-    int order=3;
+    std::array<int,2> order = {3,3};
 
     // open uniform knot vector
     for(size_t i = 0; i < 2; i++)nodes[0][i]=1.*i;
@@ -94,7 +94,7 @@ TEST(nurbs_test, nurbs_basis_derivative_1D){
     MdArray<double, full_dynamic_extent_t<1>> weights(7);
     nodes[0].resize(5);
 
-    int order = 3;
+    std::array<int,1> order = {3};
 
     using InputType = std::array<double, 1>;
     
@@ -125,7 +125,7 @@ TEST(nurbs_test, nurbs_basis_derivative_2D) {
 
     using InputType = std::array<double, 2>;
 
-    int order = 3;
+    std::array<int,2> order = {3,3};
 
     // open uniform knot vector
     for(size_t i = 0; i < 2; i++)nodes[0][i]=1.*i;
@@ -158,7 +158,7 @@ TEST(nurbs_test, nurbs_basis_second_derivative_1D){
     MdArray<double,MdExtents<Dynamic>> weights(7);
     nodes[0].resize(5);
 
-    int order = 3;
+    std::array<int,1> order = {3};
     
     // open uniform knot vector
     for(size_t i = 0; i < 5; i++)nodes[0][i]=1.*i;
@@ -188,7 +188,7 @@ TEST(nurbs_test, nurbs_basis_second_derivative_2D) {
 
     using InputType = Vector<double, 2>;
 
-    int order=3;
+    std::array<int,2> order = {3};
 
     // open uniform knot vector
     for(size_t i = 0; i < 2; i++)nodes[0][i]=1.*i;
@@ -217,7 +217,7 @@ TEST(nurbs_test, nurbs_basis_second_derivative_2D) {
 
 TEST(mesh_test, mesh_structure){
 
-    int order = 2;
+    std::array<int,3> order = {2,2,2};
 
     std::array<std::vector<double>,3> knots ;
     MdArray<double,full_dynamic_extent_t<3>> weights(6,6,6);
@@ -294,7 +294,7 @@ TEST(mesh_test, mesh_structure){
 
 TEST(mesh_test, mesh_parametrization){
     
-    int order = 1;
+    std::array<int,3> order = {1,1,1};
 
     std::array<std::vector<double>,3> knots ;
     MdArray<double,full_dynamic_extent_t<3>> weights(2,3,2);
@@ -338,7 +338,7 @@ TEST(mesh_test, mesh_parametrization){
     }
     for(size_t j = 0; j < expected.cols(); ++j){
         // first three rows of expected contain the x-y-z coordinates of the point at which to evaluate
-        std::array<double, 3> x = {expected.coeff(0, j), expected.coeff(1, j), expected.coeff(2, j)};
+        Eigen::Matrix<double, 3 , 1> x(expected.coeff(0, j), expected.coeff(1, j), expected.coeff(2, j));
         auto param_eval = mesh.eval_param(x);
         auto param_deriv = mesh.eval_param_derivative(x);
         for(std::size_t i = 0; i<3 ; ++i){

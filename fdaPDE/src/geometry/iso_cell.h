@@ -21,14 +21,16 @@ template<int LocalDim_, int EmbedDim_> class IsoCell{
 
     IsoCell() = default;
 
-    IsoCell(const std::array<int, local_dim>& left_coords, const std::array<int, local_dim>& right_coords ): 
-        left_coords_(left_coords), right_coords_(right_coords){} 
+    IsoCell(const Eigen::Matrix<double, local_dim, 1> left_coords, const Eigen::Matrix<double, local_dim, 1> right_coords ): 
+        left_coords_(left_coords), right_coords_(right_coords) { } 
 
     //commenta le funzioni
-    std::array<double, LocalDim_> affine_map(const std::array<double, LocalDim_> & p) const {
-            std::array<double, LocalDim_> x;
+    Eigen::Matrix<double, local_dim,1> affine_map(const Eigen::Matrix<double, local_dim,1> & p) const {
+        Eigen::Matrix<double, local_dim,1> x;
             for(std::size_t i = 0; i < LocalDim_; ++i){
-                x[i] = 0.5*(right_coords_[i] + left_coords_[i] + (right_coords_[i] - left_coords_[i]) * p[i]);
+                x(i) = 0.5*(right_coords_(i) + left_coords_(i) + (right_coords_(i) - left_coords_(i)) * p(i));
+                //std::cout<<"p("<<i<<") = "<<p(i)<<std::endl;
+                //std::cout<<"x("<<i<<") = "<<x(i)<<std::endl;
             }
             return x;
         }
@@ -36,15 +38,19 @@ template<int LocalDim_, int EmbedDim_> class IsoCell{
     double parametric_measure() const {
         double measure = 1.0;
         for(std::size_t i = 0; i < LocalDim_; i++){
-            measure *= right_coords_[i] - left_coords_[i];
+            measure *= right_coords_(i) - left_coords_(i);
         }
         return measure/(1<<LocalDim_);
     }
 
+    // getters
+    Eigen::Matrix<double, local_dim, 1> left_coords() const { return left_coords_; }
+    Eigen::Matrix<double, local_dim, 1> right_coords() const { return right_coords_; }
+
     protected:
 
-    std::array<int, LocalDim_> left_coords_ ; // coordinates of the left corner of the element
-    std::array<int, LocalDim_> right_coords_ ; // coordinates of the right corner of the element
+    Eigen::Matrix<double, local_dim, 1> left_coords_ {} ; // coordinates of the left corner of the element
+    Eigen::Matrix<double, local_dim, 1> right_coords_ {} ; // coordinates of the right corner of the element
     // capire se salvare altre quantità
 
 };

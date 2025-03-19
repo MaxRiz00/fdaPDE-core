@@ -6,16 +6,20 @@
 namespace fdapde {
 
 template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim, MeshType::embed_dim>{
-    fdapde_static_assert(MeshType::local_dim == 2, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
+    fdapde_static_assert(MeshType::local_dim == 2, THIS_CLASS_IS_FOR_2D_MESHES_ONLY);
     using Base = IsoCell<MeshType::local_dim, MeshType::embed_dim>;
     public:
     // constructor
     IsoSquare() = default;
-    IsoSquare(int id, const MeshType* mesh) : id_(id), mesh_(mesh), boundary_(false) {
+    IsoSquare(int id, const MeshType* mesh) : IsoCell<MeshType::local_dim, MeshType::embed_dim>(
+            mesh->compute_lr_vertices(id)[0],  // left_coords
+            mesh->compute_lr_vertices(id)[1])   // right_coords
+        , id_(id), mesh_(mesh), boundary_(false)  {
         boundary_ = mesh_->is_cell_on_boundary(id_);
-        auto [left_coords, right_coords] = mesh_->compute_lr_vertices(id_);
-        this->left_coords_ = left_coords;
-        this->right_coords_ = right_coords;
+        //auto [left_coords, right_coords] = mesh_->compute_lr_vertices(id_);
+        // print left_coords and right_coords
+        //this->left_coords_ = left_coords;
+
         // initialize = (){}; // da capire cosa inizializzare
     }
 
@@ -27,8 +31,8 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
         public:
         EdgeType() = default;
         EdgeType(int edge_id, const MeshType* mesh): edge_id_(edge_id), mesh_(mesh){
-           this->left_coords_[0] =  mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
-           this->right_coords_[0] = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
+           this->left_coords_(0) =  mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
+           this->right_coords_(0) = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
         }
         bool on_boundary() const { return mesh_->is_edge_on_boundary(edge_id_);}
         Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->edges().row(edge_id_); }
@@ -52,9 +56,9 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
             }
             // Evaluate mapped coordinates in the embedded space
             for (int i = 0; i < n; ++i) {
-                std::array<double, MeshType::local_dim> p;
+                Eigen::Matrix<double,  MeshType::local_dim,1> p;
                 for (int j = 0; j < MeshType::local_dim; ++j) {
-                    p[j] = interpolated_points(i, j);
+                    p(j) = interpolated_points(i, j);
                 }
                 res.row(i) = mesh_->eval_param(p);
             }
@@ -66,23 +70,23 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
     // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
     // left_coords
     // map from refernce to parameric domain, map_to_parametric, left_coord e right_coord li prende dalla mesh
-    Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const std::array<double, MeshType::local_dim>& p) const {
-        return mesh_->eval_param(affine_map(p));
+    Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
+        return mesh_->eval_param(this->affine_map(p));
     }
 
-    Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim, Eigen::RowMajor> parametrization_gradient(const std::array<double, MeshType::local_dim>& p) const {
-        return mesh_->eval_param_derivative(affine_map(p));
+    Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim> parametrization_gradient(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
+        return mesh_->eval_param_derivative(this->affine_map(p));
     }
 
     // Metric tensor F^T * F
-    Eigen::Matrix<double, MeshType::local_dim, MeshType::local_dim, Eigen::RowMajor> metric_tensor(const std::array<double, MeshType::local_dim>& p) const {
-        auto F = parametrization_gradient(affine_map(p));
+    Eigen::Matrix<double, MeshType::local_dim, MeshType::local_dim> metric_tensor(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
+        auto F = parametrization_gradient(p);
         return F.transpose() * F; 
     }
 
     // metric determinant sqrt(det(F^T * F)), array diventano matrici eigen
-    double metric_determinant(const std::array<double, MeshType::local_dim>& p) const {
-        return std::sqrt(metric_tensor(affine_map(p)).determinant()); 
+    double metric_determinant(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
+        return std::sqrt(metric_tensor(p).determinant()); 
     }
 
 

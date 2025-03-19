@@ -21,22 +21,22 @@ template <typename MeshType> class IsoSegment: public IsoCell<MeshType::local_di
     // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
     // left_coords
     // map from refernce to parameric domain, map_to_parametric, left_coord e right_coord li prende dalla mesh
-    Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const std::array<double, MeshType::local_dim>& p) const {
+    Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         return mesh_->eval_param(affine_map(p));
     }
 
-    Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim, Eigen::RowMajor> parametrization_gradient(const std::array<double, MeshType::local_dim>& p) const {
+    Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim, Eigen::RowMajor> parametrization_gradient(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         return mesh_->eval_param_derivative(affine_map(p));
     }
 
     // Metric tensor F^T * F
-    Eigen::Matrix<double, MeshType::local_dim, MeshType::local_dim, Eigen::RowMajor> metric_tensor(const std::array<double, MeshType::local_dim>& p) const {
+    Eigen::Matrix<double, MeshType::local_dim, MeshType::local_dim, Eigen::RowMajor> metric_tensor(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         auto F = parametrization_gradient(affine_map(p));
         return F.transpose() * F; 
     }
 
     // metric determinant sqrt(det(F^T * F)), array diventano matrici eigen
-    double metric_determinant(const std::array<double, MeshType::local_dim>& p) const {
+    double metric_determinant(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         return std::sqrt(metric_tensor(affine_map(p)).determinant()); 
     }
 
