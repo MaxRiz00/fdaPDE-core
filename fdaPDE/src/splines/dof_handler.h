@@ -194,7 +194,7 @@ template <> class DofHandler<1, 1, spline_tag> {
         int n_cells = triangulation()->n_cells();
         for (int j = 0; j < n_cells; ++j) {
             dofs_.push_back(j);
-	    dofs_.push_back(j + order_);
+	        dofs_.push_back(j + order_);
         }	
         // Regardless of the number of physical dofs at the interval boundary, only the basis functions associated with
         // the first and last dofs are non-zero at the boundary nodes. Hence, we treat only these dofs as boundary dofs

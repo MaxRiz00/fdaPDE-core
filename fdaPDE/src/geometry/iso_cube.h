@@ -105,7 +105,7 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
     }
 
     Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim, Eigen::RowMajor> parametrization_gradient(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
-        return mesh_->eval_param_derivative(this->affine_map(p));
+        return mesh_->eval_param_derivatives(this->affine_map(p),false).first_derivative;
     }
 
     // Metric tensor F^T * F

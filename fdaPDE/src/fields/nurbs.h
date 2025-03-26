@@ -197,7 +197,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
 
                 for(std::size_t i=0;i<M;i++){
 
-                    auto basis_eval = spline_basis_[i]->evaluate_basis(p_[i]);
+                    auto basis_eval = spline_basis_[i]->evaluate_basis(p_(i));
                     spline_evaluation[i].resize(extents_[i]);
                     for(std::size_t j = 0; j<extents_[i]; j++ ){
                         // compute a spline basis function
@@ -278,7 +278,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 };
 
                 // evalutes the first order partial derivative of the NURBS at a given point, funziona
-                constexpr Scalar operator()(const std::array<Scalar,StaticInputSize> & p) const { // attaentzione, qua devi usare InputType
+                constexpr Scalar operator()(const Eigen::Matrix<Scalar, StaticInputSize, 1>& p) const { // attaentzione, qua devi usare InputType
 
                     //std::cout<<"Inizio a calcolare"<<std::endl;
 
@@ -292,7 +292,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
 
                     for(std::size_t i=0;i<M;i++){
                         // spline evaluation for i-th dimension
-                        auto basis_eval = spline_basis_[i]->evaluate_basis(p[i]);
+                        auto basis_eval = spline_basis_[i]->evaluate_basis(p(i));
                         spline_evaluation[i].resize(extents_[i]);
                         for(std::size_t j = 0; j<extents_[i]; j++ ){
                         // compute a spline basis function
@@ -309,7 +309,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
 
                     //compute the derivative of the i_th spline
                     //num_derived = num * Spline(knots_[i_], index_[i_], order_).gradient(1)(p[i_]);
-                    num_derived = num * (*spline_basis_[i_])[index_[i_]].gradient(1)(p[i_]);
+                    num_derived = num * (*spline_basis_[i_])[index_[i_]].gradient(1)(p(i_));
 
                     // compute the non derived numerator
                     num*=spline_evaluation[i_][index_[i_] - minIdx_[i_]];
@@ -322,7 +322,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     den = multicontract<M>(weights_, spline_evaluation);
 
                     // by replacing the i-th evaluations with their derivatives we get the derivative of the NURBS denominator
-                    auto der_eval = spline_basis_[i_]->evaluate_der_basis(p[i_],1);
+                    auto der_eval = spline_basis_[i_]->evaluate_der_basis(p(i_),1);
 
                     for (std::size_t j = 0; j<extents_[i_]; j++ ){
                         // extract the knots

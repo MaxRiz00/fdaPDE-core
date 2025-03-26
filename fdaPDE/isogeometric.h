@@ -1,6 +1,10 @@
 #ifndef __FDAPDE_ISOGEOMETRIC_MODULE_H__
 #define __FDAPDE_ISOGEOMETRIC_MODULE_H__
 
+namespace fdapde {
+    struct iso_tag {};
+}
+
 #include "linear_algebra.h"    // pull Eigen first
 #include "utility.h"
 #include "fields.h"
@@ -14,10 +18,10 @@
 #include "src/geometry/iso_square.h"
 #include "src/geometry/iso_cube.h"
 #include "src/geometry/iso_mesh.h"
+#include "src/isogeometric/dof_handler.h"
 #include "src/isogeometric/iso_integration.h"
 #include "src/assembly.h"
-
-
+#include "src/isogeometric/iso_assembler_base.h"
 
 
 

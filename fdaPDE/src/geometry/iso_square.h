@@ -49,6 +49,9 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
             Eigen::Matrix<double, 1, MeshType::local_dim> n1 = parametric_nodes.row(nodes(0));
             Eigen::Matrix<double, 1, MeshType::local_dim> n2 = parametric_nodes.row(nodes(1));
 
+            // print the id of the corresponding cell
+            std::cout<<"Cell id: "<<mesh_->edge_to_cells()(edge_id_,0)<<std::endl;
+
             Eigen::Matrix<double, Eigen::Dynamic, MeshType::local_dim> interpolated_points(n, MeshType::local_dim);
             for (int i = 0; i < n; ++i) {
                 double t = static_cast<double>(i) / (n - 1);  // Normalized parameter (0 to 1)
@@ -61,6 +64,9 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
                     p(j) = interpolated_points(i, j);
                 }
                 res.row(i) = mesh_->eval_param(p);
+
+                // print the first point
+                if(i == 0) std::cout<<"First point: "<<p.transpose()<<std::endl;
             }
             return res;
         }
@@ -75,7 +81,7 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
     }
 
     Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim> parametrization_gradient(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
-        return mesh_->eval_param_derivative(this->affine_map(p));
+        return mesh_->eval_param_derivatives(this->affine_map(p),false).first_derivative;
     }
 
     // Metric tensor F^T * F
@@ -87,6 +93,38 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
     // metric determinant sqrt(det(F^T * F)), array diventano matrici eigen
     double metric_determinant(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         return std::sqrt(metric_tensor(p).determinant()); 
+    }
+
+    //  Evaluation in a grid of nxn points nxnxembded_dim
+    MdArray<double, full_dynamic_extent_t<MeshType::local_dim + 1>> linspace_evaluation(int n) const {
+        MdArray<double, full_dynamic_extent_t<MeshType::local_dim + 1>> res(n, n, MeshType::embed_dim);
+        auto param_nodes = mesh_->parametric_nodes();
+        auto left_coords = this->left_coords_;
+        auto right_coords = this->right_coords_;
+
+        // print the current cell
+        std::cout<<"Cell: "<<id_<<" : "<<std::endl;
+
+        // compute the step
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                Eigen::Matrix<double, MeshType::local_dim, 1> p;
+                auto t1 = static_cast<double>(i) / (n - 1);
+                auto t2 = static_cast<double>(j) / (n - 1);
+
+                p(0) = (1 - t1) * left_coords(0) + t1 * right_coords(0);  // Linear interpolation
+                p(1) = (1 - t2) * left_coords(1) + t2 * right_coords(1);  // Linear interpolation
+
+                if(i == 0 && j == 0) std::cout<<"First point: "<<p.transpose()<<std::endl;
+
+                auto param = mesh_->eval_param(p);
+                for(int k = 0; k < MeshType::embed_dim; k++){
+                    res(i, j, k) = param(k);
+                }
+            }
+        }
+        return res;
+
     }
 
 

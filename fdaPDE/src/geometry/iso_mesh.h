@@ -19,6 +19,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
     using CellType = std::conditional_t<local_dim == 1, IsoSegment<Derived>, std::conditional_t<local_dim == 2, IsoSquare<Derived>, IsoCube<Derived>>>;
     using MeshType = Derived;
+
+
+    struct MeshParamDerivatives {
+        Eigen::Matrix<double, EmbedDim, LocalDim> first_derivative;
+        std::optional<MdArray<double, MdExtents<EmbedDim, LocalDim, LocalDim>>> second_derivative;
+    };
     
 
     class NodeType {
@@ -81,6 +87,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
                 std::cout<<"n_cells: "<<n_cells_<<std::endl;
                 std::cout<<"n_nodes: "<<n_nodes_<<std::endl;
+                detect_periodicity_();
+                compute_span_aabbs_();
+
             }
 
 
@@ -94,6 +103,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     const std::array<int,LocalDim>& order() const { return order_; }
     int n_cells() const { return n_cells_; }
     int n_nodes() const { return n_nodes_; }
+    std::array<int, LocalDim> n_control_points() const {
+        std::array<int, LocalDim> n_cp;
+        for (int i = 0; i < LocalDim; ++i)
+            n_cp[i] = control_points_.extent(i);
+        return n_cp;
+    }
 
     protected:
     int compute_stride_(int dim, bool is_cell) const {
@@ -104,6 +119,92 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         return stride;
     }
 
+    void detect_periodicity_(){
+        std::array<int, LocalDim> index = {0};
+        for(int k=0;k<LocalDim; k++){
+            bool periodic = true;
+            do{
+                Eigen::Matrix<double, LocalDim, 1> u_start, u_end;
+                for(int i = 0; i < LocalDim; i++){ 
+                    if(i == k){
+                        u_start(i) = param_nodes_[i][0];
+                        u_end(i) = param_nodes_[i][param_nodes_[i].size()-1];
+                    } else 
+                        u_start(i) = u_end(i) = param_nodes_[i][index[i]];
+                }
+                Eigen::Matrix<double, EmbedDim, 1> P_start = eval_param(u_start);
+                Eigen::Matrix<double, EmbedDim, 1> P_end = eval_param(u_end);
+
+                if ((P_start - P_end).norm() > 1e-9) {
+                    periodic = false;
+                    break;
+                }
+
+                // Increment indices except for the fixed dimension k
+                for (int j = LocalDim - 1; j >= 0; j--) {
+                    if (j == k) continue;  // Skip fixed dimension
+                    index[j]++;
+                    if (index[j] < param_nodes_[j].size()) break;  // No carry-over needed
+                    else index[j] = 0;  // Reset and carry over to next dimension
+                    
+                }
+            } while(index != std::array<int, LocalDim>{0});
+
+            if(periodic) periodic_dims_[k] = true;
+        }
+
+        // print periodic dims
+        for(int i = 0; i < LocalDim; i++){
+            std::cout<<"Periodic dim "<<i<<": "<<periodic_dims_[i]<<std::endl;
+        }
+
+    }
+
+    void compute_span_aabbs_() {
+        span_aabbs_.clear();
+        auto Cp = this->control_points_;
+        std::array<decltype(Cp.template slice<LocalDim>(0)), EmbedDim> cp_slices;
+        for (int i = 0; i < EmbedDim; ++i)
+            cp_slices[i] = Cp.template slice<LocalDim>(i);
+    
+        std::array<int, LocalDim> index = this->order_;
+        bool done = false;
+        do {
+            std::array<int, LocalDim> new_index;
+            for (int i = 0; i < LocalDim; ++i)
+                new_index[i] = index[i] - this->order_[i];
+    
+            Eigen::Matrix<double, EmbedDim, 1> P_min, P_max;
+            P_min.setConstant(std::numeric_limits<double>::max());
+            P_max.setConstant(std::numeric_limits<double>::lowest());
+    
+            bool span_done = false;
+            do {
+                Eigen::Matrix<double, EmbedDim, 1> cp;
+                for (int i = 0; i < EmbedDim; ++i)
+                    cp(i) = cp_slices[i](new_index);
+    
+                P_min = P_min.cwiseMin(cp);
+                P_max = P_max.cwiseMax(cp);
+    
+                for (int d = LocalDim - 1; d >= 0; --d) {
+                    if (++new_index[d] > index[d]) {
+                        new_index[d] = index[d] - this->order_[d];
+                        if (d == 0) span_done = true;
+                    } else break;
+                }
+            } while (!span_done);
+    
+            span_aabbs_[index] = std::make_pair(P_min, P_max);
+    
+            for (int d = LocalDim - 1; d >= 0; --d) {
+                if (++index[d] > this->weights_.extent(d) - 1) {
+                    index[d] = this->order_[d];
+                    if (d == 0) done = true;
+                } else break;
+            }
+        } while (!done);
+    }
     public:
     // Algo A4.3 from NURBS book pag. 103, evaluation of a NURBS curve
     Eigen::Matrix<double, EmbedDim, 1> eval_param(const Eigen::Matrix<double, LocalDim,1>& u) const {
@@ -154,86 +255,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         }
         return Sw/total_weight;
     }
-
-    // Algo A4.3 from NURBS book pag. 103, evaluation of the physical derivative of a NURBS curve 
-    Eigen::Matrix<double, EmbedDim, LocalDim> eval_param_derivative(const Eigen::Matrix<double, LocalDim,1>& u) const {
-        for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
-        std::vector<std::vector<double>> basis_eval(LocalDim);
-        std::vector<std::vector<double>> basis_deriv_eval(LocalDim);
-        std::array<int,LocalDim> spans= {0};
-        auto order = this->basis_.order();
-        auto nurb = this->basis_[0];
-        double total_weight = 0.0;
-        
-        for(int i = 0; i < LocalDim; i++){
-            auto basis = nurb.spline_basis()[i];
-            basis_eval[i] = basis->evaluate_basis(u(i), false); // evaluate basis functions, padding = false
-            basis_deriv_eval[i] = basis->evaluate_der_basis(u(i), 1, false);
-            spans[i] = basis->find_span(u(i)); // find the span of the knot vector
-        }
-        
-        Eigen::Matrix<double, EmbedDim, LocalDim> dSw = Eigen::Matrix<double, EmbedDim, LocalDim>::Zero();
-        Eigen::Matrix<double, EmbedDim, 1> Sw = Eigen::Matrix<double, EmbedDim, 1>::Zero();
-        Eigen::Matrix<double, LocalDim, 1> dW = Eigen::Matrix<double, LocalDim, 1>::Zero();
-        
-        std::vector<int> index(LocalDim, 0);
-        bool done = false;
-        while (!done) {
-            double eval = 1.0;
-            std::array<double, LocalDim> eval_der = {0.0};        
-            std::array<int, LocalDim> full_indices;
-
-            for (int i = 0; i < LocalDim; i++) {
-                eval *= basis_eval[i][index[i]];
-                eval_der[i] = basis_deriv_eval[i][index[i]];
-                full_indices[i] = spans[i] - order[i] + index[i];
-            }
-
-            
-            Eigen::Matrix<double, EmbedDim, 1> cp;
-            for (int i = 0; i < EmbedDim; i++) {
-                const auto cp_slice = this->control_points_.template slice<LocalDim>(i);
-                cp(i) = cp_slice(full_indices);
-            }
-            
-            double w = weights_(index);
-            cp *= w;
-            Sw += eval * cp;
-            total_weight += eval * w;
-            
-            for (int j = 0; j < LocalDim; j++) {
-                double w_temp = w*eval_der[j];
-                Eigen::Matrix<double, EmbedDim, 1> cp_temp = eval_der[j] *cp;
-                for(int i = 0; i < LocalDim; i++){
-                    if(i != j){
-                        w_temp *= basis_eval[i][index[i]];
-                        cp_temp *= basis_eval[i][index[i]];
-                    }
-                }
-                dW(j) += w_temp;
-                dSw.col(j) += cp_temp;
-            }
-            
-            for (int d = LocalDim - 1; d >= 0; d--) {
-                if (++index[d] > order[d]) {
-                    index[d] = 0;
-                    if (d == 0) done = true;
-                } else 
-                    break;
-            }
-        }
-        
-        // Apply derivative of the ratio d/du (Sw / total_weight)
-        for (int j = 0; j < LocalDim; j++) {
-            dSw.col(j) = (dSw.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
-        }
-
-        return dSw;
-    }  
-
-    // Algo A4.3 from NURBS book pag. 103, evaluation of the hessian of a NURBS curve 
-    MdArray<double, MdExtents<EmbedDim, LocalDim, LocalDim>> eval_param_second_derivative(const Eigen::Matrix<double, LocalDim,1>& u) const {
-        for (int i = 0; i < LocalDim; i++) 
+    
+    MeshParamDerivatives eval_param_derivatives(const Eigen::Matrix<double, LocalDim, 1>& u, bool compute_second = false) const {
+        for (int i = 0; i < LocalDim; i++)
             fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
     
         std::vector<std::vector<double>> basis_eval(LocalDim);
@@ -246,35 +270,41 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     
         for (int i = 0; i < LocalDim; i++) {
             auto basis = nurb.spline_basis()[i];
-            basis_eval[i] = basis->evaluate_basis(u(i), false); // Basis functions
-            basis_deriv_eval[i] = basis->evaluate_der_basis(u(i), 1, false); // First derivative
-            basis_second_deriv_eval[i] = basis->evaluate_der_basis(u(i), 2, false); // Second derivative
+            basis_eval[i] = basis->evaluate_basis(u(i), false);
+            basis_deriv_eval[i] = basis->evaluate_der_basis(u(i), 1, false);
+            if (compute_second) {
+                basis_second_deriv_eval[i] = basis->evaluate_der_basis(u(i), 2, false);
+            }
             spans[i] = basis->find_span(u(i));
-
         }
-
     
         Eigen::Matrix<double, EmbedDim, LocalDim> dSw = Eigen::Matrix<double, EmbedDim, LocalDim>::Zero();
         Eigen::Matrix<double, EmbedDim, 1> Sw = Eigen::Matrix<double, EmbedDim, 1>::Zero();
         Eigen::Matrix<double, LocalDim, 1> dW = Eigen::Matrix<double, LocalDim, 1>::Zero();
+        Eigen::Matrix<double, LocalDim, LocalDim> d2W;
     
-        MdArray<double, MdExtents<EmbedDim, LocalDim, LocalDim>> d2Sw;  // Second derivative tensor
-        d2Sw.set_constant(0.0);
-        Eigen::Matrix<double, LocalDim, LocalDim> d2W = Eigen::Matrix<double, LocalDim, LocalDim>::Zero();
+        std::optional<MdArray<double, MdExtents<EmbedDim, LocalDim, LocalDim>>> d2Sw;
+        if (compute_second) {
+            d2Sw.emplace();
+            d2Sw->set_constant(0.0);
+            d2W.setZero();
+        }
     
         std::vector<int> index(LocalDim, 0);
         bool done = false;
     
         while (!done) {
             double eval = 1.0;
-            std::array<double, LocalDim> eval_der = {0.0};        
-            std::array<double, LocalDim> eval_sec_der = {0.0};        
+            std::array<double, LocalDim> eval_der = {0.0};
+            std::array<double, LocalDim> eval_sec_der = {0.0};
             std::array<int, LocalDim> full_indices;
     
             for (int i = 0; i < LocalDim; i++) {
                 eval *= basis_eval[i][index[i]];
                 eval_der[i] = basis_deriv_eval[i][index[i]];
-                eval_sec_der[i] = basis_second_deriv_eval[i][index[i]];
+                if (compute_second) {
+                    eval_sec_der[i] = basis_second_deriv_eval[i][index[i]];
+                }
                 full_indices[i] = spans[i] - order[i] + index[i];
             }
     
@@ -301,36 +331,37 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 dW(j) += w_temp;
                 dSw.col(j) += cp_temp;
     
-                // Compute second derivatives
-                double w_temp_2 = w * eval_sec_der[j];
-                Eigen::Matrix<double, EmbedDim, 1> cp_temp_2 = eval_sec_der[j] * cp;
+                if (compute_second) {
+                    double w_temp_2 = w * eval_sec_der[j];
+                    Eigen::Matrix<double, EmbedDim, 1> cp_temp_2 = eval_sec_der[j] * cp;
     
-                for (int i = 0; i < LocalDim; i++) {
-                    if (i != j) {
-                        w_temp_2 *= basis_eval[i][index[i]];
-                        cp_temp_2 *= basis_eval[i][index[i]];
-                    }
-                }
-    
-                d2W(j, j) += w_temp_2;
-
-                for (int h = 0 ; h < EmbedDim; h++) d2Sw(h, j, j) += cp_temp_2(h);
-                
-    
-                for (int k = 0; k < LocalDim; k++) {
-                    if (j != k) {
-                        double w_mixed = w * eval_der[j] * eval_der[k];
-                        Eigen::Matrix<double, EmbedDim, 1> cp_mixed = eval_der[j] * eval_der[k] * cp;
-    
-                        for (int i = 0; i < LocalDim; i++) {
-                            if (i != j && i != k) {
-                                w_mixed *= basis_eval[i][index[i]];
-                                cp_mixed *= basis_eval[i][index[i]];
-                            }
+                    for (int i = 0; i < LocalDim; i++) {
+                        if (i != j) {
+                            w_temp_2 *= basis_eval[i][index[i]];
+                            cp_temp_2 *= basis_eval[i][index[i]];
                         }
+                    }
     
-                        d2W(j, k) += w_mixed;
-                        for (int h = 0; h < EmbedDim; h++) d2Sw(h, j, k) += cp_mixed(h);
+                    d2W(j, j) += w_temp_2;
+                    for (int h = 0; h < EmbedDim; h++)
+                        (*d2Sw)(h, j, j) += cp_temp_2(h);
+    
+                    for (int k = 0; k < LocalDim; k++) {
+                        if (j != k) {
+                            double w_mixed = w * eval_der[j] * eval_der[k];
+                            Eigen::Matrix<double, EmbedDim, 1> cp_mixed = eval_der[j] * eval_der[k] * cp;
+    
+                            for (int i = 0; i < LocalDim; i++) {
+                                if (i != j && i != k) {
+                                    w_mixed *= basis_eval[i][index[i]];
+                                    cp_mixed *= basis_eval[i][index[i]];
+                                }
+                            }
+    
+                            d2W(j, k) += w_mixed;
+                            for (int h = 0; h < EmbedDim; h++)
+                                (*d2Sw)(h, j, k) += cp_mixed(h);
+                        }
                     }
                 }
             }
@@ -344,21 +375,27 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 }
             }
         }
-
-
-        // Apply the quotient rule for second derivatives
+    
         for (int j = 0; j < LocalDim; j++) {
-            for (int k = 0; k < LocalDim; k++) {
-                for(int h = 0; h < EmbedDim; h++){
-                    d2Sw(h, j, k) = (d2Sw(h, j, k) 
-                    - (dSw(h, j) * dW(k) + dSw(h, k) * dW(j) + Sw(h) * d2W(j, k)) / total_weight + 2*Sw(h)*dW(j)*dW(k)/ (total_weight* total_weight) ) / total_weight;
+            dSw.col(j) = (dSw.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
+        }
+    
+        if (compute_second) {
+            for (int j = 0; j < LocalDim; j++) {
+                for (int k = 0; k < LocalDim; k++) {
+                    for (int h = 0; h < EmbedDim; h++) {
+                        (*d2Sw)(h, j, k) = ((*d2Sw)(h, j, k) 
+                        - (dSw(h, j) * dW(k) + dSw(h, k) * dW(j) + Sw(h) * d2W(j, k)) / total_weight
+                        + 2 * Sw(h) * dW(j) * dW(k) / (total_weight * total_weight)) / total_weight;
+                    }
                 }
-                
             }
         }
-        return d2Sw;
-    }
     
+        return {dSw, compute_second ? std::move(d2Sw) : std::nullopt};
+    } 
+
+
     // Algo A5.5 from NURBS book pag. 127, knot refinement of a mesh 
     // To implement: inplace version
     void refine_knots(const std::array<int, LocalDim>& density = std::array<int, LocalDim>{{1}}, std::array<std::vector<double>, LocalDim> add_knot_list = {}){
@@ -458,13 +495,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
                 MdArray<double, MdExtents<Dynamic,Dynamic>> old_cp;
                 MdArray<double, MdExtents<Dynamic>> old_w;
-                MdArray<double, MdExtents<Dynamic,Dynamic>> new_cp;
-                MdArray<double, MdExtents<Dynamic>> new_w;
 
                 old_cp.resize(weights_.extent(k), EmbedDim);
                 old_w.resize(weights_.extent(k));
-                new_cp.resize(cp_dims[k], EmbedDim);
-                new_w.resize(weights_dims[k]);
 
                 // Get the old control points and weights
                 for(int m=0;m<weights_.extent(k);m++){
@@ -481,69 +514,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     old_w(m) = previous_weights(current_index);
                 }
 
-                // ALGO A5.4 pag. 164 NURBS book
+                IsoMeshData<1> mesh_data(knots_[k], old_w, old_cp, order_[k], flags_);
+                auto refined_mesh = iso_algorithms::knots_refinement(mesh_data,refinement_knots[k]);
                 
-                // get the number of control points
-                int n = old_cp.extent(0) - 1;
-                int m = order_[k] + n + 1;
-
-                int r = refinement_knots[k].size() - 1;
-
-                // get the span
-                auto old_basis  = BSplineBasis(knots_[k], order_[k]);
-                int a = old_basis.find_span(refinement_knots[k][0], n);
-                int b = old_basis.find_span(refinement_knots[k][r], n) + 1 ;
-
-
-                // get the new control points
-                for(int j=0; j<=a-order_[k]; j++) {
-                    new_w(j) = old_w(j);
-                    for(int i=0; i<EmbedDim; i++) new_cp(j,i) = old_cp(j,i);
-                }
-
-                for(int j=b-1; j<=n; j++) {
-                    new_w(j+r+1) = old_w(j);
-                    for(int i=0; i<EmbedDim; i++) new_cp(j+r+1,i) = old_cp(j,i);
-                }
-
-                // get the new knots
-                for(int j=0; j<=a; j++) updated_knots[k][j] = knots_[k][j];
-                for(int j=b+order_[k]; j<=m; j++) updated_knots[k][j+r+1] = knots_[k][j]; 
-
-                // get the new control points
-                int ii = b + order_[k] - 1;
-                int kk = b + order_[k] + r;
-
-                for(int j=r; j>=0; j--) {
-                    while(refinement_knots[k][j] <= knots_[k][ii] && ii > a) {
-                        new_w(kk-order_[k]-1) = old_w(ii-order_[k]-1);
-                        for(int h=0; h<EmbedDim; h++) new_cp(kk-order_[k]-1,h) = old_cp(ii-order_[k]-1,h);
-                        updated_knots[k][kk] = knots_[k][ii];
-                        kk = kk - 1;
-                        ii = ii - 1;
-                    }
-                    
-                    new_w(kk-order_[k]-1) = new_w(kk-order_[k]);
-                    for(int h =0; h < EmbedDim; h++) new_cp(kk-order_[k]-1,h) = new_cp(kk-order_[k],h);
-
-                    for(int l = 1; l<=order_[k]; l++) {
-                        int ind = kk-order_[k]+l;
-                        double alpha = updated_knots[k][kk+l] - refinement_knots[k][j];
-                        if(alpha == 0.0) {
-                            new_w(ind-1) = new_w(ind);
-                            for(int h=0; h<EmbedDim; h++) new_cp(ind-1,h) = new_cp(ind,h);
-                        } else {
-                            alpha = alpha / (updated_knots[k][kk+l] - knots_[k][ii-order_[k]+l]);         
-                            for(int h=0; h<EmbedDim; h++) new_cp(ind-1,h) = (alpha * new_w(ind-1)*new_cp(ind-1,h) + 
-                                                            (1.0 - alpha) * new_w(ind)*new_cp(ind,h))/(alpha*new_w(ind-1) + (1.0 - alpha )*new_w(ind));
-                            new_w(ind-1) = alpha * new_w(ind-1) + (1.0 - alpha) * new_w(ind);
-                        }
-                    }
-                    updated_knots[k][kk] = refinement_knots[k][j];
-                    kk = kk - 1;  
-                }
-
-                ////// end of ALGO A5.5
+                updated_knots[k] = refined_mesh.knots[0];
+                auto new_w = refined_mesh.weights;
+                auto new_cp = refined_mesh.control_points;
 
                 // Put the weights and cp in the total tensors
                 for(int m=0;m<new_w.extent(0);m++){
@@ -578,8 +554,10 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
     // Point inversion algorithm: takes a point p in the physical domain and returns a point u in the parametric domain
     // Implementation of the mathod explained at page 230 of the NURBS book
-    Eigen::Matrix<double, local_dim,1> invert_point(Eigen::Matrix<double, embed_dim, 1>& p, 
-        double tol1=1e-8, double tol2=1e-8, int max_iters = 1000, int n=5) {
+    Eigen::Matrix<double, local_dim,1> invert_point(const Eigen::Matrix<double, embed_dim, 1>& p, double& t1, double& t2,
+        int n = 2, double tol1=1e-8, double tol2=1e-8, int max_iters = 1000 ) const {
+        
+        const double eps = 1e-8; // to relax the AABB condition
         Eigen::Matrix<double, local_dim,1> u_old, u ;
         u.setZero();
         u_old.setZero();
@@ -589,57 +567,36 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         std::array<decltype(Cp.template slice<local_dim>(0)), embed_dim> cp_slices;
         for (int i = 0; i < embed_dim; ++i)
             cp_slices[i] = Cp.template slice<local_dim>(i);
-
         std::array<int, local_dim> index = this->order_;
         std::vector<std::array<int, local_dim>> valid_spans;
+
+        // tic
+        auto start = std::chrono::high_resolution_clock::now();
 
         // loop over each span and check if the point ins in the AABB box of the span
         bool done = false;
         do {
-            // print the index
-            std::array<int,local_dim> new_index;
-            for(int i = 0; i < local_dim; i++) {
-                new_index[i] = index[i] -  this->order_[i] ;
+
+            auto it = span_aabbs_.find(index);
+            if (it != span_aabbs_.end()) {
+                const auto& [P_min, P_max] = it->second;
+                bool inside = true;
+                for (int i = 0; i < embed_dim && inside; ++i) {
+                    if (p(i) < P_min(i) - eps || p(i) > P_max(i) + eps)
+                        inside = false;
+                }
+                if (inside) valid_spans.push_back(index);
             }
-            Eigen::Matrix<double, embed_dim, 1> P_min, P_max;
-            P_min.setConstant(std::numeric_limits<double>::max());
-            P_max.setConstant(std::numeric_limits<double>::lowest());
 
-            bool span_done = false;
-
-            do{
-                Eigen::Matrix<double, embed_dim, 1> cp;
-                for(int i = 0; i<embed_dim; i++)
-                    cp(i) = cp_slices[i](new_index);
-                
-                    P_min = P_min.cwiseMin(cp);
-                    P_max = P_max.cwiseMax(cp);
-
-                    for (int d = local_dim - 1; d >= 0; --d) {
-                        if (++new_index[d] > index[d]) {
-                            new_index[d] = index[d] - this->order_[d];
-                            if (d == 0) span_done = true;
-                        } else
-                            break;
-                    }
-            } while(!span_done);
-            
-            bool inside = true;
-            for (int i = 0; i < embed_dim && inside; i++) 
-                if (p(i) < P_min(i) || p(i) > P_max(i)) inside = false;
-
-            if (inside) valid_spans.push_back(index);
-            
 
             for (int d = local_dim - 1; d >= 0; d--) {
                 if (++index[d] > this->weights_.extent(d) - 1) {
                     index[d] = this->order_[d];
                     if (d == 0) done = true;
-                } else 
-                    break;
+                } else break;
             }
 
-        } while(!done);
+        } while (!done);
 
         /*
         // print the valid spans
@@ -651,55 +608,66 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             std::cout<<std::endl;
         }
         std::cout<<"Number of valid spans: "<<valid_spans.size()<<std::endl;
+        
         */
-        
-        
 
         // initialize u and u_old using a grid search over the valid spans
         double min_dist = std::numeric_limits<double>::max();
-        for (const auto& span : valid_spans) {
-            Eigen::Matrix<double, local_dim, 1> u_start, steps;
-            for (int d = 0; d < local_dim; ++d) {
-                u_start(d) = this->knots_[d][span[d]];
-                steps(d) = (this->knots_[d][span[d]+1] - this->knots_[d][span[d]]) / n;
+        for(const auto& span : valid_spans){
+            Eigen::Matrix<double, local_dim,1> u_start;
+            Eigen::Matrix<double, embed_dim, 1> steps;
+            for(int j = 0; j < local_dim; j++){
+                u_start(j) = this->knots_[j][span[j]];
+                steps(j) = (this->knots_[j][span[j]+1] - this->knots_[j][span[j]])/n;
             }
 
-            Eigen::Matrix<double, local_dim, 1> u_add;
+            Eigen::Matrix<double, local_dim,1> u_add ;
             u_add.setZero();
+            bool done = false;
 
-            for (int iter = 0; iter < std::pow(n, local_dim); ++iter) {
-                Eigen::Matrix<double, embed_dim, 1> cp;
-                for (int i = 0; i < embed_dim; ++i)
-                    cp(i) = cp_slices[i](span);
-
-                double dist = (cp - p).norm();
-                if (dist < min_dist) {
+            while(!done){
+                auto S = this->eval_param(u_start + u_add);
+                double dist = (S - p).norm();
+                if(dist < min_dist){
                     min_dist = dist;
-                    u_old = u_start + u_add;
+                    u = u_start + u_add;
                 }
 
-                for (int k = local_dim - 1; k >= 0; --k) {
-                    u_add(k) += steps(k);
-                    if (u_add(k) >= steps(k) * n)
-                        u_add(k) = 0;
-                    else
+                // use carry over to update u_add, steps(i) is the step in the i-th direction
+                for(int k = local_dim - 1; k >= 0; k--){
+                    if(u_add(k) + steps(k) >= n*steps(k)){
+                        u_add(k) = 0 ;
+                        if(k == 0) done = true;
+                    } else{
+                        u_add(k) += steps(k);
                         break;
+                    }
                 }
             }
         }
+        // toc
+        auto end = std::chrono::high_resolution_clock::now();
+        t1 = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         int counter = 0;
-        u = u_old;
+        u_old = u;
+        //std::cout<<"Initial guess: "<<u.transpose()<<std::endl;
         bool conv1 = false;
         bool conv2 = false;
+
+        // tic
+        start = std::chrono::high_resolution_clock::now();
+
         while(counter < max_iters && !conv1 && !conv2){
             auto S = this->eval_param(u_old);
             Eigen::Matrix<double, embed_dim, 1> r = S - p;
 
             if(r.norm() < tol1) conv1 = true;
 
-            auto S_deriv = this->eval_param_derivative(u_old);
-            auto S_sec_deriv = this->eval_param_second_derivative(u_old);
+            auto derivatives = eval_param_derivatives(u_old, true);
+
+            auto S_deriv = derivatives.first_derivative;
+            auto S_sec_deriv = *(derivatives.second_derivative); 
 
             Eigen::Matrix<double, local_dim, 1> kappa;
             Eigen::Matrix<double, local_dim, local_dim> J;
@@ -718,15 +686,25 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             }
 
 
-
             auto delta = J.lu().solve(kappa);
 
             u = u_old + delta;
 
             // enforce parametric bounds (TO ADD CLOSED MANIFLODS)
             for (int k = 0; k < local_dim; k++) {
-                u(k) = std::clamp(u(k), this->param_nodes_[k].front(), this->param_nodes_[k].back());
+                if(periodic_dims_[k]){
+                    while(u(k) < this->param_nodes_[k].front() || u(k) > this->param_nodes_[k].back()){
+                        if (u(k) < this->param_nodes_[k].front() ){
+                            u(k) = this->param_nodes_[k].back() - (this->param_nodes_[k].front() - u(k));
+                        } else if (u(k) > this->param_nodes_[k].back()){
+                            u(k) = this->param_nodes_[k].front() + (u(k) - this->param_nodes_[k].back());
+                        }
+                    }
+                } else {
+                    u(k) = std::clamp(u(k), this->param_nodes_[k].front(), this->param_nodes_[k].back());
+                    }
             }
+            //std::cout<<"u: "<<u.transpose()<<std::endl;
 
             if (delta.norm() < tol2)
                 conv2 = true;
@@ -735,8 +713,14 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
             ++counter;
         }
+
+        // toc
+        end = std::chrono::high_resolution_clock::now();
+        t2 = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
         if(counter == max_iters){
-            std::cout<<"Max iterations reached"<<std::endl;
+            std::cout<<"Max iterations reached: try to increase the numbers of evaluations."<<std::endl;
+
         }
 
         return u;
@@ -811,7 +795,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     bool is_cell_on_boundary(const int& id) const {
         auto multi_index = compute_multi_index_(id);
         for(int i = 0; i < LocalDim; ++i){
-            if(multi_index[i] == 0 || multi_index[i] == compute_stride_(i,true) - 1){
+            if((multi_index[i] == 0 || multi_index[i] == compute_stride_(i,true) - 1) && !periodic_dims_[i]){
                 return true;
             }
         }
@@ -969,7 +953,10 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         //Eigen::Matrix<double, LocalDim, Dynamic> param_nodes_ {};  // nodes of the mesh , puoi pensare di chacharli
         //BinaryVector<Dynamic> boundary_markers_ {};   // j-th element is 1 \iff node j is on boundary
 
-        std::array<int,LocalDim> order_ {};
+        std::map<std::array<int, LocalDim>, std::pair<Eigen::Matrix<double, EmbedDim, 1>, Eigen::Matrix<double, EmbedDim, 1>>> span_aabbs_; // AABBs of each span
+
+        std::array<int,LocalDim> order_ {}; // order of the mesh
+        std::array<bool, LocalDim> periodic_dims_ = {false}; // Default: non-periodic in all directions
 
         int n_nodes_ = 0, n_cells_ = 0;
         int flags_ = 0;
@@ -1010,6 +997,8 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         }
 
     protected:
+
+
     void compute_cells_(){
 
         edges_ = {};
@@ -1078,6 +1067,42 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         }
 
         n_edges_ = edges_.size() / 2;
+
+        // **Step 2: Adjust boundary edges based on periodicity**
+        std::vector<std::pair<Eigen::Matrix<double, embed_dim, 1>, Eigen::Matrix<double, embed_dim, 1>>> boundary_edge_list;
+        std::vector<int> boundary_edge_indices; // Store indices of boundary edges
+
+        // **Step 2.1: Collect boundary edges and their physical node positions**
+        for (int i = 0; i < n_edges_; ++i) {
+            if (!boundary_edges[i]) continue; // Skip non-boundary edges
+
+            // Extract physical node coordinates
+            int node0 = edges_[2 * i];   // First node of the edge
+            int node1 = edges_[2 * i + 1]; // Second node of the edge
+
+            Eigen::Matrix<double, embed_dim, 1> p0 = this->phys_node(node0);
+            Eigen::Matrix<double, embed_dim, 1> p1 = this->phys_node(node1);
+
+            // Ensure ordering is consistent to avoid duplicate mismatches
+            if (p0.norm() > p1.norm()) std::swap(p0, p1);
+
+            boundary_edge_list.emplace_back(p0, p1);
+            boundary_edge_indices.push_back(i);
+        }
+
+        // **Step 2.2: Check for duplicate edges**
+        for (size_t i = 0; i < boundary_edge_list.size(); i++) {
+            for (size_t j = i + 1; j < boundary_edge_list.size(); j++) {
+                if ((boundary_edge_list[i].first - boundary_edge_list[j].first).norm() < 1e-8 &&
+                    (boundary_edge_list[i].second - boundary_edge_list[j].second).norm() < 1e-8) {
+                    // Mark both edges as NOT on the boundary
+                    boundary_edges[boundary_edge_indices[i]] = false;
+                    boundary_edges[boundary_edge_indices[j]] = false;
+                }
+            }
+        }
+
+        // **Step 2.3: Convert back to `BinaryVector`**
         boundary_edges_ = BinaryVector<Dynamic>(boundary_edges.begin(), boundary_edges.end(), n_edges_);
     }
 
@@ -1088,7 +1113,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         compute_cells_();
     }
 
-
+    // Static method to create a 2D mesh representing a sphere
     static IsoMesh<2,N> sphere(double r = 1.0) {
         fdapde_static_assert(N == 3, THIS_METHOD_IS_ONLY_FOR_3D_MANIFOLDS);
 
@@ -1096,11 +1121,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         std::array<std::vector<double>, 1> start_knots = {std::vector<double>{0,0,0,0.25,0.25,0.5,0.5,0.75,0.75,1,1,1}};
         std::array<int,1> start_order = {2};
         int num_ctrl_points = start_knots[0].size() - start_order[0] - 1;
-
-        // Define weights
-        std::vector<double> wj = {1, 0.707, 1, 0.707, 1, 0.707, 1, 0.707, 1};
-
-        // Define control points
+        std::vector<double> wj = {1, std::sqrt(2.0) / 2.0, 1, std::sqrt(2.0) / 2.0, 1, std::sqrt(2.0) / 2.0, 1, std::sqrt(2.0) / 2.0, 1};
         std::vector<std::vector<double>> Pj = {
             {r, 0, 0},  {r, r, 0},  {0, r, 0},
             {-r, r, 0}, {-r, 0, 0}, {-r, -r, 0},
@@ -1132,7 +1153,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         // Create the IsoMesh object
 
         IsoMesh<2, N> mesh(sphere.knots, sphere.weights, sphere.control_points, sphere.order);
-        mesh.refine_knots({2,2});
+        //mesh.refine_knots({3,3});
         return mesh;
 
     }
@@ -1428,9 +1449,48 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
         }
 
         n_faces_ = faces_.size() / n_nodes_per_face;
+
+        // **Step 3: Adjust boundary faces based on periodicity**
+        std::vector<std::pair<std::array<Eigen::Matrix<double, embed_dim, 1>, n_nodes_per_face>, int>> boundary_face_list;
+        std::vector<int> boundary_face_indices; // Store indices of boundary faces
+
+        // **Step 3.1: Collect boundary faces and their physical node positions**
+        for (int i = 0; i < n_faces_; ++i) {
+            if (!boundary_faces[i]) continue; // Skip non-boundary faces
+
+            std::array<Eigen::Matrix<double, embed_dim, 1>, n_nodes_per_face> face_nodes;
+            for (int j = 0; j < n_nodes_per_face; ++j) {
+                int node_idx = faces_[n_nodes_per_face * i + j];
+                face_nodes[j] = this->phys_node(node_idx);
+            }
+
+            boundary_face_list.emplace_back(face_nodes, i);
+            boundary_face_indices.push_back(i);
+        }
+
+        // **Step 3.2: Check for duplicate faces**
+        for (size_t i = 0; i < boundary_face_list.size(); i++) {
+            for (size_t j = i + 1; j < boundary_face_list.size(); j++) {
+                bool match = true;
+                for (int k = 0; k < n_nodes_per_face; k++) {
+                    if ((boundary_face_list[i].first[k] - boundary_face_list[j].first[k]).norm() > 1e-8) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) {
+                    // Mark both faces as NOT on the boundary
+                    boundary_faces[boundary_face_indices[i]] = false;
+                    boundary_faces[boundary_face_indices[j]] = false;
+                }
+            }
+        }
+
+        // **Step 3.3: Convert back to `BinaryVector`**
         boundary_faces_ = BinaryVector<Dynamic>(boundary_faces.begin(), boundary_faces.end(), n_faces_);
 
     }
+
 
     public:
 

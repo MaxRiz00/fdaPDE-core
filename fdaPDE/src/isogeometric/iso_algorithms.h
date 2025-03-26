@@ -21,7 +21,21 @@ namespace fdapde {
             control_points(std::move(control_points)),
             order(std::move(order)),
             flags(flags) {}
-    };
+
+        // constructor for 1D
+        IsoMeshData(std::vector<double> knots,
+                    MdArray<double, full_dynamic_extent_t<1>> weights,
+                    MdArray<double, full_dynamic_extent_t<2>> control_points,
+                    int order,
+                    int flags = 0)
+            : knots({knots}),
+            weights(std::move(weights)),
+            control_points(std::move(control_points)),
+            order({order}),
+            flags(flags) {}
+        };
+
+
 }
 
 namespace fdapde {
@@ -234,6 +248,7 @@ IsoMeshData<1> knots_refinement(const IsoMeshData<1>& mesh_data, std::vector<dou
 
     new_cp.resize(old_cp.extent(0) + refinement_knots.size(),EmbedDim);
     new_w.resize(old_cp.extent(0) + refinement_knots.size());
+    updated_knots.resize(knots_.size() + refinement_knots.size());
                 
     // get the number of control points
     int n = old_cp.extent(0) - 1;
@@ -258,13 +273,14 @@ IsoMeshData<1> knots_refinement(const IsoMeshData<1>& mesh_data, std::vector<dou
         for(int i=0; i<EmbedDim; i++) new_cp(j+r+1,i) = old_cp(j,i);
     }
 
-    // get the new knots
+   // get the new knots
     for(int j=0; j<=a; j++) updated_knots[j] = knots_[j];
     for(int j=b+order_; j<=m; j++) updated_knots[j+r+1] = knots_[j]; 
 
     // get the new control points
     int ii = b + order_ - 1;
     int kk = b + order_ + r;
+
 
     for(int j=r; j>=0; j--) {
         while(refinement_knots[j] <= knots_[ii] && ii > a) {

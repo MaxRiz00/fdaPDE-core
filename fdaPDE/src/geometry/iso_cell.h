@@ -25,6 +25,7 @@ template<int LocalDim_, int EmbedDim_> class IsoCell{
         left_coords_(left_coords), right_coords_(right_coords) { } 
 
     //commenta le funzioni
+    // transform a point from the {-1,1}^localdim to the parametric element
     Eigen::Matrix<double, local_dim,1> affine_map(const Eigen::Matrix<double, local_dim,1> & p) const {
         Eigen::Matrix<double, local_dim,1> x;
             for(std::size_t i = 0; i < LocalDim_; ++i){
@@ -42,6 +43,7 @@ template<int LocalDim_, int EmbedDim_> class IsoCell{
         }
         return measure/(1<<LocalDim_);
     }
+
 
     // getters
     Eigen::Matrix<double, local_dim, 1> left_coords() const { return left_coords_; }
