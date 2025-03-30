@@ -22,6 +22,8 @@ namespace fdapde {
 #include "src/isogeometric/iso_integration.h"
 #include "src/assembly.h"
 #include "src/isogeometric/iso_assembler_base.h"
+#include "src/isogeometric/iso_bilinear_form_assembler.h"
+#include "src/isogeometric/iso_space.h"
 
 
 

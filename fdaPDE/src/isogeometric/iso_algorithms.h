@@ -165,6 +165,8 @@ IsoMeshData<2> create_revolved_ISO_surface(const IsoMeshData<1>& curve, double r
     MdArray<double, MdExtents<Dynamic,Dynamic>> weights(n + 1, m + 1);
     MdArray<double, MdExtents<Dynamic, Dynamic,Dynamic>> control_points(n + 1, m + 1, 3);
 
+    std::cout << "m: " << m << std::endl;
+
 
     for (int i = 0; i <= m; i++){
         Point3D P(3);
@@ -220,6 +222,7 @@ IsoMeshData<2> create_revolved_ISO_surface(const IsoMeshData<1>& curve, double r
         
 
     }
+    std::cout << "n: " << n << std::endl;
 
     std::array<std::vector<double>, 2> new_knots;
 
@@ -227,6 +230,7 @@ IsoMeshData<2> create_revolved_ISO_surface(const IsoMeshData<1>& curve, double r
     new_knots[1] = curve.knots[0];
 
     std::array<int, 2> new_order = {degreeU, curve.order[0]};
+    std::cout << "new_order: " << new_order[0] << " " << new_order[1] << std::endl;
 
     return IsoMeshData<2>(new_knots, weights, control_points, new_order);
 }

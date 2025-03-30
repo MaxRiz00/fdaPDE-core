@@ -17,8 +17,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
     static constexpr int embed_dim = MeshType::embed_dim;
 
     protected:
-    int flatten(const Eigen::Matrix<int, local_dim, 1>& multi_idx) const {
-        const auto& dims = mesh_->n_control_points();  // std::array<int, LocalDim>
+    int flatten(const std::array<int,local_dim>& multi_idx) const {
+        const auto& dims = mesh_->n_control_points();  
         int id = 0;
         int stride = 1;
         for (int d = 0; d < local_dim; ++d) {
@@ -27,9 +27,9 @@ template<int N> class DofHandler<2, N, iso_tag> {
         }
         return id;
     }
-    Eigen::Matrix<int, local_dim, 1> unflatten(int id) const {
-        const auto& dims = mesh_->n_control_points();  // std::array<int, LocalDim>
-        Eigen::Matrix<int, local_dim, 1> multi_idx;
+    std::array<int,local_dim> unflatten(int id) const {
+        const auto& dims = mesh_->n_control_points();  
+        std::array<int,local_dim> multi_idx;
         for (int d = 0; d < local_dim; ++d) {
             multi_idx[d] = id % dims[d];
             id /= dims[d];
@@ -84,43 +84,12 @@ template<int N> class DofHandler<2, N, iso_tag> {
         n_dofs_ = n_dofs_per_cell * n_cells;
         const auto& dims = mesh_->n_control_points();
 
-        auto nurb = mesh_->basis()[0]; // take a nurb
-        std::array<std::vector<double>, local_dim> knot_coords;
-
-        // Extract 1D knot positions for each parametric direction
-        for (int i = 0; i < local_dim; i++) {
-            auto basis = nurb.spline_basis()[i];
-            for (const auto& b : basis) {
-                knot_coords[i].push_back(b.knot());
-            }
-        }
-
-        // Carry-on logic: Cartesian product of knot coordinates
-        std::vector<int> idx(local_dim, 0);
-        while (true) {
-            Eigen::Matrix<double, local_dim, 1> coord;
-            for (int d = 0; d < local_dim; ++d) {
-                coord(d) = knot_coords[d][idx[d]];
-            }
-            dofs_coords_.push_back(coord);
-
-            // Increment multi-index
-            int d = local_dim - 1;
-            while (d >= 0) {
-                idx[d]++;
-                if (idx[d] < static_cast<int>(knot_coords[d].size())) break;
-                idx[d] = 0;
-                --d;
-            }
-            if (d < 0) break;
-        }
-
         dofs_.resize(n_cells, n_dofs_per_cell_);
 
         for (int cell_id = 0; cell_id < n_cells; ++cell_id) {
             auto local_dof_multi_indices = active_dofs(cell_id);  // list of [i,j]
             for (int k = 0; k < local_dof_multi_indices.size(); ++k) {
-                dofs_(cell_id, k) = flatten(local_dof_multi_indices[k]);  // flatten [i,j] → scalar
+                dofs_(cell_id, k) = local_dof_multi_indices[k];  // flatten [i,j] → scalar
             }
         }
 
@@ -139,6 +108,43 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
         dofs_markers = mesh->nodes_markers();
      }
+
+     // dimension n_dofs_ x local_dim: parametric coordinates of each dof
+     Eigen::Matrix<double, Dynamic, local_dim> dof_coords() const{
+        Eigen::Matrix<double, Dynamic, local_dim> coords(n_dofs_, local_dim);
+        auto nurb = mesh_->basis()[0]; // take a nurb
+        std::array<std::vector<double>, local_dim> knot_coords;
+
+        // Extract 1D knot positions for each parametric direction
+        for (int i = 0; i < local_dim; i++) {
+            auto basis = nurb.spline_basis()[i];
+            for (const auto& b : basis) {
+                knot_coords[i].push_back(b.knot());
+            }
+        }
+
+        // Carry-on logic: Cartesian product of knot coordinates
+        std::vector<int> idx(local_dim, 0);
+        while (true) {
+            Eigen::Matrix<double, local_dim, 1> coord;
+            for (int d = 0; d < local_dim; ++d) {
+                coord(d) = knot_coords[d][idx[d]];
+            }
+            coords.row(flatten(idx)) = coord;
+
+            // Increment multi-index
+            int d = local_dim - 1;
+            while (d >= 0) {
+                idx[d]++;
+                if (idx[d] < static_cast<int>(knot_coords[d].size())) break;
+                idx[d] = 0;
+                --d;
+            }
+            if (d < 0) break;
+        }
+
+     }
+     
  
 
     // getters
@@ -149,7 +155,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
     bool is_dof_on_boundary(int i) const { return boundary_dofs_[i]; }
     const std::vector<int>& dofs_markers() const { return dofs_markers_; }
     int dof_marker(int dof) const { return dofs_markers_[dof]; }
-    const std::vector<Eigen::Matrix<double, local_dim, 1>>& dofs_coords() const { return dofs_coords_; }
     int n_boundary_dofs() const { return boundary_dofs_.count(); }
     int n_boundary_dofs(int marker) const {
         int i = 0, sum = 0;
@@ -263,7 +268,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
     // In any given knot span [u_i, u_{i+1}) at most p+1 basis functions are non zero, namely N_{i-p,p}, ..., N_{i,p}
     // (property P2.2, pag 55, Piegl, L., & Tiller, W. (2012). The NURBS book. Springer Science & Business Media.)
     // Evaluation of the non zero basis functions in the a given knot span
-    std::vector<Eigen::Matrix<int, local_dim, 1>> active_dofs(int id) const { // id is the cell id
+    // voglio gli ID, non i punti std::vector<int>
+    std::vector<int> active_dofs(int id) const { // id is the cell id
         std::vector<Eigen::Matrix<int,local_dim,1>> dofs;
         auto multi_index = mesh_->compute_multi_index_(id);
         std::array<std::vector<double>,local_dim> param_nodes = mesh_->param_nodes();
@@ -289,7 +295,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
             for (int d = 0; d < local_dim; ++d) {
                 dof_index(d) = span_indices[d][idx[d]];
             }
-            dofs.push_back(dof_index);
+            dofs.push_back(flatten(dof_index));
 
             // Increment multi-index
             int d = local_dim - 1;
@@ -307,9 +313,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
 
     private:
-    std::vector<Eigen::Matrix<double, local_dim, 1>> dofs_coords_;       // parametric knots vector
+    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_; // dofs active on cell: each row = global DOFs on one cell ...
     BinaryVector<Dynamic> boundary_dofs_; // boundary dofs
-    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_; // dofs active on cell: each row = global DOFs on one cell
     int n_dofs_per_cell_ = 0, n_dofs_ = 0;
     std::vector<int> dofs_markers_; // dofs markers
     const MeshType* mesh_;

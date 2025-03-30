@@ -36,17 +36,12 @@ enum class iso_assembler_flags{
 namespace internals {
 
 // informations sent from the assembly loop to the integrated forms
+// passato dalla alla forma debole dal'assembler, per una cella (integrazione sempre fatta localmente)
+// da capire se queste strutture dati vanno bene o e' meglio Eigen::Matrix
 template <int LocalDim> struct iso_assembler_packet {
     static constexpr int local_dim = LocalDim;
-    iso_assembler_packet(int n_trial_components, int n_test_components) :
-    trial_value(n_trial_components),
-    test_value (n_test_components ),
-    trial_grad (n_trial_components),
-    test_grad  (n_test_components ),
-    trial_hess (n_trial_components),
-    test_hess  (n_test_components ) { }
-    iso_assembler_packet(int n_components) : iso_assembler_packet(n_components, n_components) { }
-    iso_assembler_packet() : iso_assembler_packet(1, 1) { }
+
+    iso_assembler_packet() = default;
     iso_assembler_packet(iso_assembler_packet&&) noexcept = default;
     iso_assembler_packet(const iso_assembler_packet&) noexcept = default;
 
@@ -57,9 +52,12 @@ template <int LocalDim> struct iso_assembler_packet {
     double cell_diameter;   // active cell diameter
 
     // functional informations (Dynamic stands for number of components)
-    MdArray<double, MdExtents<Dynamic>> trial_value, test_value;            // \psi_i(q_k), \psi_j(q_k)
-    MdArray<double, MdExtents<Dynamic, local_dim>> trial_grad, test_grad;   // \nabla{\psi_i}(q_k), \nabla{\psi_j}(q_k)
-    MdArray<double, MdExtents<Dynamic, local_dim, local_dim>> trial_hess, test_hess;
+    double trial_value, test_value;            // \psi_i(q_k), \psi_j(q_k)
+    MdArray<double, MdExtents<local_dim>> trial_grad, test_grad;   // \nabla{\psi_i}(q_k), \nabla{\psi_j}(q_k)
+    MdArray<double, MdExtents<local_dim, local_dim>> trial_hess, test_hess;
+    double metric_det; // metric determinant for each q_k
+    MdArray<double, MdExtents<local_dim, local_dim>> metric_tensor;  // metric tensor for each q_k
+    // da mettere anceh g^-1
     double trial_div = 0, test_div = 0;
 };
 
@@ -140,6 +138,8 @@ struct iso_assembler_base{
         const TestSpace& test_space() const { return *test_space_; }
 
         protected:
+
+        // fornire dei building blocks
         
         // evaluation of \psi_i(q_j), i = 1, ..., n_basis, j = 1, ..., n_quadrature_nodes
         template<typename BasisType__, typename IteratorType, typename DstMdArray>
@@ -171,7 +171,7 @@ struct iso_assembler_base{
                 for(int k = 0; k < local_dim; ++k){
                     DerivativeType der = basis[active_dofs[i]].derive(k);
                     for (int j = 0; j < n_quadrature_nodes_; ++j) {        
-                        //evaluation of \nabla{\psi_i}(q_j), i = 1, ..., n_basis, j = 1, ..., n_quadrature_nodes
+                        //evaluation of \nabla^2{\psi_i}(q_j), i = 1, ..., n_basis, j = 1, ..., n_quadrature_nodes
                         dst(i, j, k) = der(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
                     }
                 }
@@ -191,23 +191,30 @@ struct iso_assembler_base{
                         auto hess = basis[active_dofs[i]].deriveTwice(k,l)(quad_nodes_.row(cell->id() * n_quadrature_nodes_).transpose());
                         for (int j = 0; j < n_quadrature_nodes_; ++j) {
                             //evaluation of \nabla{\psi_i}(q_j), i = 1, ..., n_basis, j = 1, ..., n_quadrature_nodes
-                            dst(i, j, k, l) = hess((quad_nodes_.row(cell->id() * n_quadrature_nodes_).transpose()));
+                            dst(i, j, k, l) = hess((quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose()));
                         }
                     }
                 }
             }
             return;
         }
-        
+        template <typename IteratorType, typename DstMdArray>
+        void eval_metric_determinant(IteratorType cell, DstMdArray& dst) const {
+            // evaluation of metric determinant on quadrature nodes
+            // dst is a member of the packet
+            for (int j = 0; j < n_quadrature_nodes_; ++j) {
+                // evaluation of metric determinant on q_j, j = 1, ..., n_quadrature_nodes
+                dst(j) = cell->metric_determinant(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
+            }
+        }
 
+        // informazione sul determinante metrico, scopo di scrivere una forma debole definita su un dominio fisico
+        // un double che verrà popolato da iso_bilinerar_form assembler che durante il loop di assemblaggio
+        // tutte quelle operazioni vadano fatte dall'assemblatore
 
-
-
-
-
-
-
-
+        // eval:metric ddeterminant (IteratorType cell, DstMdArray& dst) const
+        // valuta i determinanti metrici sui noi di quadraturea e li mette in dst
+        // dst è un membro del packet
 
 
     protected:

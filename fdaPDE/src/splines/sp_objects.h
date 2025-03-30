@@ -96,8 +96,7 @@ struct sp_scalar_test_function_impl : public ScalarFieldBase<SpSpace_::local_dim
 };
 
 template <typename SpSpace_>
-struct sp_scalar_trial_function_impl :
-    public ScalarFieldBase<SpSpace_::local_dim, TrialFunction<SpSpace_, spline_tag>> {
+struct sp_scalar_trial_function_impl : public ScalarFieldBase<SpSpace_::local_dim, TrialFunction<SpSpace_, spline_tag>> {
     fdapde_static_assert(SpSpace_::local_dim == 1, THIS_CLASS_IS_FOR_INTERVAL_MESHES_ONLY);
     using TrialSpace = std::decay_t<SpSpace_>;
     using Base = ScalarFieldBase<SpSpace_::local_dim, TrialFunction<SpSpace_, spline_tag>>;

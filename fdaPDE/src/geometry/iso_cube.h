@@ -14,9 +14,7 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
     IsoCube() = default;
     IsoCube(int id, const MeshType* mesh) : id_(id), mesh_(mesh), boundary_(false) {
         boundary_ = mesh_->is_cell_on_boundary(id_);
-        auto [left_coords, right_coords] = mesh_->compute_lr_vertices(id_);
-        this->left_coords_ = left_coords;
-        this->right_coords_ = right_coords;
+        std::tie(this->left_coords_, this->right_coords_) = mesh_->compute_lr_vertices(id_);
         // compute edge indices
         for (int i = 0; i < 12; ++i) {
             edge_ids_[i] = mesh_->cell_to_edges()(id_, i);

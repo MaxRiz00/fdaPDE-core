@@ -529,6 +529,24 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 constexpr FirstDerivative derive(int i=0) const { return gradient_[i]; }
                 constexpr SecondDerivative deriveTwice(int i=0, int j=0) const { return hessian_(i,j); }
 
+                Eigen::Matrix<double, M, 1> gradient(const Eigen::Matrix<double, M, 1>& p) const {
+                    Eigen::Matrix<double, M, 1> grad;
+                    for (int i = 0; i < M; ++i) {
+                        grad(i) = gradient_[i](p);
+                    }
+                    return grad;
+                }
+
+                Eigen::Matrix<double, M, M> hessian(const Eigen::Matrix<double, M, 1>& p) const {
+                    Eigen::Matrix<double, M, M> hess;
+                    for (int i = 0; i < M; ++i) {
+                        for (int j = 0; j < M; ++j) {
+                            hess(i,j) = hessian_(i,j)(p);
+                        }
+                    }
+                    return hess;
+                }
+
                 // getters
                 constexpr std::array<int,M> order() const { return order_; }
                 constexpr int size() const { return weights_.size(); }
