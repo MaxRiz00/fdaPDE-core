@@ -47,17 +47,20 @@ template <typename Triangulation_> class BsSpace {
     using ShapeFunctionType = subscript_t<BasisType>;
     using DofHandlerType = DofHandler<local_dim, embed_dim, spline_tag>;
     using discretization_category = spline_tag;
-    static constexpr int sobolev_regularity = 2;
+    constexpr int sobolev_regularity() const { return 2; }
     template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
     using bilinear_form_assembly_loop =
       internals::sp_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
     template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
-    using linear_form_assembler_loop =
+    using linear_form_assembly_loop =
       internals::sp_linear_form_assembly_loop  <Triangulation__, Form__, Options__, Quadrature__...>;
 
     BsSpace() = default;
     BsSpace(const Triangulation_& interval, int order) :
-        triangulation_(std::addressof(interval)), dof_handler_(interval), order_(order) {
+        triangulation_(std::addressof(interval)),
+        dof_handler_(interval),
+        physical_basis_(interval, order),
+        order_(order) {
         a_ = triangulation_->range()[0], b_ = triangulation_->range()[1];   // store interval range
         dof_handler_.enumerate(BasisType(interval, order));
 	// build reference [-1, 1] interval with nodes mapped from physical interval [a, b]
@@ -76,6 +79,7 @@ template <typename Triangulation_> class BsSpace {
     constexpr int n_shape_functions_face() const { return 1; }
     int n_dofs() const { return dof_handler_.n_dofs(); }
     const BasisType& basis() const { return basis_; }
+    const BasisType& physical_basis() const { return physical_basis_; }
     int order() const { return order_; }
     // evaluation
     template <typename InputType>
@@ -134,6 +138,7 @@ template <typename Triangulation_> class BsSpace {
 
     const Triangulation* triangulation_;
     DofHandlerType dof_handler_;   // dof_handler over physical domain
+    BasisType physical_basis_;     // basis over physical interval [a, b]
     BasisType basis_;              // basis_ over reference interval [-1, +1]
     int order_;                    // spline order
 };

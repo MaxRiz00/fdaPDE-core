@@ -22,13 +22,13 @@
 namespace fdapde {
 
 // forward declarations
-template <typename SpSpace_> class SpFunction;
+template <typename IsoSpace_> class IsoFunction;
 namespace internals {
 
 template <typename IsoMesh_, typename Form_, int Options_, typename... Quadrature_>
 class iso_bilinear_form_assembly_loop;
-//template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
-//class iso_linear_form_assembly_loop;
+template <typename Triangulation_, typename Form_, int Options_, typename... Quadrature_>
+class iso_linear_form_assembly_loop;
 
 }   // namespace internals
 
@@ -52,13 +52,13 @@ template <typename IsoMesh_> class IsoSpace {
     template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
     using bilinear_form_assembly_loop =
       internals::iso_bilinear_form_assembly_loop<Triangulation__, Form__, Options__, Quadrature__...>;
-    //template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
-    //using linear_form_assembler_loop =
-    //  internals::iso_linear_form_assembly_loop  <Triangulation__, Form__, Options__, Quadrature__...>;
+    template <typename Triangulation__, typename Form__, int Options__, typename... Quadrature__>
+    using linear_form_assembly_loop =
+      internals::iso_linear_form_assembly_loop <Triangulation__, Form__, Options__, Quadrature__...>;
 
     IsoSpace() = default;
     IsoSpace(const IsoMesh_& mesh) :
-        mesh_(std::addressof(mesh)), dof_handler_(mesh), order_(mesh->order()), basis_(mesh->basis()) { } //copiare la base della mesh ?
+        mesh_(std::addressof(mesh)), dof_handler_(mesh), order_(mesh.order()), basis_(mesh.basis()) { } //copiare la base della mesh ? metterla nel referce domain , perche
 
     // observers
     const IsoMesh& mesh() const { return *mesh_; }
@@ -68,7 +68,7 @@ template <typename IsoMesh_> class IsoSpace {
     //constexpr int n_shape_functions_face() const { return 1; }
     int n_dofs() const { return dof_handler_.n_dofs(); }
     const BasisType& basis() const { return basis_; }
-    int order() const { return order_; }
+    std::array<int, local_dim> order() const { return order_; }
 
 
     // evaluations

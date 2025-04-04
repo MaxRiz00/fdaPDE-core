@@ -6,11 +6,17 @@
 
 namespace fdapde {
 
+/**
+ * @brief 3D parametric cubic element embedded in physical space.
+ * Specialization of IsoCell for cubes (hexahedra)
+ * 
+ * @tparam MeshType Parent mesh type (must have local_dim = 1)
+ */
 template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, MeshType::embed_dim>{
     fdapde_static_assert(MeshType::local_dim == 3, THIS_CLASS_IS_FOR_3D_MESHES_ONLY);
     using Base = IsoCell<MeshType::local_dim, MeshType::embed_dim>;
     public:
-    // constructor
+    // === Constructors === //
     IsoCube() = default;
     IsoCube(int id, const MeshType* mesh) : id_(id), mesh_(mesh), boundary_(false) {
         boundary_ = mesh_->is_cell_on_boundary(id_);
@@ -22,7 +28,7 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
     }
 
     
-
+    // === Edge Type === //
     class EdgeType : public IsoCell<1, MeshType::embed_dim> {
         using Base = IsoCell<1, MeshType::embed_dim>;
         int edge_id_;
@@ -35,7 +41,6 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
                 this->left_coords_(0) =  mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
                 this->right_coords_(0) = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
             }
-            //this->initialize();
         }
         bool on_boundary() const { return mesh_->is_edge_on_boundary(edge_id_); }
         Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->edges().row(edge_id_); }
@@ -45,7 +50,12 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
             return mesh_->edges_markers().size() > edge_id_ ? mesh_->edges_markers()[edge_id_] : Unmarked;
         }
         
-        // This function is made only for plotting purposes
+        /**
+         * @brief Evaluate the n linspaced physical points for the edge. Only for plotting purposes.
+         * 
+         * @param n Number of points to evaluate
+         * @return Physical coordinates in embedding space
+         */
         Eigen::Matrix<double, Eigen::Dynamic, MeshType::embed_dim> evaluation(int n) const {
             Eigen::Matrix<double, Eigen::Dynamic, MeshType::embed_dim> res(n, MeshType::embed_dim);
             auto nodes = node_ids(); // Expected to be Eigen::Matrix<int, 2, 1>
@@ -69,6 +79,7 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
         }
     };
 
+    // === Face Type === //
     class FaceType : public IsoCell<2,MeshType::embed_dim>{
         using Base = IsoCell<2,MeshType::embed_dim>;
         int face_id_;
@@ -94,31 +105,51 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
         }
     };
     
+    // === Public Member Functions === //
 
-   // Affine map from reference domain [-1, 1]^M to parametric domain [left_coords, right_coords]^M
-    // left_coords
-    // map from refernce to parameric domain, map_to_parametric, left_coord e right_coord li prende dalla mesh
+    /**
+     * @brief Evaluate the physical point corresponding to a reference coordinate.
+     * 
+     * @param p Point in reference domain [-1, 1]
+     * @return Physical coordinate in embedding space
+     */
     Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         return mesh_->eval_param(this->affine_map(p));
     }
-
+    
+    /**
+     * @brief Evaluate the Jacobian of the mapping at a reference point.
+     * 
+     * @param p Point in reference domain [-1, 1]
+     * @return First derivative (Jacobian matrix)
+     */
     Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim, Eigen::RowMajor> parametrization_gradient(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         return mesh_->eval_param_derivatives(this->affine_map(p),false).first_derivative;
     }
 
-    // Metric tensor F^T * F
+    /**
+     * @brief Compute the metric tensor at a reference point. Computes Fᵀ·F where F is the Jacobian of the mapping.
+     * 
+     * @param p Point in reference domain [-1, 1]
+     * @return Symmetric metric tensor matrix
+     */
     Eigen::Matrix<double, MeshType::local_dim, MeshType::local_dim, Eigen::RowMajor> metric_tensor(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         auto F = parametrization_gradient(this->affine_map(p));
         return F.transpose() * F; 
     }
 
-    // metric determinant sqrt(det(F^T * F)), array diventano matrici eigen
+    /**
+     * @brief Compute the square root of the determinant of the metric tensor.
+     * 
+     * @param p Point in reference domain [-1, 1]
+     * @return Determinant of the metric tensor (metric scaling factor)
+     */
     double metric_determinant(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
         return std::sqrt(metric_tensor(this->affine_map(p)).determinant()); 
     }
 
 
-    //getters 
+    // === Getters === //
     int id() const { return id_; }
     Eigen::Matrix<int, 1, 2 * MeshType::local_dim> neighbors() const { return mesh_->neighbors().row(id_); }
     Eigen::Matrix<int, 1, MeshType::local_dim> node_ids() const { return mesh_->cells().row(id_); }
@@ -129,7 +160,7 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
     // cell marker
     int marker() const { return mesh_->cells_markers().size() > id_ ? mesh_->cells_markers()[id_] : Unmarked; }
 
-    // iterator over tetrahedron edges
+    // === Edge Iterators === //
     class edge_iterator : public internals::index_iterator<edge_iterator, EdgeType> {
         using Base = internals::index_iterator<edge_iterator, EdgeType>;
         using Base::index_;
@@ -169,10 +200,10 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
 
 
     protected:
-    int id_ = 0;   // segment ID in the physical mesh
-    std::array<int,12> edge_ids_;
-    const MeshType* mesh_ = nullptr;
-    bool boundary_ = false;   // true if the element has at least one vertex on the boundary
+    int id_ = 0;                   ///< id of the cube element
+    std::array<int,12> edge_ids_;  ///< for each edge, the id of the edge in the mesh
+    const MeshType* mesh_ = nullptr; ///< pointer to the parent mesh
+    bool boundary_ = false;        ///< true if cube element is on the boundary
 };
     
     

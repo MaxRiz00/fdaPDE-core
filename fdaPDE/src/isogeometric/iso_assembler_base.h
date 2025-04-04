@@ -29,7 +29,8 @@ enum class iso_assembler_flags{
     compute_shape_hess          = 0x0004,
     compute_shape_div           = 0x0008,
     compute_physical_quad_nodes = 0x0010,
-    compute_cell_id             = 0x0020
+    compute_cell_id             = 0x0020,
+    
 
 };
 
@@ -40,6 +41,7 @@ namespace internals {
 // da capire se queste strutture dati vanno bene o e' meglio Eigen::Matrix
 template <int LocalDim> struct iso_assembler_packet {
     static constexpr int local_dim = LocalDim;
+    //static constexpr int embed_dim = EmbedDim;
 
     iso_assembler_packet() = default;
     iso_assembler_packet(iso_assembler_packet&&) noexcept = default;
@@ -53,12 +55,12 @@ template <int LocalDim> struct iso_assembler_packet {
 
     // functional informations (Dynamic stands for number of components)
     double trial_value, test_value;            // \psi_i(q_k), \psi_j(q_k)
-    MdArray<double, MdExtents<local_dim>> trial_grad, test_grad;   // \nabla{\psi_i}(q_k), \nabla{\psi_j}(q_k)
-    MdArray<double, MdExtents<local_dim, local_dim>> trial_hess, test_hess;
+    MdArray<double, MdExtents<3>> trial_grad, test_grad;   // \nabla{\psi_i}(q_k), \nabla{\psi_j}(q_k)
+    MdArray<double, MdExtents<Dynamic, Dynamic>> trial_hess, test_hess;
     double metric_det; // metric determinant for each q_k
-    MdArray<double, MdExtents<local_dim, local_dim>> metric_tensor;  // metric tensor for each q_k
+    Eigen::Matrix<double, LocalDim, LocalDim> inv_metric_tensor;  // inverse metric tensor for each q_k
     // da mettere anceh g^-1
-    double trial_div = 0, test_div = 0;
+    //double trial_div = 0, test_div = 0;
 };
 
 
@@ -73,7 +75,7 @@ struct iso_assembler_base{
 	    return !(
 	        std::is_invocable_v<Xpr, iso_assembler_packet<Xpr::StaticInputSize>>);
 	  })>(std::declval<Form_>()))>; // vector case ???
-    using IsoMesh = typename std::decay<IsoMesh_>;
+    using IsoMesh = typename std::decay_t<IsoMesh_>;
     static constexpr int local_dim = IsoMesh::local_dim;
     static constexpr int embed_dim = IsoMesh::embed_dim;
     static constexpr int Options = Options_;
@@ -116,11 +118,12 @@ struct iso_assembler_base{
                     for (int j = 0; j < local_dim; ++j) { quad_nodes__(i, j) = quad_rule.nodes(i, j); }
             }
             } else {
+                std::cout << "Using default quadrature rule..." << std::endl; // da capire come fare
                 //internals::get_sp_quadrature(test_space_->order(), quad_nodes__, quad_weights_);
             }
             // build grid of quadrature nodes on reference domain
             n_quadrature_nodes_ = quad_nodes__.rows();
-            int n_cells = std::distance(begin_, end_), n_src_points = quad_nodes__.rows();
+            int n_cells = end_.index() - begin_.index(), n_src_points = quad_nodes__.rows();
 
             quad_nodes_.resize(n_cells * n_src_points, local_dim); // global quad nodes
             int i  = 0;
@@ -168,10 +171,9 @@ struct iso_assembler_base{
             using DerivativeType = decltype(std::declval<BasisType>()[std::declval<int>()].derive(std::declval<int>()));
             int n_basis = active_dofs.size();
             for (int i = 0; i < n_basis; ++i) {
-                for(int k = 0; k < local_dim; ++k){
-                    DerivativeType der = basis[active_dofs[i]].derive(k);
-                    for (int j = 0; j < n_quadrature_nodes_; ++j) {        
-                        //evaluation of \nabla^2{\psi_i}(q_j), i = 1, ..., n_basis, j = 1, ..., n_quadrature_nodes
+                for (int j = 0; j < n_quadrature_nodes_; ++j) {  
+                    for(int k = 0; k < local_dim; ++k){
+                        DerivativeType der = basis[active_dofs[i]].derive(k);
                         dst(i, j, k) = der(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
                     }
                 }
@@ -208,6 +210,17 @@ struct iso_assembler_base{
             }
         }
 
+        // eval_param 
+        template <typename IteratorType, typename DstMdArray>
+        void eval_param_grad(IteratorType cell, DstMdArray& dst) const {
+            // evaluation of parametric gradient on quadrature nodes
+            // dst is a member of the packet
+            for (int j = 0; j < n_quadrature_nodes_; ++j) {
+                // evaluation of metric determinant on q_j, j = 1, ..., n_quadrature_nodes
+                dst(j) = cell->parametrization_gradient(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j));
+            }
+        }
+
         // informazione sul determinante metrico, scopo di scrivere una forma debole definita su un dominio fisico
         // un double che verrà popolato da iso_bilinerar_form assembler che durante il loop di assemblaggio
         // tutte quelle operazioni vadano fatte dall'assemblatore
@@ -215,6 +228,35 @@ struct iso_assembler_base{
         // eval:metric ddeterminant (IteratorType cell, DstMdArray& dst) const
         // valuta i determinanti metrici sui noi di quadraturea e li mette in dst
         // dst è un membro del packet
+
+
+        void distribute_quadrature_nodes (
+            std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>>& sp_map_buff, dof_iterator begin,
+            dof_iterator end) const {
+              Eigen::Matrix<double, Dynamic, Dynamic> quad_nodes = quad_nodes_;
+              // not need the linear map since they are already in the parametric space
+              /*
+              quad_nodes.resize(n_quadrature_nodes_ * (end_.index() - begin_.index()), embed_dim);
+              int local_cell_id = 0;
+              for (geo_iterator it = begin_; it != end_; ++it) {
+                  for (int q_k = 0; q_k < n_quadrature_nodes_; ++q_k) {
+                      quad_nodes.row(local_cell_id * n_quadrature_nodes_ + q_k) =
+                        it->J() * quad_nodes_.row(q_k).transpose() + it->node(0);
+                  }
+                  local_cell_id++;
+              }
+              */
+              // evaluate Map nodes at quadrature nodes
+              xpr_apply_if<
+                decltype([]<typename Xpr_, typename... Args>(Xpr_& xpr, Args&&... args) {
+                    xpr.init(std::forward<Args>(args)...);
+                    return;
+                }),
+                decltype([]<typename Xpr_>() {
+                    return requires(Xpr_ xpr) { xpr.init(sp_map_buff, quad_nodes, begin, end); };
+                })>(form_, sp_map_buff, quad_nodes, begin, end);
+              return;
+          }
 
 
     protected:

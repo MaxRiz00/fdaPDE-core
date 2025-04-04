@@ -59,6 +59,9 @@ class iso_bilinear_form_assembly_loop :
         const Form_& form, typename Base::geo_iterator begin, typename Base::geo_iterator end, const Quadrature_&... quadrature)
         requires(sizeof...(quadrature)<=1) 
         : Base(form, begin, end, quadrature...), trial_space_(std::addressof(internals::trial_space(form_))){
+            // print begin cell id
+            std::cout<<"ciaooo Begin cell id: "<<begin->id()<<std::endl;
+            std::cout<<"ciaoo End cell id: "<<end->id()<<std::endl;
             if constexpr(is_petrov_galerkin){
                 trial_dof_handler_ = std::addressof(internals::trial_space(form_).dof_handler());
             }
@@ -78,9 +81,13 @@ class iso_bilinear_form_assembly_loop :
 
 
     Eigen::SparseMatrix<double> assemble() const {
+        std::cout << "MATRIX prima..." << std::endl;
         Eigen::SparseMatrix<double> assembled_mat(test_dof_handler()->n_dofs(), trial_dof_handler()->n_dofs());
+        std::cout << "MATRIX dopo..." << std::endl;
         std::vector<Eigen::Triplet<double>> triplet_list;
+        std::cout << "Assembling bilinear form..." << std::endl;
         assemble(triplet_list);
+        std::cout << "Assembling bilinear form done." << std::endl;
         // linearity of the integral is implicitly used here, as duplicated triplets are summed up (see Eigen docs)
         assembled_mat.setFromTriplets(triplet_list.begin(), triplet_list.end());
         assembled_mat.makeCompressed();
@@ -99,8 +106,8 @@ class iso_bilinear_form_assembly_loop :
         int n1 = 1, n2 = 1;
 
         for(int i = 0; i<local_dim; i++){
-            n1*= test_space_->order()[i] + 1;
-            n2*= (is_galerkin ? test_space_->order()[i] : trial_space_->order()[i]) + 1;
+            n1*= (test_space_->order())[i] + 1;
+            n2*= (is_galerkin ? (test_space_->order())[i] : (trial_space_->order())[i]) + 1;
         }
 
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_values(n1,q), trial_shape_values(n2, q);
@@ -109,16 +116,27 @@ class iso_bilinear_form_assembly_loop :
         MdArray<double, MdExtents<Dynamic, Dynamic, Dynamic, Dynamic>> 
             test_shape_hess(n1, q, local_dim, local_dim), trial_shape_hess(n2, q, local_dim, local_dim);
 
+        MdArray<Eigen::Matrix<double, embed_dim, local_dim> , MdExtents< Dynamic>> 
+            param_grad(q);
+        
+
         // distribute quadrature nodes on physical mesh (if required) ..... da capire
+        std::cout << "Distributing quadrature nodes..." << std::endl;
 
         // start assembly loop
         internals::iso_assembler_packet<local_dim> iso_packet {};
+        std::cout << "Assembling cells..." << std::endl;
         int local_cell_id = 0;
-        for(iterator it = begin; it!= end; it++) {
+        for(iterator it = begin; it!= end; ++it) {
+            std::cout << "Assembling cell " << it->id() << std::endl;
             test_active_dofs = it->dofs();
+            std::cout << "Test active dofs: ";
+            for(auto dof : test_active_dofs) std::cout<<dof<<", ";
+            std::cout << std::endl;
             if constexpr (is_petrov_galerkin) { trial_active_dofs = trial_dof_handler()->active_dofs(it->id()); }
             // update the iso_packet
             iso_packet.cell_measure = it->parametric_measure();
+            std::cout << "Cell measure: " << iso_packet.cell_measure << std::endl;
 
             if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_values)) {
                 Base::eval_shape_values(test_space_->basis(), test_active_dofs, it, test_shape_values);
@@ -130,6 +148,7 @@ class iso_bilinear_form_assembly_loop :
                 Base::eval_shape_grads(test_space_->basis(), test_active_dofs, it, test_shape_grads);
                 Base::eval_shape_grads(
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it, trial_shape_grads);
+                
             }
             if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_hess)) {
                 Base::eval_shape_hess(test_space_->basis(), test_active_dofs, it, test_shape_hess);
@@ -138,22 +157,54 @@ class iso_bilinear_form_assembly_loop :
                   trial_shape_hess);
             }
 
+            Base::eval_param_grad(it, param_grad); // F
+            // precompute F(F^T F)^-1 for each q_k
+            MdArray<Eigen::Matrix<double, embed_dim, local_dim> , MdExtents< Dynamic>> grad_transf(q);
+            for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
+                grad_transf(q_k) = param_grad(q_k) * (param_grad(q_k).transpose() * param_grad(q_k)).inverse();
+            }
+
             // perform integration of weak form for (i,j)-th basis pair
             for(int i = 0; i<n2; ++i){
                 for(int j = 0; j<n1; ++j){
                     double value = 0;
+                    //std::cout<<"i = "<<i<<std::endl;
+                    //std::cout<<"j = "<<j<<std::endl;
                     for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
+                        //std::cout << "Phsic Quadrature node: " << Base::quad_nodes_.row(it->id() * Base::n_quadrature_nodes_ + q_k).transpose() << std::endl;
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_values)) {
                             iso_packet.trial_value = trial_shape_values(i, q_k);
                             iso_packet.test_value  = test_shape_values (j, q_k);
                         }
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_grad)) {
-                            iso_packet.trial_grad = trial_shape_grads.template slice<0,1>(i, q_k); 
-                            iso_packet.test_grad  = trial_shape_grads.template slice<0,1>(j, q_k);
+                            auto temp_trial_grad = trial_shape_grads.template slice<0,1>(i, q_k); 
+                            auto temp_test_grad  = test_shape_grads.template slice<0,1>(j, q_k);
+                            // convert to eigen matrix
+                            Eigen::Matrix<double, local_dim, 1> trial_grad, test_grad;
+                            Eigen::Matrix<double, embed_dim, 1> phys_trial_grad, phys_test_grad;
+
+                            for(int k = 0; k < local_dim; ++k) {
+                                trial_grad(k) = temp_trial_grad(k);
+                                test_grad(k)  = temp_test_grad(k);
+                            }
+                            // convert to physical gradient
+                            phys_trial_grad = grad_transf(q_k) * trial_grad;
+                            phys_test_grad  = grad_transf(q_k) * test_grad;
+                            //std::cout << "Trial grad: " << i <<": "<< phys_trial_grad.transpose() << std::endl;
+
+                            // assign to iso_packet
+                            //iso_packet.trial_grad.resize(embed_dim);
+                            //iso_packet.test_grad.resize(embed_dim);
+                            for(int k = 0; k < embed_dim; ++k) {
+                                iso_packet.trial_grad(k) = phys_trial_grad(k);
+                                iso_packet.test_grad(k)  = phys_test_grad(k);
+                            }
+                            //std::cout << "Test grad: "<< j <<": " << phys_test_grad.transpose() << std::endl;
+
                         }
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_hess)) {
                             iso_packet.trial_hess = trial_shape_hess.template slice<0,1>(i, q_k);
-                            iso_packet.test_hess  = test_shape_hess.template slice<0,1>(j, q_k);
+                            iso_packet.test_hess  = test_shape_hess.template slice<0,1>(j, q_k); // no hessian for now
                         }
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_physical_quad_nodes)) {
                             iso_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;

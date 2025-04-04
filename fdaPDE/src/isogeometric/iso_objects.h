@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __FDAPDE_SP_OBJECTS_H__
-#define __FDAPDE_SP_OBJECTS_H__
+#ifndef __FDAPDE_ISO_OBJECTS_H__
+#define __FDAPDE_ISO_OBJECTS_H__
 
 #include "header_check.h"
 
@@ -23,14 +23,14 @@ namespace fdapde {
 namespace internals {
 
 template <typename IsoSpace_>
-struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_dim, TestFunction<IsoMesh_, iso_tag>> {
+struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_dim, TestFunction<IsoSpace_, iso_tag>> {
     using TestSpace = std::decay_t<IsoSpace_>;
-    using Base = ScalarFieldBase<IsoSpace_::local_dim, TestFunction<IsoMesh_, iso_tag>>;
+    using Base = ScalarFieldBase<IsoSpace_::local_dim, TestFunction<IsoSpace_, iso_tag>>;
     using InputType = internals::iso_assembler_packet<TestSpace::local_dim>;
     using Scalar = double; 
     static constexpr int StaticInputSize = TestSpace::local_dim;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = 0 | int(sp_assembler_flags::compute_shape_values);
+    static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_values);
 
     private:
      template<typename Derived_>
@@ -38,12 +38,12 @@ struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_d
         using Derived = Derived_;
         template <typename T> using Meta = FirstPartialDerivative_<T>;
         using TestSpace = std::decay_t<IsoSpace_>;   // required from xpr_query<>
-        using Base = ScalarFieldBase<TestSpace::local_dim, FirstDerivative_<Derived_>>;
+        using Base = ScalarFieldBase<TestSpace::local_dim, FirstPartialDerivative_<Derived_>>;
         using InputType = internals::iso_assembler_packet<TestSpace::local_dim>;
         using Scalar = double;
         static constexpr int StaticInputSize = TestSpace::local_dim;
         static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = 0 | int(sp_assembler_flags::compute_shape_grad);
+        static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_grad);
 
         FirstPartialDerivative_() noexcept = default;
         FirstPartialDerivative_(const Derived_& xpr) noexcept : xpr_(xpr), i_(0) { }
@@ -56,7 +56,7 @@ struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_d
         constexpr const Derived& derived() const { return xpr_; }
        private:
         int i_;
-        typename internals::ref_select<const Derived>::type xpr_;
+        Derived xpr_;
      };
 
      template <typename Derived_>
@@ -65,11 +65,11 @@ struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_d
         template <typename T> using Meta = MixedPartialDerivative_<T>;      
         using TestSpace = std::decay_t<IsoSpace_>;   // required from xpr_query<>
         using Base = ScalarFieldBase<TestSpace::local_dim, MixedPartialDerivative_<Derived_>>;
-        using InputType = internals::sp_assembler_packet<TestSpace::local_dim>;
+        using InputType = internals::iso_assembler_packet<TestSpace::local_dim>;
         using Scalar = double;
         static constexpr int StaticInputSize = TestSpace::local_dim;
         static constexpr int NestAsRef = 0;
-        static constexpr int XprBits = 0 | int(sp_assembler_flags::compute_shape_hessian);
+        static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_hess);
 
         MixedPartialDerivative_() noexcept = default;
         MixedPartialDerivative_(const Derived_& xpr) noexcept : xpr_(xpr), i_(0), j_(0) { }
@@ -83,30 +83,110 @@ struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_d
         constexpr const Derived& derived() const { return xpr_; }
        private:
         int i_, j_;
-        typename internals::ref_select<const Derived>::type xpr_;
+        Derived xpr_;
     };
+
+    public:
 
     // expose derivative types
     using FirstPartialDerivative  = FirstPartialDerivative_ <TestFunction<IsoSpace_, iso_tag>>;
     using MixedPartialDerivative = MixedPartialDerivative_<TestFunction<IsoSpace_, iso_tag>>;
 
-    constexpr sp_scalar_test_function_impl() noexcept = default;
-    constexpr sp_scalar_test_function_impl(IsoSpace_& iso_space) noexcept : iso_space_(std::addressof(iso_space)) { }  
+    constexpr iso_scalar_test_function_impl() noexcept = default;
+    constexpr iso_scalar_test_function_impl(IsoSpace_& iso_space) noexcept : iso_space_(std::addressof(iso_space)) { }  
     // assembly evaluation
     constexpr Scalar operator()(const InputType& iso_packet) const { return iso_packet.test_value; }
     constexpr TestSpace& function_space() { return *iso_space_; }
     constexpr const TestSpace& function_space() const { return *iso_space_; }
     constexpr int input_size() const { return StaticInputSize; }
    private:
-    TestSpace* sp_space_;
+    TestSpace* iso_space_;
 
 
 };
 
 template <typename IsoSpace_>
-struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_dim, TestFunction<IsoMesh_, iso_tag>> {
+struct iso_scalar_trial_function_impl : public ScalarFieldBase<IsoSpace_::local_dim, TrialFunction<IsoSpace_, iso_tag>> {
+    using TrialSpace = std::decay_t<IsoSpace_>;
+    using Base = ScalarFieldBase<IsoSpace_::local_dim, TrialFunction<IsoSpace_, iso_tag>>;
+    using InputType = internals::iso_assembler_packet<TrialSpace::local_dim>;
+    using Scalar = double;
+    static constexpr int StaticInputSize = TrialSpace::local_dim;
+    static constexpr int NestAsRef = 0;
+    static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_values);
+    private:
+    //definitions of derivative functors
+    template<typename Derived_>
+    struct FirstPartialDerivative_ : ScalarFieldBase<TrialSpace::local_dim, FirstPartialDerivative_<Derived_>> {
+        using Derived = Derived_;
+        template <typename T> using Meta = FirstPartialDerivative_<T>;
+        using TrialSpace = std::decay_t<IsoSpace_>;   // required from xpr_query<>
+        using Base = ScalarFieldBase<TrialSpace::local_dim, FirstPartialDerivative_<Derived_>>;
+        using InputType = internals::iso_assembler_packet<TrialSpace::local_dim>;
+        using Scalar = double;
+        static constexpr int StaticInputSize = TrialSpace::local_dim;
+        static constexpr int NestAsRef = 0;
+        static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_grad);
+
+        FirstPartialDerivative_() noexcept = default;
+        FirstPartialDerivative_(const Derived_& xpr) noexcept : xpr_(xpr), i_(0) { }
+        FirstPartialDerivative_(const Derived_& xpr, int i) noexcept : xpr_(xpr), i_(i) { }
+        // assembly evaluation
+        constexpr Scalar operator()(const InputType& iso_packet) const { return iso_packet.trial_grad(i_); }
+        constexpr TrialSpace& function_space() { return *(xpr_.iso_space_); }
+        constexpr const TrialSpace& function_space() const { return *(xpr_.iso_space_); }
+        constexpr int input_size() const { return StaticInputSize; }
+        constexpr const Derived& derived() const { return xpr_; }
+       private:
+        int i_;
+        Derived xpr_;
+    };
+
+    template <typename Derived_>
+    struct MixedPartialDerivative_ : ScalarFieldBase<TrialSpace::local_dim, MixedPartialDerivative_<Derived_>> {
+        using Derived = Derived_;
+        template <typename T> using Meta = MixedPartialDerivative_<T>;      
+        using TestSpace = std::decay_t<IsoSpace_>;   // required from xpr_query<>
+        using Base = ScalarFieldBase<TrialSpace::local_dim, MixedPartialDerivative_<Derived_>>;
+        using InputType = internals::iso_assembler_packet<TrialSpace::local_dim>;
+        using Scalar = double;
+        static constexpr int StaticInputSize = TrialSpace::local_dim;
+        static constexpr int NestAsRef = 0;
+        static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_hess);
+
+        MixedPartialDerivative_() noexcept = default;
+        MixedPartialDerivative_(const Derived_& xpr) noexcept : xpr_(xpr), i_(0), j_(0) { }
+        MixedPartialDerivative_(const Derived_& xpr, int i, int j) noexcept : xpr_(xpr), i_(i), j_(j) { }
+
+        // assembly evaluation
+        constexpr Scalar operator()(const InputType& iso_packet) const { return iso_packet.trial_hessian(i_,j_); }
+        constexpr TrialSpace& function_space() { return *(xpr_.iso_space_); }
+        constexpr const TrialSpace& function_space() const { return *(xpr_.iso_space_); }
+        constexpr int input_size() const { return StaticInputSize; }
+        constexpr const Derived& derived() const { return xpr_; }
+       private:
+        int i_, j_;
+        Derived xpr_;
+    };
+
+    public:
+
+    // expose derivative types
+    using FirstPartialDerivative  = FirstPartialDerivative_ <TrialFunction<IsoSpace_, iso_tag>>;
+    using MixedPartialDerivative = MixedPartialDerivative_<TrialFunction<IsoSpace_, iso_tag>>;
+
+    constexpr iso_scalar_trial_function_impl() noexcept = default;
+    constexpr iso_scalar_trial_function_impl(IsoSpace_& iso_space) noexcept : iso_space_(std::addressof(iso_space)) { }  
+    // assembly evaluation
+    constexpr Scalar operator()(const InputType& iso_packet) const { return iso_packet.trial_value; }
+    constexpr TrialSpace& function_space() { return *iso_space_; }
+    constexpr const TrialSpace& function_space() const { return *iso_space_; }
+    constexpr int input_size() const { return StaticInputSize; }
     
-}
+    private:
+    TrialSpace* iso_space_;
+    
+};
 
 } // namespace internals
 
@@ -118,22 +198,203 @@ struct TestFunction<IsoSpace_, iso_tag> : public internals::iso_scalar_test_func
     constexpr TestFunction(IsoSpace_& iso_space) : Base(iso_space) { }
 };
 
+// grad, div ????
+
 
 // partial derivatives of scalar test function
 template <typename IsoSpace_>
-struct PartialDerivative<TestFunction<IsoSpace_, spline_tag>, 1> :
+struct PartialDerivative<TestFunction<IsoSpace_, iso_tag>, 1> :
     public TestFunction<IsoSpace_, iso_tag>::FirstPartialDerivative {
     PartialDerivative() = default;
-    PartialDerivative(const TestFunction<IsoSpace_, spline_tag>& f, int i) :
-        TestFunction<SpSpace_, spline_tag>::FirstPartialDerivative(f,i) { }
+    PartialDerivative(const TestFunction<IsoSpace_, iso_tag>& f, int i) :
+        TestFunction<IsoSpace_, iso_tag>::FirstPartialDerivative(f,i) { }
 };
 template <typename IsoSpace_>
-struct PartialDerivative<TestFunction<IsoSpace_, spline_tag>, 2> :
+struct PartialDerivative<TestFunction<IsoSpace_, iso_tag>, 2> :
     public TestFunction<IsoSpace_, iso_tag>::MixedPartialDerivative {
     PartialDerivative() = default;
-    PartialDerivative(const TestFunction<IsoSpace_, spline_tag>& f, int i, int j) :
-        TestFunction<SpSpace_, spline_tag>::MixedPartialDerivative(f,i,j) { }
+    PartialDerivative(const TestFunction<IsoSpace_, iso_tag>& f, int i, int j) :
+        TestFunction<IsoSpace_, iso_tag>::MixedPartialDerivative(f,i,j) { }
 };
+
+// trial function struct
+template <typename IsoSpace_>
+    requires(std::is_same_v<typename std::decay_t<IsoSpace_>::discretization_category, iso_tag>)
+struct TrialFunction<IsoSpace_, iso_tag> : public internals::iso_scalar_trial_function_impl<IsoSpace_> {
+    using Base = internals::iso_scalar_trial_function_impl<IsoSpace_>;
+    using TrialSpace = typename Base::TrialSpace;
+    static constexpr int local_dim = IsoSpace_::local_dim;
+    static constexpr int embed_dim = IsoSpace_::embed_dim;
+    
+    constexpr TrialFunction() = default;
+    constexpr TrialFunction(IsoSpace_& iso_space) : Base(iso_space) { }
+    // norm evaluation
+    double l2_squared_norm() {
+        TrialFunction u(*Base::iso_space_);
+        TestFunction  v(*Base::iso_space_);
+        auto assembler = integrate(*Base::iso_space_->mesh())(u * v);
+        return coeff_.dot(assembler.assemble() * coeff_);
+    }
+    double l2_norm() {return std::sqrt(l2_squared_norm());} 
+    const Eigen::Matrix<double, Dynamic, 1>& coeff() const { return coeff_; }
+    void set_coeff(const Eigen::Matrix<double, Dynamic, 1>& coeff) { coeff_ = coeff; }
+   private:
+    Eigen::Matrix<double, Dynamic, 1> coeff_; // ??????
+};
+
+// partial derivatives of scalar trial function
+template <typename IsoSpace_>
+struct PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 1> :
+    public TrialFunction<IsoSpace_, iso_tag>::FirstPartialDerivative {
+    PartialDerivative() = default;
+    PartialDerivative(const TrialFunction<IsoSpace_, iso_tag>& f, int i) :
+        TrialFunction<IsoSpace_, iso_tag>::FirstPartialDerivative(f,i) { }
+};
+template <typename IsoSpace_>
+struct PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 2> :
+    public TrialFunction<IsoSpace_, iso_tag>::MixedPartialDerivative {
+    PartialDerivative() = default;
+    PartialDerivative(const TrialFunction<IsoSpace_, iso_tag>& f, int i, int j) :
+        TrialFunction<IsoSpace_, iso_tag>::MixedPartialDerivative(f, i, j) { }
+};
+
+// alisas ???? dx ddx
+
+// representation of u(x) = \sum_{i=1}^{n_dofs} u_i \psi_i(x) with \{ \psi_i \}_i a NURBS basis system
+template <typename IsoSpace_> class IsoFunction : public ScalarFieldBase<IsoSpace_::local_dim, IsoFunction<IsoSpace_>> {
+    using IsoMesh = typename IsoSpace_::IsoMesh;
+    public:
+    using IsoSpace = std::decay_t<IsoSpace_>;
+    using Base = ScalarFieldBase<IsoSpace_::local_dim, IsoFunction<IsoSpace_>>;
+    using DofHandlerType = typename IsoSpace::DofHandlerType;
+    using InputType = Eigen::Matrix<double, IsoSpace::local_dim, 1>;
+    using Scalar = double;
+    static constexpr int StaticInputSize = IsoSpace::local_dim;
+    static constexpr int Rows = 1;
+    static constexpr int Cols = 1;
+    static constexpr int NestAsRef = 1;
+    static constexpr int local_dim = IsoMesh::local_dim;
+    static constexpr int embed_dim = IsoMesh::embed_dim;
+    static constexpr int XprBits = 0;
+
+    IsoFunction() = default;
+    explicit IsoFunction(IsoSpace_& iso_space) : iso_space_(&iso_space) {
+        coeff_ = Eigen::Matrix<double, Dynamic, 1>::Zero(iso_space_->n_dofs());
+    } 
+    IsoFunction(IsoSpace_& sp_space, const Eigen::Matrix<double, Dynamic, 1>& coeff) :
+        iso_space_(std::addressof(sp_space)), coeff_(coeff) {
+        fdapde_assert(coeff.size() > 0 && coeff.size() == iso_space_->n_dofs());
+    }
+
+    Scalar operator()(const InputType& p){
+        int e_id = iso_space_->mesh()->locate_param(p);
+        if (e_id == -1) return std::numeric_limits<Scalar>::quiet_NaN();   // return NaN if point lies outside domain
+        // map p to reference cell and evaluate
+        typename DofHandlerType::CellType cell = iso_space_->dof_handler().cell(e_id);
+        InputType ref_p = cell.inverse_affine_map(p) ; // da capire
+        std::vector<int> active_dofs = cell.dofs();
+
+        Scalar value = 0;
+        for (int i = 0, n = active_dofs.size(); i < n; ++i) {
+            value += coeff_[active_dofs[i]] * iso_space_->eval_shape_value(i, p); // perchy ref p ???
+        }
+
+        return value;
+
+    }
+    // norm evaluation
+    double l2_squared_norm() {
+        TrialFunction u(*iso_space_);
+        TestFunction  v(*iso_space_);
+        auto assembler = integrate(*(iso_space_->mesh()))(u * v);
+        return coeff_.dot(assembler.assemble() * coeff_);
+    }
+    double l2_norm() { return std::sqrt(l2_squared_norm()); }
+    // getters
+    const Eigen::Matrix<double, Dynamic, 1>& coeff() const { return coeff_; }
+    constexpr IsoSpace& function_space() { return *iso_space_; }
+    constexpr const IsoSpace& function_space() const { return *iso_space_; }
+    constexpr int rows() const { return Rows; }
+    constexpr int cols() const { return Cols; }
+    constexpr int input_size() const { return StaticInputSize; }
+    void set_coeff(const Eigen::Matrix<double, Dynamic, 1>& coeff) { coeff_ = coeff; }
+    // linear algebra between iso functions
+    friend constexpr IsoFunction<IsoSpace_> operator+(IsoFunction<IsoSpace_>& lhs, IsoFunction<IsoSpace_>& rhs) {
+        return IsoFunction<IsoSpace_>(lhs.function_space(), lhs.coeff() + rhs.coeff());
+    }
+    friend constexpr IsoFunction<IsoSpace_> operator-(IsoFunction<IsoSpace_>& lhs, IsoFunction<IsoSpace_>& rhs) {
+        return IsoFunction<IsoSpace_>(lhs.function_space(), lhs.coeff() - rhs.coeff());
+    }
+    // assignment from expansion coefficient vector
+    IsoFunction& operator=(const Eigen::Matrix<double, Dynamic, 1>& coeff) {
+        fdapde_assert(coeff.size() > 0 && coeff.size() == iso_space_->n_dofs());
+        coeff_ = coeff;
+        return *this;
+    }
+
+    private:
+    Eigen::Matrix<double, Dynamic, 1> coeff_;
+    IsoSpace* iso_space_;
+};
+
+
+// given a not iso_assembler_packet callable type Derived_, builds a map from a discrete set of points (e.g., quadrature
+// nodes) to the evaluation of Derived_ at that points, so that the results is sp_assembler_packet evaluable
+template <typename Derived_> struct IsoMap : public ScalarFieldBase<Derived_::StaticInputSize, IsoMap<Derived_>> {
+    private:
+    using OutputType = decltype(std::declval<Derived_>().operator()(std::declval<typename Derived_::InputType>()));
+    using Derived = std::decay_t<Derived_>;
+    using MatrixType = Eigen::Matrix<double, Dynamic, Dynamic>;
+
+    public:
+    using InputType = internals::iso_assembler_packet<Derived::StaticInputSize>;
+    using Scalar = double;
+    static constexpr int StaticInputSize = Derived::StaticInputSize;
+    using Base = ScalarFieldBase<StaticInputSize, IsoMap<Derived>>;
+    static constexpr int NestAsRef = 0;
+    static constexpr int XprBits = Derived::XprBits | int(iso_assembler_flags::compute_physical_quad_nodes);
+    static constexpr int ReadOnly = 1;
+    static constexpr int Rows = 1;
+    static constexpr int Cols = 1;
+
+    constexpr IsoMap() = default;
+    constexpr IsoMap(const Derived_& xpr) : xpr_(&xpr) { }
+
+    template <typename CellIterator>
+    void init(
+      std::unordered_map<const void*, MatrixType>& buff, const MatrixType& nodes, [[maybe_unused]] CellIterator begin,
+      [[maybe_unused]] CellIterator end) const {
+        const void* ptr = reinterpret_cast<const void*>(xpr_);
+        if (buff.find(ptr) == buff.end()) {
+            Eigen::Matrix<double, Dynamic, Dynamic> mapped(nodes.rows(), Rows * Cols);
+            for (int i = 0, n = nodes.rows(); i < n; ++i) { mapped(i, 0) = xpr_->operator()(nodes.row(i)); }
+            buff[ptr] = mapped;
+            map_ = &buff[ptr];
+        } else {
+            map_ = &buff[ptr];
+        }
+    }
+
+    // iso assembler evaluation
+    constexpr OutputType operator()(const InputType& iso_packet) const {
+        return map_->operator()(iso_packet.quad_node_id, 0);
+    }
+    constexpr const Derived& derived() const { return xpr_; }
+    constexpr int input_size() const { return StaticInputSize; }
+    constexpr int rows() const { return Rows; }
+    constexpr int cols() const { return Cols; }
+
+
+    private:
+    const Derived* xpr_;
+    mutable const MatrixType* map_;
+
+};
+
+#endif
+
+
+
 
 
 

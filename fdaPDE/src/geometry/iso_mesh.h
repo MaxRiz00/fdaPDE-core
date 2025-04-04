@@ -108,8 +108,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     n_nodes_ *= unique_knots.size();
                 }
 
-                std::cout<<"n_cells: "<<n_cells_<<std::endl;
-                std::cout<<"n_nodes: "<<n_nodes_<<std::endl;
+                //std::cout<<"n_cells: "<<n_cells_<<std::endl;
+                //std::cout<<"n_nodes: "<<n_nodes_<<std::endl;
                 detect_periodicity_();
                 compute_span_aabbs_();
 
@@ -135,7 +135,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     IsoMeshData<LocalDim> data() const {
         return IsoMeshData<LocalDim>{knots_, weights_, control_points_, order_};
     }  
-
+    std::vector<int> nodes_markers() const { return nodes_markers_; }
+    std::vector<int> cells_markers() const { return cells_markers_; }
     // === Core Evaluation Functions === //
     
     /**
@@ -772,6 +773,24 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         }
         return false;
     }
+
+    /**
+     * @brief Get the ID of the cell containing the parametric coordinate `u`.
+     * 
+     * @param u Parametric coordinate (LocalDim-vector)
+     * @return Cell ID
+     */
+    int locate_param(const Eigen::Matrix<double, LocalDim, 1>& u) const {
+        std::array<int, LocalDim> multi_index;
+        for (int i = 0; i < LocalDim; ++i) {
+            if (u(i) >= param_nodes_[i].front() || u(i) <= param_nodes_[i].back()) return -1;
+
+            auto it = std::upper_bound(param_nodes_[i].begin(), param_nodes_[i].end(), u(i));
+            multi_index[i] = std::distance(param_nodes_[i].begin(), it) - 1;
+
+        }
+        return compute_id_(multi_index);
+    }
     
     /**
      * @brief Computes the neighboring cell IDs for each cell in the mesh.
@@ -829,6 +848,11 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         return patch;
     }
     */
+
+    /// wrapper for the compute multiindex for a cell
+    std::array<int, LocalDim> cell_multi_index(int id) const {
+        return compute_multi_index_(id);
+    }
 
     // === Cell Iteration & Marking === //
     
@@ -1252,6 +1276,44 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
     void refine_knots(const std::array<int, 2>& density = std::array<int, 2>{{1, 1}}, std::array<std::vector<double>, 2> add_knot_list = {}) {
         Base::refine_knots(density, add_knot_list);
         compute_cells_();
+    }
+
+    /**
+     * @brief Create a square IsoMesh over the domain [0,L] x [0,L]
+     *
+     * @param L Length of the square side (default = 1.0)
+     * @return IsoMesh<2,N> representing the square
+     */
+    static IsoMesh<2,N> square(double L = 1.0) {
+        static_assert(N == 2 || N == 3, "This method is only valid for N=2 or N=3");
+
+        std::array<std::vector<double>, 2> knots = {
+            std::vector<double>{0.0, 0.0, 1.0, 1.0},
+            std::vector<double>{0.0, 0.0, 1.0, 1.0}
+        };
+        std::array<int, 2> order = {1, 1};
+
+        MdArray<double, MdExtents<Dynamic,Dynamic>> weights(2, 2);
+        MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>> control_points(2, 2, N);
+        
+        for (int i = 0; i < 2; ++i) {
+            double u = i * L;
+            for (int j = 0; j < 2; ++j) {
+                double v = j * L;
+                if constexpr (N == 2) {
+                    weights(i, j) = 1.0;
+                    control_points(i, j, 0) = u;
+                    control_points(i, j, 1) = v;
+                } else if constexpr (N == 3) {
+                    weights(i, j) = 1.0;
+                    control_points(i, j, 0) = u;
+                    control_points(i, j, 1) = v;
+                    control_points(i, j, 2) = 0.0;
+                }
+            }
+        }
+
+        return IsoMesh<2, N>(knots, weights, control_points, order);
     }
 
     /**
@@ -1861,7 +1923,7 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
 
     // === Marker Utilities === //
 
-    // set faces markers
+    // Set faces markers
     template <typename Lambda> void mark_faces(int marker, Lambda&& lambda)
         requires(requires(Lambda lambda, FaceType f) {
             { lambda(f) } -> std::same_as<bool>;

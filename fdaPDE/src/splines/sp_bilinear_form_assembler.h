@@ -27,6 +27,7 @@ template <typename Triangulation_, typename Form_, int Options_, typename... Qua
 class sp_bilinear_form_assembly_loop :
     public sp_assembler_base<Triangulation_, Form_, Options_, Quadrature_...>,
     public assembly_xpr_base<sp_bilinear_form_assembly_loop<Triangulation_, Form_, Options_, Quadrature_...>> {
+   public:
     // detect trial and test spaces from bilinear form
     using TrialSpace = trial_space_t<Form_>;
     using TestSpace  = test_space_t <Form_>;
@@ -44,6 +45,7 @@ class sp_bilinear_form_assembly_loop :
     static constexpr int embed_dim = Base::embed_dim;
     using Base::form_;
     using Base::test_space_;
+   private:
     // private data members
     const DofHandlerType* trial_dof_handler_;
     constexpr const DofHandlerType* test_dof_handler() const { return Base::dof_handler_; }
@@ -91,7 +93,7 @@ class sp_bilinear_form_assembly_loop :
         int q = Base::n_quadrature_nodes_;
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_values(n1, q), trial_shape_values(n2, q);
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_dx    (n1, q), trial_shape_dx    (n2, q);
-        MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_ddx   (n1, q), trial_shape_ddx   (n2, q);
+        MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_dxx   (n1, q), trial_shape_dxx   (n2, q);
 
         std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>> sp_map_buff;
         if constexpr (Form::XprBits & int(sp_assembler_flags::compute_physical_quad_nodes)) {
@@ -107,23 +109,23 @@ class sp_bilinear_form_assembly_loop :
             // update fe_packet content based on form requests
             sp_packet.cell_measure = it->measure();
             if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_values)) {
-                Base::eval_shape_values(test_space_->basis(), test_active_dofs, it, test_shape_values);
+                Base::eval_shape_values(test_space_->physical_basis(), test_active_dofs, it, test_shape_values);
                 Base::eval_shape_values(
-                  trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
+                  trial_space_->physical_basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
                   trial_shape_values);
             }
             if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_dx)) {
-                Base::eval_shape_dx(test_space_->basis(), test_active_dofs, it, test_shape_dx);
+                Base::eval_shape_dx(test_space_->physical_basis(), test_active_dofs, it, test_shape_dx);
                 Base::eval_shape_dx(
-                  trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it, trial_shape_dx);
+                  trial_space_->physical_basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
+                  trial_shape_dx);
             }
-            if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_ddx)) {
-                Base::eval_shape_ddx(test_space_->basis(), test_active_dofs, it, test_shape_ddx);
-                Base::eval_shape_ddx(
-                  trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
-                  trial_shape_ddx);
+            if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_dxx)) {
+                Base::eval_shape_dxx(test_space_->physical_basis(), test_active_dofs, it, test_shape_dxx);
+                Base::eval_shape_dxx(
+                  trial_space_->physical_basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
+                  trial_shape_dxx);
             }
-
             // perform integration of weak form for (i, j)-th basis pair
             for (int i = 0; i < n2; ++i) {
                 for (int j = 0; j < n1; ++j) {
@@ -137,9 +139,9 @@ class sp_bilinear_form_assembly_loop :
                             sp_packet.trial_dx = trial_shape_dx(i, q_k);
                             sp_packet.test_dx  = test_shape_dx (j, q_k);
                         }
-                        if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_ddx)) {
-                            sp_packet.trial_ddx = trial_shape_ddx(i, q_k);
-                            sp_packet.test_ddx  = test_shape_ddx (j, q_k);
+                        if constexpr (Form::XprBits & int(sp_assembler_flags::compute_shape_dxx)) {
+                            sp_packet.trial_dxx = trial_shape_dxx(i, q_k);
+                            sp_packet.test_dxx  = test_shape_dxx (j, q_k);
                         }
                         if constexpr (Form::XprBits & int(sp_assembler_flags::compute_physical_quad_nodes)) {
                             sp_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
@@ -148,7 +150,7 @@ class sp_bilinear_form_assembly_loop :
                     }
                     triplet_list.emplace_back(
                       test_active_dofs[j], is_galerkin ? test_active_dofs[i] : trial_active_dofs[i],
-                      value * sp_packet.cell_measure);
+                      value * sp_packet.cell_measure * 0.5);
                 }
             }
 	    local_cell_id++;

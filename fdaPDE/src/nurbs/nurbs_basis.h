@@ -88,8 +88,9 @@ namespace fdapde {
             // function multiindex to index
             constexpr int multiindex_to_index(const std::array<int, M>& multiIndex) const {
                 int idx = 0;
+                std::cout << "multiIndex: ";
                 for (int j = 0; j < M; ++j) {
-                    idx += (basis_[j].size() - order_[j] - 1)*idx + multiIndex[j];
+                    idx += (basis_[j].size() - order_[j] - 1)*idx + multiIndex[j]; // may be wrong
                 }
                 return idx;
             }

@@ -23,7 +23,10 @@ namespace fdapde {
 #include "src/assembly.h"
 #include "src/isogeometric/iso_assembler_base.h"
 #include "src/isogeometric/iso_bilinear_form_assembler.h"
+#include "src/isogeometric/iso_linear_form_assembler.h"
 #include "src/isogeometric/iso_space.h"
+// weak forms
+#include "src/isogeometric/iso_objects.h"
 
 
 

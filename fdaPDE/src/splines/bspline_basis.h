@@ -72,7 +72,8 @@ class BSplineBasis {
     BSplineBasis(KnotsVectorType&& knots, int order)
         : order_(order), knots_(pad_knots(knots, order)) {
         int n = knots.size();
-        basis_.reserve(n - order_ + 1);
+        basis_.reserve(n - order_ - 1);
+
         for (int i = 0; i < n - order_ - 1; ++i) {
             basis_.emplace_back(knots_, i, order_);
         }
@@ -83,9 +84,8 @@ class BSplineBasis {
         Eigen::VectorXd knots = interval.nodes();
         fdapde_assert(std::is_sorted(knots.begin(), knots.end(), std::less_equal<double>()));
         knots_ = pad_knots(std::vector<double>(knots.data(), knots.data() + knots.size()), order);
-
-        int n = knots.size();
-        basis_.reserve(n - order_ + 1);
+        int n = knots_.size();
+        basis_.reserve(n - order_ - 1);
         for (int i = 0; i < n - order_ - 1; ++i) {
             basis_.emplace_back(knots_, i, order_);
         }

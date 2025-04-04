@@ -11,26 +11,25 @@ template <int LocalDim, int EmbedDim, typename DiscretizationCategory> class Dof
 template<int N> class DofHandler<2, N, iso_tag> {
 
     public:
-    friend class IsoMesh<2, N>;
     using MeshType = IsoMesh<2, N>;
     static constexpr int local_dim = MeshType::local_dim;
     static constexpr int embed_dim = MeshType::embed_dim;
 
     protected:
-    int flatten(const std::array<int,local_dim>& multi_idx) const {
-        const auto& dims = mesh_->n_control_points();  
+    int flatten(const std::array<int, local_dim>& multi_idx) const {
+        const auto& dims = mesh_->n_control_points();
         int id = 0;
         int stride = 1;
-        for (int d = 0; d < local_dim; ++d) {
+        for (int d = local_dim - 1; d >= 0; --d) {
             id += multi_idx[d] * stride;
             stride *= dims[d];
         }
         return id;
     }
     std::array<int,local_dim> unflatten(int id) const {
-        const auto& dims = mesh_->n_control_points();  
+        const auto& dims = mesh_->n_control_points();
         std::array<int,local_dim> multi_idx;
-        for (int d = 0; d < local_dim; ++d) {
+        for (int d = local_dim - 1; d >= 0; --d) {
             multi_idx[d] = id % dims[d];
             id /= dims[d];
         }
@@ -49,8 +48,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
         CellType() : dof_handler_(nullptr) { }
         CellType(int cell_id, const DofHandler* dof_handler):
-            Base(cell_id, dof_handler->mesh()), dof_handler_(dof_handler_) { } 
-            std::array<std::vector<int>,local_dim> dofs() const {
+            Base(cell_id, dof_handler->mesh()), dof_handler_(dof_handler) { } 
+            std::vector<int> dofs() const {
                 return dof_handler_->active_dofs(Base::id());
             }
             /*
@@ -81,7 +80,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
         n_dofs_per_cell_ = 1;
         for(int i = 0; i < local_dim; i++) n_dofs_per_cell_ *= order_[i] + 1;
         int n_cells = mesh_->n_cells();
-        n_dofs_ = n_dofs_per_cell * n_cells;
+        n_dofs_ = (mesh_->basis()).size();
         const auto& dims = mesh_->n_control_points();
 
         dofs_.resize(n_cells, n_dofs_per_cell_);
@@ -106,7 +105,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
             }
         }
 
-        dofs_markers = mesh->nodes_markers();
+        dofs_markers_ = mesh.nodes_markers();
      }
 
      // dimension n_dofs_ x local_dim: parametric coordinates of each dof
@@ -195,10 +194,10 @@ template<int N> class DofHandler<2, N, iso_tag> {
             cell_iterator(
               index, dof_handler,
               marker == TriangulationAll ?
-                BinaryVector<Dynamic>::Ones(dof_handler->triangulation()->n_cells()) :   // apply no filter
+                BinaryVector<Dynamic>::Ones(dof_handler->mesh()->n_cells()) :   // apply no filter
                 make_binary_vector(
-                  dof_handler->triangulation()->cells_markers().begin(),
-                  dof_handler->triangulation()->cells_markers().end(), marker),
+                  dof_handler->mesh()->cells_markers().begin(),
+                  dof_handler->mesh()->cells_markers().end(), marker),
               marker) { }
         int marker() const { return marker_; }
 
@@ -270,8 +269,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
     // Evaluation of the non zero basis functions in the a given knot span
     // voglio gli ID, non i punti std::vector<int>
     std::vector<int> active_dofs(int id) const { // id is the cell id
-        std::vector<Eigen::Matrix<int,local_dim,1>> dofs;
-        auto multi_index = mesh_->compute_multi_index_(id);
+        std::vector<int> dofs;
+        auto multi_index = mesh_->cell_multi_index(id);
         std::array<std::vector<double>,local_dim> param_nodes = mesh_->param_nodes();
         Eigen::Matrix<double,local_dim,1> u;
         for(int i = 0; i < local_dim; i++) u(i) = param_nodes[i][multi_index[i]];
@@ -279,21 +278,35 @@ template<int N> class DofHandler<2, N, iso_tag> {
         auto spline_basis = nurb.spline_basis();
 
         std::vector<std::vector<int>> span_indices(local_dim);
+        std::cout << "Cell ID: " << id << std::endl;
+        std::cout << "u: " << u.transpose() << std::endl;
 
         for(int i = 0; i < local_dim; i++) {
-            auto basis = spline_basis[i][0];
+            auto basis = spline_basis[i];
             int span = basis->find_span(u(i));
             int p = order_[i];
             for(int j = 0; j <= p; j++) {
                 span_indices[i].push_back(span - p + j); 
             }
         }
+
+        // Print the span indices
+        std::cout << "Span indices: ";
+        for (int i = 0; i < local_dim; ++i) {
+            std::cout << "[";
+            for (const auto& index : span_indices[i]) {
+                std::cout << index << " ";
+            }
+            std::cout << "] ";
+        }
+        std::cout << std::endl;
+
         // Carry-on logic: Cartesian product of all local spans
         std::vector<int> idx(local_dim, 0);
         while (true) {
-            Eigen::Matrix<int, local_dim, 1> dof_index;
+            std::array<int,local_dim> dof_index;
             for (int d = 0; d < local_dim; ++d) {
-                dof_index(d) = span_indices[d][idx[d]];
+                dof_index[d] = span_indices[d][idx[d]];
             }
             dofs.push_back(flatten(dof_index));
 
@@ -307,6 +320,13 @@ template<int N> class DofHandler<2, N, iso_tag> {
             }
             if (d < 0) break;
         }
+
+        // print the active dofs
+        std::cout << "Active dofs: ";
+        for (int i = 0; i < dofs.size(); i++) {
+            std::cout << dofs[i] << " ";
+        }
+        std::cout << std::endl;
 
         return dofs;
     }
