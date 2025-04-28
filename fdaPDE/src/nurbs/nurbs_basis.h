@@ -29,6 +29,7 @@ namespace fdapde {
             std::array<int,M> order_;
             std::array<std::vector<double>,M> knots_;
             std::vector<Nurbs<M>> basis_ {};
+            std::array<bool, M> periodicity_ {};
 
         public:
             static constexpr int StaticInputSize = M;
@@ -41,7 +42,9 @@ namespace fdapde {
             //               { knots[i] } -> std::convertible_to<std::vector<double>>;
             //               { knots.size() } -> std::convertible_to<std::size_t>;
             //          })
-            NurbsBasis(std::array<std::vector<double>,M>& knots,MdArray<double, full_dynamic_extent_t<M>>& weights, std::array<int,M> order) : order_(order){
+            NurbsBasis(std::array<std::vector<double>,M>& knots,MdArray<double, 
+                full_dynamic_extent_t<M>>& weights, std::array<int,M> order,
+                std::array<bool, M> periodicity = {}) : order_(order), periodicity_(periodicity) {
                 // define basis system
                 for(int i=0;i<M;i++){
                     int n = knots[i].size();
@@ -62,7 +65,9 @@ namespace fdapde {
                 std::array<std::shared_ptr<BSplineBasis>, M> M_spline_basis;
                 
                 for(int k=0;k<M;++k){
-                    M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_[k]);
+                    //M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_[k]); //periodicity_[k]
+                    std::cout<<"Ecco la periodicity: "<<periodicity_[k]<<std::endl;
+                    M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_[k], periodicity_[k]);
                 }
                     
                 
@@ -70,16 +75,17 @@ namespace fdapde {
                     basis_.emplace_back(M_spline_basis, weights, index);
                     //basis_.emplace_back(knots, weights, index, order);
                     // Update the index with carry-over logic
-                    std::size_t j = M - 1;
+                    //std::size_t j = M - 1;
+                    std::size_t j = 0;
                     // Increment the last index
                     ++index[j];
                     // Carry-over when reaching the maximum allowed size
-                    while (j > 0 && index[j] == knots_[j].size() - order_[j] - 1) {
-                        index[j] = 0;  // Reset the current index
-                        --j;           // Move to the previous coordinate
-                        ++index[j];    // Increment the previous coordinate
-                    }
+                    while (j < M - 1 && index[j] == knots_[j].size() - order_[j] - 1) {
+                        index[j] = 0;
+                        ++j;
+                        ++index[j];
                 }
+            }
                     
             }
             
@@ -88,9 +94,10 @@ namespace fdapde {
             // function multiindex to index
             constexpr int multiindex_to_index(const std::array<int, M>& multiIndex) const {
                 int idx = 0;
-                std::cout << "multiIndex: ";
+                int stride = 1;
                 for (int j = 0; j < M; ++j) {
-                    idx += (basis_[j].size() - order_[j] - 1)*idx + multiIndex[j]; // may be wrong
+                    idx += multiIndex[j] * stride;
+                    stride *= (knots_[j].size() - order_[j] - 1);
                 }
                 return idx;
             }
@@ -98,13 +105,25 @@ namespace fdapde {
             const Nurbs<M>& operator()(const std::array<int, M>& multiIndex) const {
                 return basis_[multiindex_to_index(multiIndex)];
             }
+
+            // given a flattened index return the multiindex
+            constexpr std::array<int, M> index_to_multiindex(int idx) const {
+                std::array<int, M> multiIndex;
+                for (int j = 0; j < M; ++j) {
+                    int dim_size = knots_[j].size() - order_[j] - 1;
+                    multiIndex[j] = idx % dim_size;
+                    idx /= dim_size;
+                }
+                return multiIndex;
+            }
             
             //NurbsBasis(const Triangulation<M, 1>& interval, MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : NurbsBasis(interval.nodes(), weights, order) { }
             // getters
             constexpr const Nurbs<M>& operator[](int i) const { return basis_[i]; }
             constexpr int size() const { return basis_.size(); }
             constexpr std::array<int,M> order() const { return order_; }
-            constexpr const std::vector<Nurbs<M>>& spline_basis() const { return basis_; }
+            constexpr const std::vector<Nurbs<M>>& nurbs_basis() const { return basis_; }
+            constexpr const std::vector<double>& knots(int i) const { return knots_[i]; }
 
             auto begin() const { return basis_.begin(); }
             auto end() const { return basis_.end(); }

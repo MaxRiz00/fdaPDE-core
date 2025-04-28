@@ -23,25 +23,25 @@ namespace fdapde {
 namespace internals {
 
 template <typename IsoSpace_>
-struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_dim, TestFunction<IsoSpace_, iso_tag>> {
+struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::embed_dim, TestFunction<IsoSpace_, iso_tag>> {
     using TestSpace = std::decay_t<IsoSpace_>;
-    using Base = ScalarFieldBase<IsoSpace_::local_dim, TestFunction<IsoSpace_, iso_tag>>;
-    using InputType = internals::iso_assembler_packet<TestSpace::local_dim>;
+    using Base = ScalarFieldBase<IsoSpace_::embed_dim, TestFunction<IsoSpace_, iso_tag>>;
+    using InputType = internals::iso_assembler_packet<TestSpace::embed_dim>;
     using Scalar = double; 
-    static constexpr int StaticInputSize = TestSpace::local_dim;
+    static constexpr int StaticInputSize = TestSpace::embed_dim;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_values);
 
     private:
      template<typename Derived_>
-     struct FirstPartialDerivative_ : ScalarFieldBase<TestSpace::local_dim, FirstPartialDerivative_<Derived_>> {
+     struct FirstPartialDerivative_ : ScalarFieldBase<TestSpace::embed_dim, FirstPartialDerivative_<Derived_>> {
         using Derived = Derived_;
         template <typename T> using Meta = FirstPartialDerivative_<T>;
         using TestSpace = std::decay_t<IsoSpace_>;   // required from xpr_query<>
-        using Base = ScalarFieldBase<TestSpace::local_dim, FirstPartialDerivative_<Derived_>>;
-        using InputType = internals::iso_assembler_packet<TestSpace::local_dim>;
+        using Base = ScalarFieldBase<TestSpace::embed_dim, FirstPartialDerivative_<Derived_>>;
+        using InputType = internals::iso_assembler_packet<TestSpace::embed_dim>;
         using Scalar = double;
-        static constexpr int StaticInputSize = TestSpace::local_dim;
+        static constexpr int StaticInputSize = TestSpace::embed_dim;
         static constexpr int NestAsRef = 0;
         static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_grad);
 
@@ -60,14 +60,14 @@ struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_d
      };
 
      template <typename Derived_>
-    struct MixedPartialDerivative_ : ScalarFieldBase<TestSpace::local_dim, MixedPartialDerivative_<Derived_>> {
+    struct MixedPartialDerivative_ : ScalarFieldBase<TestSpace::embed_dim, MixedPartialDerivative_<Derived_>> {
         using Derived = Derived_;
         template <typename T> using Meta = MixedPartialDerivative_<T>;      
         using TestSpace = std::decay_t<IsoSpace_>;   // required from xpr_query<>
-        using Base = ScalarFieldBase<TestSpace::local_dim, MixedPartialDerivative_<Derived_>>;
-        using InputType = internals::iso_assembler_packet<TestSpace::local_dim>;
+        using Base = ScalarFieldBase<TestSpace::embed_dim, MixedPartialDerivative_<Derived_>>;
+        using InputType = internals::iso_assembler_packet<TestSpace::embed_dim>;
         using Scalar = double;
-        static constexpr int StaticInputSize = TestSpace::local_dim;
+        static constexpr int StaticInputSize = TestSpace::embed_dim;
         static constexpr int NestAsRef = 0;
         static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_hess);
 
@@ -76,7 +76,7 @@ struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_d
         MixedPartialDerivative_(const Derived_& xpr, int i, int j) noexcept : xpr_(xpr), i_(i), j_(j) { }
 
         // assembly evaluation
-        constexpr Scalar operator()(const InputType& iso_packet) const { return iso_packet.test_hessian(i_,j_); }
+        constexpr Scalar operator()(const InputType& iso_packet) const { return iso_packet.test_hess(i_,j_); }
         constexpr TestSpace& function_space() { return *(xpr_.iso_space_); }
         constexpr const TestSpace& function_space() const { return *(xpr_.iso_space_); }
         constexpr int input_size() const { return StaticInputSize; }
@@ -106,25 +106,25 @@ struct iso_scalar_test_function_impl : public ScalarFieldBase<IsoSpace_::local_d
 };
 
 template <typename IsoSpace_>
-struct iso_scalar_trial_function_impl : public ScalarFieldBase<IsoSpace_::local_dim, TrialFunction<IsoSpace_, iso_tag>> {
+struct iso_scalar_trial_function_impl : public ScalarFieldBase<IsoSpace_::embed_dim, TrialFunction<IsoSpace_, iso_tag>> {
     using TrialSpace = std::decay_t<IsoSpace_>;
-    using Base = ScalarFieldBase<IsoSpace_::local_dim, TrialFunction<IsoSpace_, iso_tag>>;
-    using InputType = internals::iso_assembler_packet<TrialSpace::local_dim>;
+    using Base = ScalarFieldBase<IsoSpace_::embed_dim, TrialFunction<IsoSpace_, iso_tag>>;
+    using InputType = internals::iso_assembler_packet<TrialSpace::embed_dim>;
     using Scalar = double;
-    static constexpr int StaticInputSize = TrialSpace::local_dim;
+    static constexpr int StaticInputSize = TrialSpace::embed_dim;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_values);
     private:
     //definitions of derivative functors
     template<typename Derived_>
-    struct FirstPartialDerivative_ : ScalarFieldBase<TrialSpace::local_dim, FirstPartialDerivative_<Derived_>> {
+    struct FirstPartialDerivative_ : ScalarFieldBase<TrialSpace::embed_dim, FirstPartialDerivative_<Derived_>> {
         using Derived = Derived_;
         template <typename T> using Meta = FirstPartialDerivative_<T>;
         using TrialSpace = std::decay_t<IsoSpace_>;   // required from xpr_query<>
-        using Base = ScalarFieldBase<TrialSpace::local_dim, FirstPartialDerivative_<Derived_>>;
-        using InputType = internals::iso_assembler_packet<TrialSpace::local_dim>;
+        using Base = ScalarFieldBase<TrialSpace::embed_dim, FirstPartialDerivative_<Derived_>>;
+        using InputType = internals::iso_assembler_packet<TrialSpace::embed_dim>;
         using Scalar = double;
-        static constexpr int StaticInputSize = TrialSpace::local_dim;
+        static constexpr int StaticInputSize = TrialSpace::embed_dim;
         static constexpr int NestAsRef = 0;
         static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_grad);
 
@@ -143,23 +143,25 @@ struct iso_scalar_trial_function_impl : public ScalarFieldBase<IsoSpace_::local_
     };
 
     template <typename Derived_>
-    struct MixedPartialDerivative_ : ScalarFieldBase<TrialSpace::local_dim, MixedPartialDerivative_<Derived_>> {
+    struct MixedPartialDerivative_ : ScalarFieldBase<TrialSpace::embed_dim, MixedPartialDerivative_<Derived_>> {
         using Derived = Derived_;
         template <typename T> using Meta = MixedPartialDerivative_<T>;      
         using TestSpace = std::decay_t<IsoSpace_>;   // required from xpr_query<>
-        using Base = ScalarFieldBase<TrialSpace::local_dim, MixedPartialDerivative_<Derived_>>;
-        using InputType = internals::iso_assembler_packet<TrialSpace::local_dim>;
+        using Base = ScalarFieldBase<TrialSpace::embed_dim, MixedPartialDerivative_<Derived_>>;
+        using InputType = internals::iso_assembler_packet<TrialSpace::embed_dim>;
         using Scalar = double;
-        static constexpr int StaticInputSize = TrialSpace::local_dim;
+        static constexpr int StaticInputSize = TrialSpace::embed_dim;
         static constexpr int NestAsRef = 0;
         static constexpr int XprBits = 0 | int(iso_assembler_flags::compute_shape_hess);
 
         MixedPartialDerivative_() noexcept = default;
         MixedPartialDerivative_(const Derived_& xpr) noexcept : xpr_(xpr), i_(0), j_(0) { }
-        MixedPartialDerivative_(const Derived_& xpr, int i, int j) noexcept : xpr_(xpr), i_(i), j_(j) { }
+        MixedPartialDerivative_(const Derived_& xpr, int i, int j) noexcept : xpr_(xpr), i_(i), j_(j) {
+            //std::cout << "MixedPartialDerivative_() i,j = " << i_ << " " << j_ << std::endl;
+         }
 
         // assembly evaluation
-        constexpr Scalar operator()(const InputType& iso_packet) const { return iso_packet.trial_hessian(i_,j_); }
+        constexpr Scalar operator()(const InputType& iso_packet) const { return iso_packet.trial_hess(i_,j_); }
         constexpr TrialSpace& function_space() { return *(xpr_.iso_space_); }
         constexpr const TrialSpace& function_space() const { return *(xpr_.iso_space_); }
         constexpr int input_size() const { return StaticInputSize; }
@@ -255,7 +257,9 @@ struct PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 2> :
     public TrialFunction<IsoSpace_, iso_tag>::MixedPartialDerivative {
     PartialDerivative() = default;
     PartialDerivative(const TrialFunction<IsoSpace_, iso_tag>& f, int i, int j) :
-        TrialFunction<IsoSpace_, iso_tag>::MixedPartialDerivative(f, i, j) { }
+        TrialFunction<IsoSpace_, iso_tag>::MixedPartialDerivative(f, i, j) {
+            std::cout << "PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 2>" << std::endl;
+         }
 };
 
 // alisas ???? dx ddx
@@ -287,17 +291,29 @@ template <typename IsoSpace_> class IsoFunction : public ScalarFieldBase<IsoSpac
     }
 
     Scalar operator()(const InputType& p){
-        int e_id = iso_space_->mesh()->locate_param(p);
+        int e_id = iso_space_->mesh().locate_param(p);
+        //std::cout << "p = " << p.transpose() << std::endl;
+        //std::cout << "e_id = " << e_id << std::endl;
+        // print the left and right bounds of the element
+        //std::cout << "left = " << iso_space_->mesh().cell(e_id).left_coords() << std::endl;
+        //std::cout << "right = " << iso_space_->mesh().cell(e_id).right_coords() << std::endl;
         if (e_id == -1) return std::numeric_limits<Scalar>::quiet_NaN();   // return NaN if point lies outside domain
         // map p to reference cell and evaluate
         typename DofHandlerType::CellType cell = iso_space_->dof_handler().cell(e_id);
         InputType ref_p = cell.inverse_affine_map(p) ; // da capire
         std::vector<int> active_dofs = cell.dofs();
+        //std::cout << "active_dofs size= " << active_dofs.size() << std::endl;
+        //std::cout<<"coeff_.size() = " << coeff_.size() << std::endl;
 
         Scalar value = 0;
         for (int i = 0, n = active_dofs.size(); i < n; ++i) {
-            value += coeff_[active_dofs[i]] * iso_space_->eval_shape_value(i, p); // perchy ref p ???
+            value += coeff_[active_dofs[i]] * iso_space_->eval_shape_value(active_dofs[i], p); // perchy ref p ???
+
+            //std::cout<<"coeff_[" << active_dofs[i] << "] = " << coeff_[active_dofs[i]] << std::endl;
+            //std::cout<<"iso_space_->eval_shape_value(" << active_dofs[i] << ", p) = " << iso_space_->eval_shape_value(active_dofs[i], p) << std::endl;
         }
+
+        //std::cout<<"Value = " << value << std::endl;
 
         return value;
 
@@ -367,7 +383,8 @@ template <typename Derived_> struct IsoMap : public ScalarFieldBase<Derived_::St
         const void* ptr = reinterpret_cast<const void*>(xpr_);
         if (buff.find(ptr) == buff.end()) {
             Eigen::Matrix<double, Dynamic, Dynamic> mapped(nodes.rows(), Rows * Cols);
-            for (int i = 0, n = nodes.rows(); i < n; ++i) { mapped(i, 0) = xpr_->operator()(nodes.row(i)); }
+            for (int i = 0, n = nodes.rows(); i < n; ++i) { 
+                mapped(i, 0) = xpr_->operator()(nodes.row(i)); }
             buff[ptr] = mapped;
             map_ = &buff[ptr];
         } else {

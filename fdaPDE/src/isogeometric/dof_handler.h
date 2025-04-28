@@ -15,23 +15,21 @@ template<int N> class DofHandler<2, N, iso_tag> {
     static constexpr int local_dim = MeshType::local_dim;
     static constexpr int embed_dim = MeshType::embed_dim;
 
-    protected:
+    public:
     int flatten(const std::array<int, local_dim>& multi_idx) const {
-        const auto& dims = mesh_->n_control_points();
         int id = 0;
         int stride = 1;
-        for (int d = local_dim - 1; d >= 0; --d) {
+        for (int d = 0; d < local_dim ; d++) {
             id += multi_idx[d] * stride;
-            stride *= dims[d];
+            stride *= dims_[d];
         }
         return id;
     }
     std::array<int,local_dim> unflatten(int id) const {
-        const auto& dims = mesh_->n_control_points();
         std::array<int,local_dim> multi_idx;
-        for (int d = local_dim - 1; d >= 0; --d) {
-            multi_idx[d] = id % dims[d];
-            id /= dims[d];
+        for (int d = 0; d < local_dim ; d++)  {
+            multi_idx[d] = id % dims_[d];
+            id /= dims_[d];
         }
         return multi_idx;
     }
@@ -75,13 +73,19 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
     // constructor
     DofHandler() = default;
-    DofHandler(const MeshType& mesh) : mesh_(std::addressof(mesh)) {
+    DofHandler(const MeshType& mesh) : mesh_(std::addressof(mesh)), dof_constraints_(*this) {
         order_ = mesh_->order();
+        basis_pde_ = mesh_->basis_pde();
         n_dofs_per_cell_ = 1;
         for(int i = 0; i < local_dim; i++) n_dofs_per_cell_ *= order_[i] + 1;
         int n_cells = mesh_->n_cells();
-        n_dofs_ = (mesh_->basis()).size();
-        const auto& dims = mesh_->n_control_points();
+        n_dofs_ = (basis_pde_).size();
+        //const auto& dims = mesh_->n_control_points();
+        for (int d = 0; d < local_dim; ++d) {
+            dims_[d] = basis_pde_[0].spline_basis()[d]->n_knots() - order_[d] - 1;
+            std::cout << "Dimension " << d << ": " << dims_[d] << std::endl;
+        }
+        
 
         dofs_.resize(n_cells, n_dofs_per_cell_);
 
@@ -98,20 +102,291 @@ template<int N> class DofHandler<2, N, iso_tag> {
         for(int id = 0; id < n_dofs_; id++) {
             auto multi_index = unflatten(id);
             for(int d = 0; d < local_dim; d++) {
-                if(multi_index[d] == 0 || multi_index[d] == dims[d] - 1) {
+                if((multi_index[d] == 0 || multi_index[d] == dims_[d] - 1) && (!mesh_->is_periodic(d))) {
                     boundary_dofs_.set(id);
                     break;
                 }
             }
         }
 
-        dofs_markers_ = mesh.nodes_markers();
+        // for the moment unmarked dofs
+        dofs_markers_ = std::vector<int>(n_dofs_, Unmarked);
+
+        //dofs_markers_ = mesh.nodes_markers();
+        dof_map_.resize(n_dofs_);
+        for (int i = 0; i < n_dofs_; ++i) {
+            dof_map_[i] = i;
+        }
+
+
+        build_periodic_dof_map2();
+        /*
+        // print the periodic dof map
+        std::cout << "Periodic DOF map: " << std::endl;
+        for (int i = 0; i < n_dofs_; ++i) {
+            std::cout << "DOF " << i << " maps to " << dof_map_[i] << std::endl;
+
+         }
+            */
+
+
+         int next_index = 0;
+
+        for (int i = 0; i < dof_map_.size(); ++i) {
+            int mapped = dof_map_[i];
+            if (compressed_map_.find(mapped) == compressed_map_.end()) {
+                compressed_map_[mapped] = next_index++;
+            }
+        }
+
+        reduced_dof_map_.resize(n_dofs_);
+        for (int i = 0; i < n_dofs_; ++i) {
+            reduced_dof_map_[i] = compressed_map_[dof_map_[i]];
+        }
+
+        // Print the reduced dof map
+        //std::cout << "Reduced DOF map: " << std::endl;
+        //for (int i = 0; i <n_dofs_; ++i) {
+          //  std::cout << "DOF " << i << " maps to " << reduced_dof_map_[i] << std::endl;
+        //}
+        // Print the number of mapped dofs
+        //std::cout << "Number of mapped DOFs: " << n_mapped_dofs_ << std::endl;
+        // Print the number of dofs
+
+
+    }
+
+    
+
+     template <typename SystemMatrix, typename SystemRhs>
+     void enforce_constraints(SystemMatrix&& A, SystemRhs&& b) const {
+         dof_constraints_.enforce_constraints(std::forward<SystemMatrix>(A), std::forward<SystemRhs>(b));
      }
+
+     void enforce_constraints(Eigen::SparseMatrix<double>& A) const {
+        dof_constraints_.enforce_constraints(A);
+    }
+
+    void enforce_constraints(Eigen::Matrix<double, Dynamic, 1>& b) const {
+        dof_constraints_.enforce_constraints(b);
+    }
+
+    void set_hom_dirichlet_constraint(int marker = BoundaryAll) {
+        dof_constraints_.set_hom_dirichlet_constraint(marker);
+
+        
+    }
+
+    void set_periodic_constraint() { // non so se funziona, only C0 continuity
+        std::set<int> constrained_dofs;
+        std::set<int> master_set;
+        for (int d = 0; d < local_dim; ++d) {
+            if (!mesh_->is_periodic(d)) continue;
+            std::cout << "Periodic constraint in dimension " << d << std::endl;
+        
+            int p = order_[d]; //order_[p];      // spline degree
+            int n = dims_[d];       // number of DOFs in this direction
+        
+            std::array<int, local_dim> idx_min, idx_max;
+            
+            // Loop over all combinations in other dimensions
+            std::vector<int> dofs_min, dofs_max;
+            std::array<int, local_dim> multi;
+            int master_north_pole = -1;
+            int master_south_pole = -1;
+            for (int i = 0; i < n_dofs_; ++i) {
+                
+                // For a sphere: v = 0 is south pole, v = dims_[1]-1 is north pole
+                if (unflatten(i)[1] == dims_[1] - 1 && master_north_pole == -1) {
+                    master_north_pole = i;
+                    master_set.insert(i);
+                    continue;  // Skip this DoF from periodic constraint setup
+                }
+                if (unflatten(i)[1] == 0 && master_south_pole == -1) {
+                    master_south_pole = i;
+                    master_set.insert(i);
+                    continue;  // Same here
+                }
+                    
+
+                multi = unflatten(i);
+                if (multi[d] < order_[d]) {
+                    auto mapped = multi;
+                    mapped[d] += n - order_[d];
+                    int mapped_id = flatten(mapped);
+                    dofs_min.push_back(i);
+                    dofs_max.push_back(mapped_id);
+                    master_set.insert(i);
+                }
+                // TEMPORARY: only for sphere: constraint on the dofs at the poles, put the other dofs equal to the first one
+            }
+
+            // print dofs_min and dofs_max
+            for(int i = 0; i < dofs_min.size(); ++i) {
+                std::cout << "dofs_min: " << dofs_min[i] << " dofs_max: " << dofs_max[i] << std::endl;
+            }
+            
+            
+            std::cout<<"Master north pole: "<<master_north_pole<<std::endl;
+            std::cout<<"Master south pole: "<<master_south_pole<<std::endl;
+            
+            
+            for(int i = 0; i < n_dofs_; ++i) {
+                // v = dims_[1] - 1 is north pole, v = 0 is south pole
+                if(unflatten(i)[1] == dims_[1] - 1 && i != master_north_pole) { // north pole
+                    dof_constraints_.set_master_slave_constraint(master_north_pole, i);
+                    constrained_dofs.insert(i);
+                }
+                if(unflatten(i)[1] == 0 && i != master_south_pole) { // south pole
+                    dof_constraints_.set_master_slave_constraint(master_south_pole, i);
+                    constrained_dofs.insert(i);
+                }
+            }
+                
+                
+                
+                
+            //dof_constraints_.set_master_slave_constraint(master_south_pole, master_north_pole);
+
+            std::cout << "number of Periodic constraint: " << dofs_min.size() << " dofs" << std::endl;
+        
+            // Enforce the periodic constraint: max ↔ min
+            for (int i = 0; i < dofs_min.size(); ++i) {
+                int master = dofs_min[i];
+                int slave  = dofs_max[i];
+                std::cout << "Periodic constraint: " << master << " ↔ " << slave << std::endl;
+                for(int j = 0; j < local_dim; ++j) {
+                    std::cout << "multi: " << unflatten(master)[j] << " ↔ " << unflatten(slave)[j] << std::endl;
+                }
+                if(constrained_dofs.find(slave) != constrained_dofs.end()) {
+                    std::cout << "Skipped constraint: " << slave << " already constrained.\n";
+                }
+                if(constrained_dofs.find(slave) == constrained_dofs.end()) {
+                    dof_constraints_.set_master_slave_constraint(master, slave);
+                    constrained_dofs.insert(slave);
+                }
+                //dof_constraints_.set_master_slave_constraint(master, slave); // enforce slave = master
+            }
+
+
+            
+        }
+    }
+    void set_periodic_constraint2() { // C0 periodic continuity
+        std::set<int> constrained_dofs;
+
+        // Handle corner wrap (only once, when all dimensions are periodic)
+        bool all_periodic = true;
+        for (int d = 0; d < local_dim; ++d) {
+            if (!mesh_->is_periodic(d)) {
+                all_periodic = false;
+                break;
+            }
+        }
+
+        if (all_periodic) {
+            int p0 = order_[0];
+            int p1 = order_[1];
+            int n0 = dims_[0];
+            int n1 = dims_[1];
+            int master = flatten({0, 0});
+            for (int i = 0; i < 1; ++i) {
+                for (int j = 0; j < 1; ++j) {
+                    if (i == 0 && j == 0) continue;
+                    int slave = flatten({i + n0 - p0, j + n1 - p1});
+                    if (constrained_dofs.find(slave) == constrained_dofs.end()) {
+                        dof_constraints_.set_master_slave_constraint(master, slave);
+                        constrained_dofs.insert(slave);
+                    }
+                }
+            }
+
+            // Edge wrap along top (in j)
+            for (int j = 0; j < p1; ++j) {
+                for (int i = 0; i < n0; ++i) {
+                    int master = flatten({i, j});
+                    int slave = flatten({i, j + n1 - p1});
+                    if (constrained_dofs.find(slave) == constrained_dofs.end()) {
+                        dof_constraints_.set_master_slave_constraint(master, slave);
+                        constrained_dofs.insert(slave);
+                    }
+                }
+            }
+
+            // Edge wrap along right (in i)
+            for (int i = 0; i < p0; ++i) {
+                for (int j = 0; j < n1; ++j) {
+                    int master = flatten({i, j});
+                    int slave = flatten({i + n0 - p0, j});
+                    if (constrained_dofs.find(slave) == constrained_dofs.end()) {
+                        dof_constraints_.set_master_slave_constraint(master, slave);
+                        constrained_dofs.insert(slave);
+                    }
+                }
+            }
+        }
+
+        for (int d = 0; d < local_dim; ++d) {
+            if (!mesh_->is_periodic(d)) continue;
+            std::cout << "Periodic constraint in dimension " << d << std::endl;
+
+            int p = order_[d];
+            int n = dims_[d];
+
+            // Edge wrapping (1D per dimension)
+            for (int i = 0; i < n_dofs_; ++i) {
+                auto idx = unflatten(i);
+                if (idx[d] < p) {
+                    auto mapped = idx;
+                    mapped[d] = idx[d] + (n - p);
+                    int master = flatten(idx);
+                    int slave = flatten(mapped);
+                    if (constrained_dofs.find(slave) != constrained_dofs.end()) {
+                        std::cout << "Skipped constraint: " << slave << " already constrained.\n";
+                    }
+                    if (constrained_dofs.find(slave) == constrained_dofs.end()) {
+                        dof_constraints_.set_master_slave_constraint(master, slave);
+                        constrained_dofs.insert(slave);
+                    }
+                }
+            }
+        }
+
+
+    }
+
+
+
+    void set_periodic_constraint3() {
+        std::set<int> constrained_dofs;
+        for (int i = 0; i < n_dofs_; ++i) {
+            int mapped = dof_map_[i];
+            if (mapped != i && constrained_dofs.find(i) == constrained_dofs.end()) {
+                std::cout << "Periodic constraint: " << i << " ↔ " << mapped << std::endl;
+                dof_constraints_.set_master_slave_constraint(mapped, i);
+                constrained_dofs.insert(i);
+            }
+        }
+    }
+    
+    
+    
+    void get_boundary_dofs_for_dimension(int dim, bool min_side, std::vector<int>& dofs) const {
+        for (int i = 0; i < n_dofs_; ++i) {
+            if(boundary_dofs_[i]) {
+                auto multi_index = unflatten(i);
+                if ((min_side && multi_index[dim] == 0) || (!min_side && multi_index[dim] == dims_[dim] - 1)) {
+                    dofs.push_back(i);
+                }
+            }
+        }
+    }
+
 
      // dimension n_dofs_ x local_dim: parametric coordinates of each dof
      Eigen::Matrix<double, Dynamic, local_dim> dof_coords() const{
         Eigen::Matrix<double, Dynamic, local_dim> coords(n_dofs_, local_dim);
-        auto nurb = mesh_->basis()[0]; // take a nurb
+        auto nurb = basis_pde_[0]; // take a nurb
         std::array<std::vector<double>, local_dim> knot_coords;
 
         // Extract 1D knot positions for each parametric direction
@@ -144,8 +419,112 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
      }
      
- 
+    void build_periodic_dof_map() {
+        // Initialize all entries with identity mapping
+        dof_map_.resize(n_dofs_);
+        std::iota(dof_map_.begin(), dof_map_.end(), 0);  // identity map
 
+        for (int d = 0; d < local_dim; ++d) {
+            if (!mesh_->is_periodic(d)) continue;
+
+            int n = dims_[d];
+
+            for (int i = 0; i < n_dofs_; ++i) {
+                auto idx = unflatten(i);
+                if (idx[d] == n - 1) {
+                    auto wrapped = idx;
+                    wrapped[d] = 0;
+                    int target = flatten(wrapped);
+                    dof_map_[i] = target;
+                }
+            }
+        }
+        
+
+        // Handle poles
+        int master_south = -1, master_north = -1;
+        for (int i = 0; i < n_dofs_; ++i) {
+            auto idx = unflatten(i);
+            if (idx[1] == 0) {
+                if (master_south == -1) master_south = i;
+                dof_map_[i] = master_south;
+            } else if (idx[1] == dims_[1] - 1) {
+                if (master_north == -1) master_north = i;
+                dof_map_[i] = master_north;
+            }
+        }
+            
+
+        // print the dof_map
+        std::cout << "DOF map: " << std::endl;
+        for (int i = 0; i < n_dofs_; ++i) {
+            std::cout << "DOF " << i << " maps to " << dof_map_[i] << std::endl;
+        }
+
+        std::unordered_set<int> unique_dofs;
+        for (int i = 0; i < n_dofs_; ++i)
+            unique_dofs.insert(dof_map_[i]);
+
+        n_mapped_dofs_ = unique_dofs.size();
+    }
+    
+    
+    void build_periodic_dof_map2() {
+        for (int d = 0; d < local_dim; ++d) {
+            if (!mesh_->is_periodic(d)) continue;
+            int n = dims_[d];
+
+            for (int i = 0; i < n_dofs_; ++i) {
+                auto multi = unflatten(i);
+                if (multi[d] < order_[d]) {
+                    auto mapped = multi;
+                    mapped[d] += n - order_[d];
+                    dof_map_[i] = flatten(mapped);
+                }
+            }
+        }
+        if (mesh_->is_periodic(0) && mesh_->is_periodic(1)) {
+            int p0 = order_[0];
+            int p1 = order_[1];
+            int n0 = dims_[0];
+            int n1 = dims_[1];
+            
+            for (int i = 0; i < p0; ++i) {
+                for (int j = 0; j < p1; ++j) {
+                    int master = flatten({i, j});
+                    int slave  = flatten({i + n0 - p0, j + n1 - p1});
+                    dof_map_[slave] = master;
+                }
+            }
+        }
+
+
+        
+        // Handle poles (collapse DOFs at the north and south poles)
+        /*
+        int master_south = -1, master_north = -1;
+        for (int i = 0; i < n_dofs_; ++i) {
+            auto idx = unflatten(i);
+            if (idx[1] == 0) {
+                if (master_south == -1) master_south = i;
+                dof_map_[i] = master_south;
+            } else if (idx[1] == dims_[1] - 1) {
+                if (master_north == -1) master_north = i;
+                dof_map_[i] = master_north;
+            }
+        }
+        */
+            
+            
+
+        std::unordered_set<int> unique_dofs;
+        for (int i = 0; i < n_dofs_; ++i)
+            unique_dofs.insert(dof_map_[i]);
+        n_mapped_dofs_ = unique_dofs.size();
+
+
+
+    }
     // getters
     const MeshType* mesh() const {return mesh_;}
     CellType cell(int id) const { return CellType(id, this); }
@@ -167,6 +546,10 @@ template<int N> class DofHandler<2, N, iso_tag> {
         }
         return result;
     }
+
+    int n_mapped_dofs() const { return n_mapped_dofs_; }
+    const std::vector<int>& reduced_dof_map() const { return reduced_dof_map_; }
+    std::array<int, local_dim> dims() const { return dims_; }
 
     // iterate over geometric cells coupled with dofs, possibly filtered by marker
     class cell_iterator :  public internals::filtering_iterator<cell_iterator, CellType> {
@@ -220,7 +603,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
         const DofHandler* dof_handler_;
        public:
         BoundaryDofType() = default;
-        BoundaryDofType(int id, const DofHandler* dof_handler) : id_(id), dof_handler_(dof_handler) { }
+        BoundaryDofType(int id, const DofHandler* dof_handler) : id_(id), dof_handler_(dof_handler) { 
+        }
         int id() const { return id_; }
         int marker() const { return dof_handler_->dofs_markers_[id_]; }
         Eigen::Matrix<double, local_dim, 1> coord() const {
@@ -241,7 +625,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
        public:
         boundary_dofs_iterator(
           int index, const DofHandler* dof_handler, const BinaryVector<Dynamic>& filter, int marker) :
-            Base(index, 0, dof_handler->n_dofs(), filter), dof_handler_(dof_handler), marker_(marker) {
+          Base(index, 0, dof_handler->n_dofs(), filter), dof_handler_(dof_handler), marker_(marker)
+             {
             for (; index_ < Base::end_ && !filter[index_]; ++index_);
             if (index_ != Base::end_) { operator()(index_); }
         }
@@ -249,11 +634,9 @@ template<int N> class DofHandler<2, N, iso_tag> {
         boundary_dofs_iterator(int index, const DofHandler* dof_handler, int marker) :
             boundary_dofs_iterator(
               index, dof_handler,
-              marker == BoundaryAll ? dof_handler->boundary_dofs_ :
-                                      dof_handler->boundary_dofs_ &
-                                        make_binary_vector(
-                                          dof_handler->dofs_markers_.begin(), dof_handler->dofs_markers_.end(), marker),
-              marker) { }
+              dof_handler->boundary_dofs_,
+              marker) { 
+              }
         int marker() const { return marker_; }
     };
     boundary_dofs_iterator boundary_dofs_begin(int marker = BoundaryAll) const {
@@ -274,12 +657,12 @@ template<int N> class DofHandler<2, N, iso_tag> {
         std::array<std::vector<double>,local_dim> param_nodes = mesh_->param_nodes();
         Eigen::Matrix<double,local_dim,1> u;
         for(int i = 0; i < local_dim; i++) u(i) = param_nodes[i][multi_index[i]];
-        auto nurb = mesh_->basis()[0];
+        auto nurb = basis_pde_[0];
         auto spline_basis = nurb.spline_basis();
 
         std::vector<std::vector<int>> span_indices(local_dim);
-        std::cout << "Cell ID: " << id << std::endl;
-        std::cout << "u: " << u.transpose() << std::endl;
+        //std::cout << "Cell ID: " << id << std::endl;
+        //std::cout << "u: " << u.transpose() << std::endl;
 
         for(int i = 0; i < local_dim; i++) {
             auto basis = spline_basis[i];
@@ -289,7 +672,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
                 span_indices[i].push_back(span - p + j); 
             }
         }
-
+        /*
         // Print the span indices
         std::cout << "Span indices: ";
         for (int i = 0; i < local_dim; ++i) {
@@ -300,6 +683,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
             std::cout << "] ";
         }
         std::cout << std::endl;
+        */
 
         // Carry-on logic: Cartesian product of all local spans
         std::vector<int> idx(local_dim, 0);
@@ -308,6 +692,14 @@ template<int N> class DofHandler<2, N, iso_tag> {
             for (int d = 0; d < local_dim; ++d) {
                 dof_index[d] = span_indices[d][idx[d]];
             }
+            /*
+            std::cout << "Inserting dof_index: ";
+            for (int d = 0; d < local_dim; ++d) {
+                std::cout << dof_index[d] << " ";
+            }
+            std::cout<<"as dof: "<<flatten(dof_index) << std::endl;
+            */
+            
             dofs.push_back(flatten(dof_index));
 
             // Increment multi-index
@@ -320,25 +712,40 @@ template<int N> class DofHandler<2, N, iso_tag> {
             }
             if (d < 0) break;
         }
-
+        /*
         // print the active dofs
         std::cout << "Active dofs: ";
         for (int i = 0; i < dofs.size(); i++) {
             std::cout << dofs[i] << " ";
         }
         std::cout << std::endl;
+        */
 
         return dofs;
     }
 
+    std::vector<int> dof_map() const {
+        return dof_map_;
+    }
+
 
     private:
+    std::vector<int> dof_map_;  // dof_map_[original_dof] = reduced_dof
+    int n_mapped_dofs_;         // Number of unique DOFs after collapsing periodic ones
+    std::unordered_map<int, int> compressed_map_; // map old index → compressed index
+    std::vector<int> reduced_dof_map_; // reduced_dof_map_[compressed_dof] = original_dof
+    
+    
+    NurbsBasis<local_dim> basis_pde_;
+    std::array<int,local_dim> dims_; // number of control points in each direction
     Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_; // dofs active on cell: each row = global DOFs on one cell ...
     BinaryVector<Dynamic> boundary_dofs_; // boundary dofs
     int n_dofs_per_cell_ = 0, n_dofs_ = 0;
     std::vector<int> dofs_markers_; // dofs markers
     const MeshType* mesh_;
     std::array<int,local_dim> order_;
+
+    DofConstraints<DofHandler> dof_constraints_;
 
 };
 

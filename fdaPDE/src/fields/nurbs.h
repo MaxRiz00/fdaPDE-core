@@ -194,10 +194,13 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 double num = num0_;
                 std::array<std::vector<double>,M> spline_evaluation {};
                 double den;
-
+                
+                //std::cout<<"Point: "<<p_<<std::endl;
                 for(std::size_t i=0;i<M;i++){
-
+                    int n_unique = spline_basis_[i]->n_basis();
+                    //std::cout<<"Evaluating spline basis, periodicity: "<<spline_basis_[i]->periodicity()<<std::endl;
                     auto basis_eval = spline_basis_[i]->evaluate_basis(p_(i));
+                    //std::cout << std::endl;
                     spline_evaluation[i].resize(extents_[i]);
                     for(std::size_t j = 0; j<extents_[i]; j++ ){
                         // compute a spline basis function
@@ -206,6 +209,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     }
                     
                     //numerator update
+                    //std::cout<<"Eval: "<<spline_evaluation[i][index_[i] - minIdx_[i]]<<std::endl;
                     num *= spline_evaluation[i][index_[i] - minIdx_[i]]; 
                     //spline evaluation for i-th dimension
                 }
@@ -214,6 +218,8 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     return 0;
                 // compute the sum that appears at the denominator of the formula
                 den = multicontract<M>(weights_, spline_evaluation);
+                if (spline_basis_[0]->periodicity()) den = 1;
+                //std::cout<<"Den: "<<den<<std::endl;
 
                 return num/den;
             }; 
@@ -293,6 +299,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     for(std::size_t i=0;i<M;i++){
                         // spline evaluation for i-th dimension
                         auto basis_eval = spline_basis_[i]->evaluate_basis(p(i));
+                        // print the basis evaluation
                         spline_evaluation[i].resize(extents_[i]);
                         for(std::size_t j = 0; j<extents_[i]; j++ ){
                         // compute a spline basis function
@@ -309,7 +316,12 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
 
                     //compute the derivative of the i_th spline
                     //num_derived = num * Spline(knots_[i_], index_[i_], order_).gradient(1)(p[i_]);
+                    
                     num_derived = num * (*spline_basis_[i_])[index_[i_]].gradient(1)(p(i_));
+
+                    if(spline_basis_[i_]->periodicity()){
+                        num_derived = num * spline_basis_[i_]->evaluate_der_basis(p(i_))[index_[i_]];
+                    }
 
                     // compute the non derived numerator
                     num*=spline_evaluation[i_][index_[i_] - minIdx_[i_]];
@@ -320,6 +332,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
 
                     // compute the sum that appears at the denominator of the formula
                     den = multicontract<M>(weights_, spline_evaluation);
+                    
 
                     // by replacing the i-th evaluations with their derivatives we get the derivative of the NURBS denominator
                     auto der_eval = spline_basis_[i_]->evaluate_der_basis(p(i_),1);
@@ -335,6 +348,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     //  (---)   =  ----------
                     //  ( D )         D^2
                     // where f' = df/dx_i
+                    if (spline_basis_[0]->periodicity()) return num_derived;
                     return (num_derived*den - num*den_derived)/(den*den);
                 };
             };
@@ -354,7 +368,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 static constexpr int XprBits = 0;
                 static constexpr int Order = Dynamic;
                 using Scalar = double;
-                using InputType = Vector<Scalar, StaticInputSize>;
+                using InputType = Eigen::Matrix<double,M,1> ; //Vector<Scalar, StaticInputSize>; // da capire
 
             private:
                 std::array<std::shared_ptr<BSplineBasis>, M> spline_basis_;
@@ -541,7 +555,8 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     Eigen::Matrix<double, M, M> hess;
                     for (int i = 0; i < M; ++i) {
                         for (int j = 0; j < M; ++j) {
-                            hess(i,j) = hessian_(i,j)(p);
+                            hess(i, j) = hessian_(i, j)(p);
+                            
                         }
                     }
                     return hess;
@@ -557,6 +572,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 constexpr Scalar operator()(double p) const { return operator()(std::vector<double>{p}); }
     
     };
+
 
 }// namespace fdapde
 

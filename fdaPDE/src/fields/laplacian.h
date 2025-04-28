@@ -32,7 +32,7 @@ template <typename Derived_> class Laplacian : public ScalarFieldBase<Derived_::
     using Scalar = typename Derived::Scalar;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = Derived::XprBits;
+    static constexpr int XprBits = FunctorType::XprBits; // ??
 
     constexpr Laplacian(const Derived& xpr) : Base(), xpr_(xpr) {
         if constexpr (StaticInputSize == Dynamic) data_.resize(xpr_.input_size());

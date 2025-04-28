@@ -18,6 +18,7 @@ namespace fdapde {
 #include "src/geometry/iso_square.h"
 #include "src/geometry/iso_cube.h"
 #include "src/geometry/iso_mesh.h"
+#include "src/isogeometric/dof_constraints.h"
 #include "src/isogeometric/dof_handler.h"
 #include "src/isogeometric/iso_integration.h"
 #include "src/assembly.h"

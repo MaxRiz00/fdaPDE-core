@@ -58,7 +58,7 @@ template <typename IsoMesh_> class IsoSpace {
 
     IsoSpace() = default;
     IsoSpace(const IsoMesh_& mesh) :
-        mesh_(std::addressof(mesh)), dof_handler_(mesh), order_(mesh.order()), basis_(mesh.basis()) { } //copiare la base della mesh ? metterla nel referce domain , perche
+        mesh_(std::addressof(mesh)), dof_handler_(mesh), order_(mesh.order()), basis_(mesh.basis_pde()) { } //copiare la base della mesh ? metterla nel referce domain , perche
 
     // observers
     const IsoMesh& mesh() const { return *mesh_; }
@@ -75,12 +75,14 @@ template <typename IsoMesh_> class IsoSpace {
     template <typename InputType>
         requires(std::is_invocable_v<ShapeFunctionType, InputType>)
     constexpr auto eval_shape_value(int i, const InputType& p) const {
+        //std::cout << "eval_shape_value: " << basis_[i](p) << std::endl;
         return basis_[i](p);
     }
 
     template <typename InputType>
         //requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().gradient()), InputType>)
     constexpr auto eval_shape_grad(int i, const InputType& p) const {
+        //std::cout << "eval_shape_grad: " << basis_[i].gradient(p) << std::endl;
         return basis_[i].gradient(p); // da aggiustare
     }
 
@@ -96,6 +98,7 @@ template <typename IsoMesh_> class IsoSpace {
     const IsoMesh* mesh_;
     DofHandlerType dof_handler_;
     BasisType basis_;
+    std::vector<ShapeFunctionType> ok_basis_;
     std::array<int, local_dim> order_;
 
 

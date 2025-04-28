@@ -134,6 +134,49 @@ template <> struct iso_quadrature_gauss_legendre<2, 9> : public iso_quadrature_g
     };
 };
 
+// 2D 16 point formula
+template <> struct iso_quadrature_gauss_legendre<2, 16> : public iso_quadrature_gauss_base {
+    static constexpr int local_dim = 2;
+    static constexpr int order = 16;
+    static constexpr int degree = 2 * 4 - 1;  // 7, since it's a tensor product of 1D 4-point quadrature
+
+    static constexpr std::array<double, 4> one_d_nodes = {
+        -0.8611363115940526,
+        -0.3399810435848563,
+         0.3399810435848563,
+         0.8611363115940526
+    };
+
+    static constexpr std::array<double, 4> one_d_weights = {
+        0.3478548451374538,
+        0.6521451548625461,
+        0.6521451548625461,
+        0.3478548451374538
+    };
+
+    static constexpr Matrix<double, order, local_dim> nodes = [] {
+        Matrix<double, order, local_dim> m{};
+        int k = 0;
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                m(k, 0) = one_d_nodes[i];  // x
+                m(k, 1) = one_d_nodes[j];  // y
+                ++k;
+            }
+        }
+        return m;
+    }();
+
+    static constexpr Vector<double, order> weights = [] {
+        Vector<double, order> w{};
+        int k = 0;
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j)
+                w[k++] = one_d_weights[i] * one_d_weights[j];
+        return w;
+    }();
+};
+
 // 3D 1 point formula
 template <> struct iso_quadrature_gauss_legendre<3, 1> : public iso_quadrature_gauss_base {
     static constexpr int local_dim = 3;
@@ -240,6 +283,7 @@ template <> struct iso_quadrature_gauss_legendre<3, 27> : public iso_quadrature_
 [[maybe_unused]] static struct QGL2DP1_ : internals::iso_quadrature_gauss_legendre<2, 1> { } QGL2DP1;
 [[maybe_unused]] static struct QGL2DP4_ : internals::iso_quadrature_gauss_legendre<2, 4> { } QGL2DP4;
 [[maybe_unused]] static struct QGL2DP9_ : internals::iso_quadrature_gauss_legendre<2, 9> { } QGL2DP9;
+[[maybe_unused]] static struct QGL2DP16_ : internals::iso_quadrature_gauss_legendre<2, 16> { } QGL2DP16;
 // 3D formulas
 [[maybe_unused]] static struct QGL3DP1_ : internals::iso_quadrature_gauss_legendre<3, 1> { } QGL3DP1;
 [[maybe_unused]] static struct QGL3DP8_ : internals::iso_quadrature_gauss_legendre<3, 8> { } QGL3DP8;

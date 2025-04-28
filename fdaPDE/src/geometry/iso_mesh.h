@@ -113,11 +113,29 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 detect_periodicity_();
                 compute_span_aabbs_();
 
+                // initialize the pde basis
+
+                std::array<std::vector<double>,LocalDim> open_uniform_knots;
+                std::array<int,LocalDim> basis_dims;
+                for(int i = 0; i < LocalDim; i++){
+                    open_uniform_knots[i] = pad_knots(param_nodes_[i], order[i]);
+                    basis_dims[i] = open_uniform_knots[i].size() - order[i] - 1;
+                }
+                MdArray<double, full_dynamic_extent_t<LocalDim>> unitary_weights;
+                unitary_weights.resize(basis_dims);
+                unitary_weights.set_constant(1.0);
+
+                std::array<bool, LocalDim> dummy_periodic = {0,1};
+                
+
+                basis_pde_ = NurbsBasis<LocalDim>(open_uniform_knots, unitary_weights, order, periodic_dims_); //basis_;
+                //
             }
 
     // === Getters === //
 
     const NurbsBasis<LocalDim>& basis() const { return basis_; }
+    const NurbsBasis<LocalDim>& basis_pde() const { return basis_pde_; }
     const MdArray<double, full_dynamic_extent_t<LocalDim+1>>& control_points() const { return control_points_; }
     const std::array<std::vector<double>,LocalDim>& knots() const { return knots_; } // this contains also the repetitions (if any)
     const std::array<std::vector<double>,LocalDim>& param_nodes() const { return param_nodes_; } // (only unique knots)
@@ -137,6 +155,10 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     }  
     std::vector<int> nodes_markers() const { return nodes_markers_; }
     std::vector<int> cells_markers() const { return cells_markers_; }
+
+    // periodic
+    bool is_periodic() const { return periodic_dims_; }
+    bool is_periodic(int dir) const { return periodic_dims_[dir]; }
     // === Core Evaluation Functions === //
     
     /**
@@ -195,7 +217,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         }
         return Sw/total_weight;
     }
-    
+
+
     /**
      * @brief Evaluate the first and (if needed) second order derivatives of the NURBS mapping at `u`
      * 
@@ -204,6 +227,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * @param u Parametric coordinate (LocalDim-vector)
      * @param compute_second Whether to compute second derivatives
      * @return MeshParamDerivatives Struct with first and optionally second derivatives
+     * 
+     * 
      */
     MeshParamDerivatives eval_param_derivatives(const Eigen::Matrix<double, LocalDim, 1>& u, bool compute_second = false) const {
         for (int i = 0; i < LocalDim; i++)
@@ -262,15 +287,16 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 const auto cp_slice = this->control_points_.template slice<LocalDim>(i);
                 cp(i) = cp_slice(full_indices);
             }
+
     
-            double w = weights_(index);
-            cp *= w;
-            Sw += eval * cp;
+            double w = weights_(full_indices);
+
+            Sw += eval * w * cp;
             total_weight += eval * w;
     
             for (int j = 0; j < LocalDim; j++) {
                 double w_temp = w * eval_der[j];
-                Eigen::Matrix<double, EmbedDim, 1> cp_temp = eval_der[j] * cp;
+                Eigen::Matrix<double, EmbedDim, 1> cp_temp = eval_der[j] * w * cp;
                 for (int i = 0; i < LocalDim; i++) {
                     if (i != j) {
                         w_temp *= basis_eval[i][index[i]];
@@ -282,7 +308,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     
                 if (compute_second) {
                     double w_temp_2 = w * eval_sec_der[j];
-                    Eigen::Matrix<double, EmbedDim, 1> cp_temp_2 = eval_sec_der[j] * cp;
+                    Eigen::Matrix<double, EmbedDim, 1> cp_temp_2 = eval_sec_der[j] * cp * w;
     
                     for (int i = 0; i < LocalDim; i++) {
                         if (i != j) {
@@ -298,7 +324,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     for (int k = 0; k < LocalDim; k++) {
                         if (j != k) {
                             double w_mixed = w * eval_der[j] * eval_der[k];
-                            Eigen::Matrix<double, EmbedDim, 1> cp_mixed = eval_der[j] * eval_der[k] * cp;
+                            Eigen::Matrix<double, EmbedDim, 1> cp_mixed = eval_der[j] * eval_der[k] * cp * w;
     
                             for (int i = 0; i < LocalDim; i++) {
                                 if (i != j && i != k) {
@@ -324,7 +350,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 }
             }
         }
-    
+        auto dSw_ = dSw; // backup BEFORE scaling
         for (int j = 0; j < LocalDim; j++) {
             dSw.col(j) = (dSw.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
         }
@@ -334,7 +360,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 for (int k = 0; k < LocalDim; k++) {
                     for (int h = 0; h < EmbedDim; h++) {
                         (*d2Sw)(h, j, k) = ((*d2Sw)(h, j, k) 
-                        - (dSw(h, j) * dW(k) + dSw(h, k) * dW(j) + Sw(h) * d2W(j, k)) / total_weight
+                        - (dSw_(h, j) * dW(k) + dSw_(h, k) * dW(j) + Sw(h) * d2W(j, k)) / total_weight
                         + 2 * Sw(h) * dW(j) * dW(k) / (total_weight * total_weight)) / total_weight;
                     }
                 }
@@ -351,7 +377,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     /**
      * @brief Perform inplace knot refinement by inserting additional knots in each parametric direction.
      * 
-     * Based on Algorithm A5.5 from *The NURBS Book* pag 127. 
+     * Based on Algorithm A5.5 from *myThe NURBS Book* pag 127. 
      * 
      * @param density Number of midpoint splits per span (per direction)
      * @param add_knot_list Additional user-defined knots to insert
@@ -423,7 +449,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 continue;
             } 
             
-            std::cout << "Refining along dimension k = " << k << std::endl;
+            //std::cout << "Refining along dimension k = " << k << std::endl;
             updated_knots[k].resize(knots_[k].size() + refinement_knots[k].size());
 
             std::array<int, LocalDim+1> temp_cp_dims;
@@ -783,12 +809,31 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     int locate_param(const Eigen::Matrix<double, LocalDim, 1>& u) const {
         std::array<int, LocalDim> multi_index;
         for (int i = 0; i < LocalDim; ++i) {
-            if (u(i) >= param_nodes_[i].front() || u(i) <= param_nodes_[i].back()) return -1;
+            //std::cout << "u(" << i << ") = " << u(i) << std::endl;
+            if (u(i) < param_nodes_[i].front() || u(i) > param_nodes_[i].back()) return -1;
 
-            auto it = std::upper_bound(param_nodes_[i].begin(), param_nodes_[i].end(), u(i));
-            multi_index[i] = std::distance(param_nodes_[i].begin(), it) - 1;
+            for(int j = 0; j < param_nodes_[i].size() - 1; ++j) {
+                if (u(i) >= param_nodes_[i][j] && u(i) <= param_nodes_[i][j + 1]) {
+                    multi_index[i] = j;
+                    break;
+                }
+            }
+            /*
+            // print the param_nodes
+            std::cout << "param_nodes[" << i << "] = ";
+            for (const auto& val : param_nodes_[i]) {
+                std::cout << val << " ";
+            }
+            std::cout << std::endl;
 
+            // print the multi_index
+            std::cout << "multi_index[" << i << "] = " << multi_index[i] << std::endl;
+            */
         }
+        // reverse the multi_index
+        std::reverse(multi_index.begin(), multi_index.end());
+        
+
         return compute_id_(multi_index);
     }
     
@@ -1029,7 +1074,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
         // print periodic dims
         for(int i = 0; i < LocalDim; i++){
-            std::cout<<"Periodic dim "<<i<<": "<<periodic_dims_[i]<<std::endl;
+            //std::cout<<"Periodic dim "<<i<<": "<<periodic_dims_[i]<<std::endl;
         }
 
     }
@@ -1094,6 +1139,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     MdArray<double,full_dynamic_extent_t<LocalDim>> weights_;   ///< NURBS weights in each direction
     MdArray<double,full_dynamic_extent_t<LocalDim+1>> control_points_; ///< Control points in each direction
     NurbsBasis<LocalDim> basis_;                                ///< NURBS basis functions
+    NurbsBasis<LocalDim> basis_pde_;                            ///< NURBS basis functions for PDE
     
     Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>  cells_ {};  ///< Connectivity: cells x node IDs
     std::array<bool, LocalDim> periodic_dims_ = {false};        ///< Periodicity flags for each dimension
@@ -1327,14 +1373,17 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         fdapde_assert(r > 0);
 
         // Create a semicircle as a 1D Mesh embdedded in 3D
-        std::array<std::vector<double>, 1> start_knots = {std::vector<double>{0,0,0,0.25,0.25,0.5,0.5,0.75,0.75,1,1,1}};
+        std::array<std::vector<double>, 1> start_knots = { std::vector<double>{0, 0, 0, 0.5, 1, 1, 1} };
         std::array<int,1> start_order = {2};
         int num_ctrl_points = start_knots[0].size() - start_order[0] - 1;
-        std::vector<double> wj = {1, std::sqrt(2.0) / 2.0, 1, std::sqrt(2.0) / 2.0, 1, std::sqrt(2.0) / 2.0, 1, std::sqrt(2.0) / 2.0, 1};
+        std::vector<double> wj = { 1, 1 / 2.0, 1 / 2.0, 1 };
+
+        //std::vector<std::vector<double>> Pj = {
+        //    {r, 0, 0},  {r, r, 0},  {-r, r, 0}, {-r,0, 0}
+        //};
+
         std::vector<std::vector<double>> Pj = {
-            {r, 0, 0},  {r, r, 0},  {0, r, 0},
-            {-r, r, 0}, {-r, 0, 0}, {-r, -r, 0},
-            {0, -r, 0}, {r, -r, 0}, {r, 0, 0}
+            {0, 0, r},  {0, r, r},  {0, r, -r}, {0, 0, -r}
         };
 
         // Initialize `MdArray`
@@ -1357,7 +1406,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         IsoMeshData<1> semicircle(start_knots, start_weights, start_cp, start_order);
 
         // Create a 2D mesh by rotating the 1D mesh around the z-axis
-        IsoMeshData<2> sphere = iso_algorithms::create_revolved_ISO_surface(semicircle, M_PI);
+        IsoMeshData<2> sphere = iso_algorithms::create_revolved_ISO_surface(semicircle, 2 * M_PI, Eigen::Matrix<double,3,1>(0,0,1));
 
         // Create the IsoMesh object
 
@@ -1785,7 +1834,7 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
      */
     void refine_knots(const std::array<int, 3>& density = std::array<int, 3>{{1, 1, 1}}, std::array<std::vector<double>, 3> add_knot_list = {}) {
         Base::refine_knots(density, add_knot_list);
-        std::cout<<"Refined knots"<<std::endl;
+        //std::cout<<"Refined knots"<<std::endl;
         compute_cells_();
     }
 

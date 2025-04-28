@@ -20,7 +20,17 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
     IsoSquare(int id, const MeshType* mesh) : 
         id_(id), mesh_(mesh), boundary_(false)  {
         boundary_ = mesh_->is_cell_on_boundary(id_);
-        std::tie(this->left_coords_, this->right_coords_) = mesh_->compute_lr_vertices(id_);
+        //std::tie(this->left_coords_, this->right_coords_) = mesh_->compute_lr_vertices(id_);
+        this->left_coords_ = mesh_->compute_lr_vertices(id_).first;
+        this->right_coords_ = mesh_->compute_lr_vertices(id_).second;
+
+        // print left_coords_ << this->left_coords_ << std::endl;
+        // print right_coords_ << this->right_coords_ << std::endl;
+        // print total number of cells
+        //std::cout<<"Total number of cells: " << mesh_->n_cells() << std::endl;
+        //std::cout<<"Element ID: " << id_ << std::endl;
+        //std::cout << "Left coords: " << this->left_coords_ << std::endl;
+        //std::cout << "Right coords: " << this->right_coords_ << std::endl;
     }
 
     // === Edge Type === //
@@ -81,8 +91,11 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
      * @param p Point in reference domain [-1, 1]
      * @return Physical coordinate in embedding space
      */
-    Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
-        return mesh_->eval_param(this->affine_map(p));
+    Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const Eigen::Matrix<double, MeshType::local_dim,1>& p, bool param = false) const {
+        if (param)
+            return mesh_->eval_param(p);
+        else
+            return mesh_->eval_param(this->affine_map(p));
     }
 
     /**
@@ -91,8 +104,23 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
      * @param p Point in reference domain [-1, 1]
      * @return First derivative (Jacobian matrix)
      */
-    Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim> parametrization_gradient(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
-        return mesh_->eval_param_derivatives(this->affine_map(p),false).first_derivative;
+    Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim> parametrization_gradient(const Eigen::Matrix<double, MeshType::local_dim,1>& p, bool param=false) const {
+        //std::cout<<"Param"<<param<<std::endl;
+        if(param){
+            return mesh_->eval_param_derivatives(p,false).first_derivative;
+        }
+        else
+            return mesh_->eval_param_derivatives(this->affine_map(p),false).first_derivative;
+    }
+
+
+    MdArray<double, MdExtents<MeshType::embed_dim, MeshType::local_dim, MeshType::local_dim>> parametrization_hessian(const Eigen::Matrix<double, MeshType::local_dim,1>& p, bool param=false) const {
+        //std::cout<<"Param"<<param<<std::endl;
+        if(param){
+            return *(mesh_->eval_param_derivatives(p,true).second_derivative);
+        }
+        else
+            return *(mesh_->eval_param_derivatives(this->affine_map(p),true).second_derivative);
     }
 
     /**
@@ -101,8 +129,8 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
      * @param p Point in reference domain [-1, 1]
      * @return Symmetric metric tensor matrix
      */
-    Eigen::Matrix<double, MeshType::local_dim, MeshType::local_dim> metric_tensor(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
-        auto F = parametrization_gradient(p);
+    Eigen::Matrix<double, MeshType::local_dim, MeshType::local_dim> metric_tensor(const Eigen::Matrix<double, MeshType::local_dim,1>& p, bool param=false) const {
+        auto F = parametrization_gradient(p,param);
         return F.transpose() * F; 
     }
 
@@ -112,8 +140,8 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
      * @param p Point in reference domain [-1, 1]
      * @return Determinant of the metric tensor (metric scaling factor)
      */
-    double metric_determinant(const Eigen::Matrix<double, MeshType::local_dim,1>& p) const {
-        return std::sqrt(metric_tensor(p).determinant()); 
+    double metric_determinant(const Eigen::Matrix<double, MeshType::local_dim,1>& p, bool param=false) const {
+        return std::sqrt(metric_tensor(p,param).determinant()); 
     }
 
     /**
@@ -125,11 +153,14 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
      * @param n Number of evaluation points per parametric direction (produces n x n grid)
      * @return 3D array (n x n x embed_dim) of physical coordinates
      */
-    MdArray<double, full_dynamic_extent_t<MeshType::local_dim + 1>> linspace_evaluation(int n) const {
+    MdArray<double, full_dynamic_extent_t<MeshType::local_dim + 1>> linspace_evaluation(int n, MdArray<double, full_dynamic_extent_t<MeshType::local_dim + 1>>& parametric_points ) const {
         MdArray<double, full_dynamic_extent_t<MeshType::local_dim + 1>> res(n, n, MeshType::embed_dim);
         auto param_nodes = mesh_->parametric_nodes();
         auto left_coords = this->left_coords_;
         auto right_coords = this->right_coords_;
+
+        // store the parametric points
+        parametric_points.resize(n, n, MeshType::local_dim);
 
         // compute the step
         for (int i = 0; i < n; ++i) {
@@ -140,6 +171,10 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
 
                 p(0) = (1 - t1) * left_coords(0) + t1 * right_coords(0);  // Linear interpolation
                 p(1) = (1 - t2) * left_coords(1) + t2 * right_coords(1);  // Linear interpolation
+
+                for(int k = 0; k < MeshType::local_dim; k++){
+                    parametric_points(i, j, k) = p(k);
+                }
 
                 auto param = mesh_->eval_param(p);
                 for(int k = 0; k < MeshType::embed_dim; k++){
