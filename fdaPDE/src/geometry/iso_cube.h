@@ -69,9 +69,9 @@ template <typename MeshType> class IsoCube: public IsoCell<MeshType::local_dim, 
             }
             // Evaluate mapped coordinates in the embedded space
             for (int i = 0; i < n; ++i) {
-                std::array<double, MeshType::local_dim> p;
+                Eigen::Matrix<double,1, MeshType::local_dim> p;
                 for (int j = 0; j < MeshType::local_dim; ++j) {
-                    p[j] = interpolated_points(i, j);
+                    p(j) = interpolated_points(i, j);
                 }
                 res.row(i) = mesh_->eval_param(p);
             }

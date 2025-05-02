@@ -58,7 +58,7 @@ template <typename IsoMesh_> class IsoSpace {
 
     IsoSpace() = default;
     IsoSpace(const IsoMesh_& mesh) :
-        mesh_(std::addressof(mesh)), dof_handler_(mesh), order_(mesh.order()), basis_(mesh.basis_pde()) { } //copiare la base della mesh ? metterla nel referce domain , perche
+        mesh_(std::addressof(mesh)), dof_handler_(mesh), degree_(mesh.degree()), basis_(mesh.basis_pde()) { } //copiare la base della mesh ? metterla nel referce domain , perche
 
     // observers
     const IsoMesh& mesh() const { return *mesh_; }
@@ -68,7 +68,7 @@ template <typename IsoMesh_> class IsoSpace {
     //constexpr int n_shape_functions_face() const { return 1; }
     int n_dofs() const { return dof_handler_.n_dofs(); }
     const BasisType& basis() const { return basis_; }
-    std::array<int, local_dim> order() const { return order_; }
+    std::array<int, local_dim> degree() const { return degree_; }
 
 
     // evaluations
@@ -99,7 +99,7 @@ template <typename IsoMesh_> class IsoSpace {
     DofHandlerType dof_handler_;
     BasisType basis_;
     std::vector<ShapeFunctionType> ok_basis_;
-    std::array<int, local_dim> order_;
+    std::array<int, local_dim> degree_;
 
 
 };

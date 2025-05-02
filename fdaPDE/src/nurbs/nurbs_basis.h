@@ -26,7 +26,7 @@ namespace fdapde {
 // M = embedding dimension
     template<int M> class NurbsBasis {
         private:
-            std::array<int,M> order_;
+            std::array<int,M> degree_;
             std::array<std::vector<double>,M> knots_;
             std::vector<Nurbs<M>> basis_ {};
             std::array<bool, M> periodicity_ {};
@@ -35,7 +35,7 @@ namespace fdapde {
             static constexpr int StaticInputSize = M;
             //static constexpr int Order = Dynamic;
             // constructors
-            constexpr NurbsBasis() : order_({0}) { } 
+            constexpr NurbsBasis() : degree_({0}) { } 
 
             //template <typename KnotsVectorType> da capire come fare
             //   requires(requires(KnotsVectorType knots, int i) {
@@ -43,17 +43,17 @@ namespace fdapde {
             //               { knots.size() } -> std::convertible_to<std::size_t>;
             //          })
             NurbsBasis(std::array<std::vector<double>,M>& knots,MdArray<double, 
-                full_dynamic_extent_t<M>>& weights, std::array<int,M> order,
-                std::array<bool, M> periodicity = {}) : order_(order), periodicity_(periodicity) {
+                full_dynamic_extent_t<M>>& weights, std::array<int,M> degree,
+                std::array<bool, M> periodicity = {}) : degree_(degree), periodicity_(periodicity) {
                 // define basis system
                 for(int i=0;i<M;i++){
                     int n = knots[i].size();
-                    knots_[i].resize(n + 2 * order_[i]);
-                    knots_[i] = pad_knots(knots[i], order_[i]);
+                    knots_[i].resize(n + 2 * degree_[i]);
+                    knots_[i] = pad_knots(knots[i], degree_[i]);
                 }
                 int basis_size=1;
                 for(std::size_t i=0; i< M;++i){
-                    basis_size*=(knots_[i].size()-order_[i]-1); // tensor product dim = product of dims
+                    basis_size*=(knots_[i].size()-degree_[i]-1); // tensor product dim = product of dims
                 }
                 //basis_.reserve(basis_size);
                 
@@ -65,22 +65,22 @@ namespace fdapde {
                 std::array<std::shared_ptr<BSplineBasis>, M> M_spline_basis;
                 
                 for(int k=0;k<M;++k){
-                    //M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_[k]); //periodicity_[k]
+                    //M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], degree_[k]); //periodicity_[k]
                     std::cout<<"Ecco la periodicity: "<<periodicity_[k]<<std::endl;
-                    M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], order_[k], periodicity_[k]);
+                    M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], degree_[k], periodicity_[k]);
                 }
                     
                 
                 for(int i=0;i<basis_size;++i){
                     basis_.emplace_back(M_spline_basis, weights, index);
-                    //basis_.emplace_back(knots, weights, index, order);
+                    //basis_.emplace_back(knots, weights, index, degree);
                     // Update the index with carry-over logic
                     //std::size_t j = M - 1;
                     std::size_t j = 0;
                     // Increment the last index
                     ++index[j];
                     // Carry-over when reaching the maximum allowed size
-                    while (j < M - 1 && index[j] == knots_[j].size() - order_[j] - 1) {
+                    while (j < M - 1 && index[j] == knots_[j].size() - degree_[j] - 1) {
                         index[j] = 0;
                         ++j;
                         ++index[j];
@@ -97,7 +97,7 @@ namespace fdapde {
                 int stride = 1;
                 for (int j = 0; j < M; ++j) {
                     idx += multiIndex[j] * stride;
-                    stride *= (knots_[j].size() - order_[j] - 1);
+                    stride *= (knots_[j].size() - degree_[j] - 1);
                 }
                 return idx;
             }
@@ -110,18 +110,18 @@ namespace fdapde {
             constexpr std::array<int, M> index_to_multiindex(int idx) const {
                 std::array<int, M> multiIndex;
                 for (int j = 0; j < M; ++j) {
-                    int dim_size = knots_[j].size() - order_[j] - 1;
+                    int dim_size = knots_[j].size() - degree_[j] - 1;
                     multiIndex[j] = idx % dim_size;
                     idx /= dim_size;
                 }
                 return multiIndex;
             }
             
-            //NurbsBasis(const Triangulation<M, 1>& interval, MdArray<double, full_dynamic_extent_t<M>>& weights, int order) : NurbsBasis(interval.nodes(), weights, order) { }
+            //NurbsBasis(const Triangulation<M, 1>& interval, MdArray<double, full_dynamic_extent_t<M>>& weights, int degree) : NurbsBasis(interval.nodes(), weights, degree) { }
             // getters
             constexpr const Nurbs<M>& operator[](int i) const { return basis_[i]; }
             constexpr int size() const { return basis_.size(); }
-            constexpr std::array<int,M> order() const { return order_; }
+            constexpr std::array<int,M> degree() const { return degree_; }
             constexpr const std::vector<Nurbs<M>>& nurbs_basis() const { return basis_; }
             constexpr const std::vector<double>& knots(int i) const { return knots_[i]; }
 

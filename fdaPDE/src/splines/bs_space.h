@@ -56,20 +56,20 @@ template <typename Triangulation_> class BsSpace {
       internals::sp_linear_form_assembly_loop  <Triangulation__, Form__, Options__, Quadrature__...>;
 
     BsSpace() = default;
-    BsSpace(const Triangulation_& interval, int order) :
+    BsSpace(const Triangulation_& interval, int degree) :
         triangulation_(std::addressof(interval)),
         dof_handler_(interval),
-        physical_basis_(interval, order),
-        order_(order) {
+        physical_basis_(interval, degree),
+        degree_(degree) {
         a_ = triangulation_->range()[0], b_ = triangulation_->range()[1];   // store interval range
-        dof_handler_.enumerate(BasisType(interval, order));
+        dof_handler_.enumerate(BasisType(interval, degree));
 	// build reference [-1, 1] interval with nodes mapped from physical interval [a, b]
         Eigen::Matrix<double, Dynamic, 1> ref_nodes(triangulation_->n_nodes());
         for (int i = 0; i < triangulation_->n_nodes(); ++i) {
             ref_nodes[i] = map_to_reference(triangulation_->nodes()(i, 0));
         }
         // generate basis on reference [-1, 1] interval
-        basis_ = BasisType(Triangulation(ref_nodes), order);
+        basis_ = BasisType(Triangulation(ref_nodes), degree);
     }
     // observers
     const Triangulation& triangulation() const { return *triangulation_; }
@@ -80,7 +80,7 @@ template <typename Triangulation_> class BsSpace {
     int n_dofs() const { return dof_handler_.n_dofs(); }
     const BasisType& basis() const { return basis_; }
     const BasisType& physical_basis() const { return physical_basis_; }
-    int order() const { return order_; }
+    int degree() const { return degree_; }
     // evaluation
     template <typename InputType>
         requires(std::is_invocable_v<ShapeFunctionType, InputType>)
@@ -140,7 +140,7 @@ template <typename Triangulation_> class BsSpace {
     DofHandlerType dof_handler_;   // dof_handler over physical domain
     BasisType physical_basis_;     // basis over physical interval [a, b]
     BasisType basis_;              // basis_ over reference interval [-1, +1]
-    int order_;                    // spline order
+    int degree_;                    // spline degree
 };
 
 }   // namespace fdapde

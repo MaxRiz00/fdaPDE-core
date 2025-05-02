@@ -74,7 +74,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
     // constructor
     DofHandler() = default;
     DofHandler(const MeshType& mesh) : mesh_(std::addressof(mesh)), dof_constraints_(*this) {
-        order_ = mesh_->order();
+        order_ = mesh_->degree();
         basis_pde_ = mesh_->basis_pde();
         n_dofs_per_cell_ = 1;
         for(int i = 0; i < local_dim; i++) n_dofs_per_cell_ *= order_[i] + 1;

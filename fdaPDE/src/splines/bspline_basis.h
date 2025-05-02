@@ -39,13 +39,13 @@ requires(requires(KnotsVectorType knots, int i) {
             { knots[i] } -> std::convertible_to<double>;
             { knots.size() } -> std::convertible_to<std::size_t>;
         })
-std::vector<double> pad_knots(const KnotsVectorType& kn, int order) {
+std::vector<double> pad_knots(const KnotsVectorType& kn, int degree) {
     int n = kn.size();
     std::vector<double> knots(kn.begin(), kn.end());
 
     // Check if knots are already padded correctly
-    bool is_padded = (n >= 2 * order + 1);
-    for (int i = 0; i < order + 1 && is_padded; ++i) {
+    bool is_padded = (n >= 2 * degree + 1);
+    for (int i = 0; i < degree + 1 && is_padded; ++i) {
         if (knots[i] != knots[0] || knots[n - 1 - i] != knots[n - 1]) {
             is_padded = false;
         }
@@ -54,20 +54,20 @@ std::vector<double> pad_knots(const KnotsVectorType& kn, int order) {
 
     // If not padded, construct the padded knot vector
     std::vector<double> padded_knots;
-    padded_knots.reserve(n + 2 * order);
+    padded_knots.reserve(n + 2 * degree);
 
-    padded_knots.insert(padded_knots.end(), order, knots[0]);
+    padded_knots.insert(padded_knots.end(), degree, knots[0]);
     padded_knots.insert(padded_knots.end(), knots.begin(), knots.end());
-    padded_knots.insert(padded_knots.end(), order, knots[n - 1]);
+    padded_knots.insert(padded_knots.end(), degree, knots[n - 1]);
 
     return padded_knots;
 }
 
-// given vector of knots u_1, u_2, ..., u_N, this class represents the set of N + order - 1 spline basis functions
-// {l_1(x), l_2(x), ..., l_{N + order - 1}(x)} centered at knots u_1, u_2, ..., u_N
+// given vector of knots u_1, u_2, ..., u_N, this class represents the set of N + degree - 1 spline basis functions
+// {l_1(x), l_2(x), ..., l_{N + degree - 1}(x)} centered at knots u_1, u_2, ..., u_N
 class BSplineBasis {
    private:
-    int order_;
+    int degree_;
     std::vector<Spline> basis_ {};
     std::vector<double> knots_ {};
     std::vector<double> unique_knots_ {};
@@ -79,7 +79,7 @@ class BSplineBasis {
     static constexpr int StaticInputSize = 1;
     static constexpr int Order = Dynamic;
     // constructors
-    constexpr BSplineBasis() : order_(0) { }
+    constexpr BSplineBasis() : degree_(0) { }
     // constructor from user defined knot vector
     
     template <typename KnotsVectorType>
@@ -87,13 +87,13 @@ class BSplineBasis {
                 { knots[i] } -> std::convertible_to<double>;
                 { knots.size() } -> std::convertible_to<std::size_t>;
             })
-    BSplineBasis(KnotsVectorType&& knots, int order, bool periodicity = false)
-        : order_(order), knots_(pad_knots(knots, order)), periodicity_(periodicity) {
+    BSplineBasis(KnotsVectorType&& knots, int degree, bool periodicity = false)
+        : degree_(degree), knots_(pad_knots(knots, degree)), periodicity_(periodicity) {
         int n = knots.size();
-        basis_.reserve(n - order_ - 1);
+        basis_.reserve(n - degree_ - 1);
 
-        for (int i = 0; i < n - order_ - 1; ++i) {
-            basis_.emplace_back(knots_, i, order_);
+        for (int i = 0; i < n - degree_ - 1; ++i) {
+            basis_.emplace_back(knots_, i, degree_);
         }
 
         // compute unique knots
@@ -101,23 +101,23 @@ class BSplineBasis {
         unique_knots_.assign(unique_knots_set.begin(), unique_knots_set.end());
         // check if the knots are open and uniform
         if(periodicity_) {
-            n_basis_ = knots_.size() - 2* order_ - 1;
+            n_basis_ = knots_.size() - 2* degree_ - 1;
         }
         else {
-            n_basis_ = knots_.size() - order_ - 1;
+            n_basis_ = knots_.size() - degree_ - 1;
         }
 
     }
     // Constructor from geometric interval (no repeated knots)
-    BSplineBasis(const Triangulation<1, 1>& interval, int order, bool periodicity = false)
-        : order_(order), periodicity_(periodicity) {
+    BSplineBasis(const Triangulation<1, 1>& interval, int degree, bool periodicity = false)
+        : degree_(degree), periodicity_(periodicity) {
         Eigen::VectorXd knots = interval.nodes();
         fdapde_assert(std::is_sorted(knots.begin(), knots.end(), std::less_equal<double>()));
-        knots_ = pad_knots(std::vector<double>(knots.data(), knots.data() + knots.size()), order);
+        knots_ = pad_knots(std::vector<double>(knots.data(), knots.data() + knots.size()), degree);
         int n = knots_.size();
-        basis_.reserve(n - order_ - 1);
-        for (int i = 0; i < n - order_ - 1; ++i) {
-            basis_.emplace_back(knots_, i, order_);
+        basis_.reserve(n - degree_ - 1);
+        for (int i = 0; i < n - degree_ - 1; ++i) {
+            basis_.emplace_back(knots_, i, degree_);
         }
     }
 
@@ -137,16 +137,16 @@ class BSplineBasis {
             int idx = findInterval(unique_knots_, x);
             std::vector<double> N_der_open = evaluate_basis_(x, /*pad=*/false);
             Eigen::Map<const Eigen::VectorXd> N_vec(N_der_open.data(), N_der_open.size());
-            auto T_per = internals::bs_periodic_transformation(order_, idx, knots_.size() - 2 * order_ - 1);
+            auto T_per = internals::bs_periodic_transformation(degree_, idx, knots_.size() - 2 * degree_ - 1);
             Eigen::VectorXd N_per = T_per * N_vec;
             local.assign(N_per.data(), N_per.data() + N_per.size());
             if (pad) {
                 int span = find_span(x);
-                int n_total = knots_.size() - order_ - 1;  // total basis functions
+                int n_total = knots_.size() - degree_ - 1;  // total basis functions
                 int n_unique = n_basis();                 // unique basis functions (periodic)
                 std::vector<double> padded(n_total, 0.0);
-                for (int j = 0; j <= order_; ++j) {
-                    int original_idx = span - order_ + j;
+                for (int j = 0; j <= degree_; ++j) {
+                    int original_idx = span - degree_ + j;
                     int wrapped_idx = (original_idx % n_total + n_total) % n_total;
                     padded[wrapped_idx] += local[j];
 
@@ -184,16 +184,16 @@ class BSplineBasis {
             int idx = findInterval(unique_knots_, x);
             std::vector<double> N_der_open = evaluate_der_basis_(x, n, /*pad=*/false);
             Eigen::Map<const Eigen::VectorXd> N_vec(N_der_open.data(), N_der_open.size());
-            auto T_per = internals::bs_periodic_transformation(order_, idx, knots_.size() - 2 * order_ - 1);
+            auto T_per = internals::bs_periodic_transformation(degree_, idx, knots_.size() - 2 * degree_ - 1);
             Eigen::VectorXd N_per = T_per * N_vec;
             local.assign(N_per.data(), N_per.data() + N_per.size());
             if (pad) {
                 int span = find_span(x);
-                int n_total = knots_.size() - order_ - 1;  // total basis functions
+                int n_total = knots_.size() - degree_ - 1;  // total basis functions
                 int n_unique = n_basis();                 // unique basis functions (periodic)
                 std::vector<double> padded(n_total, 0.0);
-                for (int j = 0; j <= order_; ++j) {
-                    int original_idx = span - order_ + j;
+                for (int j = 0; j <= degree_; ++j) {
+                    int original_idx = span - degree_ + j;
                     int wrapped_idx = (original_idx % n_total + n_total) % n_total;
                     padded[wrapped_idx] += local[j];
 
@@ -227,9 +227,9 @@ class BSplineBasis {
         
     // Algorithm A2.1 from NURBS book
     int find_span(double x, int n = - 1) const {
-        if (n == -1) n = knots_.size() - order_ - 1;
+        if (n == -1) n = knots_.size() - degree_ - 1;
         if (x == knots_.back()) return n - 1;
-        int low = order_, high = n, mid;
+        int low = degree_, high = n, mid;
         while (low < high - 1) {
             mid = (low + high) / 2;
             (x < knots_[mid]) ? high = mid : low = mid;
@@ -243,13 +243,13 @@ class BSplineBasis {
     // padded with zeros
     // Evaluate basis functions at x
     std::vector<double> evaluate_basis_(double x, bool pad = true) const {
-        std::vector<double> N(order_ + 1, 0.0);
-        std::vector<double> left(order_ + 1), right(order_ + 1);
+        std::vector<double> N(degree_ + 1, 0.0);
+        std::vector<double> left(degree_ + 1), right(degree_ + 1);
         N[0] = 1.0;
 
         int i = find_span(x);
 
-        for (int j = 1; j <= order_; ++j) {
+        for (int j = 1; j <= degree_; ++j) {
             left[j] = x - knots_[i + 1 - j];
             right[j] = knots_[i + j] - x;
             double saved = 0.0;
@@ -267,9 +267,9 @@ class BSplineBasis {
 
         
 
-        std::vector<double> padded_N(knots_.size() - order_ - 1, 0.0);
-        int start_index = i - order_;
-        for (int j = 0; j <= order_; j++) {
+        std::vector<double> padded_N(knots_.size() - degree_ - 1, 0.0);
+        int start_index = i - degree_;
+        for (int j = 0; j <= degree_; j++) {
             padded_N[start_index + j] = N[j];
         }
         return padded_N;
@@ -282,16 +282,16 @@ class BSplineBasis {
         int i = find_span(x);
 
         // Output for derivatives
-        std::vector<std::vector<double>> ders(n + 1, std::vector<double>(order_ + 1, 0.0));
+        std::vector<std::vector<double>> ders(n + 1, std::vector<double>(degree_ + 1, 0.0));
 
         // Temporary arrays
-        std::vector<std::vector<double>> ndu(order_ + 1, std::vector<double>(order_ + 1, 0.0));
-        std::vector<double> left(order_ + 1, 0.0);
-        std::vector<double> right(order_ + 1, 0.0);
+        std::vector<std::vector<double>> ndu(degree_ + 1, std::vector<double>(degree_ + 1, 0.0));
+        std::vector<double> left(degree_ + 1, 0.0);
+        std::vector<double> right(degree_ + 1, 0.0);
 
         // Compute basis functions and differences
         ndu[0][0] = 1.0;
-        for (int j = 1; j <= order_; ++j) {
+        for (int j = 1; j <= degree_; ++j) {
             left[j] = x - knots_[i + 1 - j];
             right[j] = knots_[i + j] - x;
 
@@ -309,19 +309,19 @@ class BSplineBasis {
         }
 
         // Load the basis functions
-        for (int j = 0; j <= order_; ++j) {
-            ders[0][j] = ndu[j][order_];
+        for (int j = 0; j <= degree_; ++j) {
+            ders[0][j] = ndu[j][degree_];
         }
 
         // Compute derivatives
-        std::vector<std::vector<double>> a(2, std::vector<double>(order_ + 1, 0.0));
-        for (int r = 0; r <= order_; ++r) {
+        std::vector<std::vector<double>> a(2, std::vector<double>(degree_ + 1, 0.0));
+        for (int r = 0; r <= degree_; ++r) {
             int s1 = 0, s2 = 1; // Alternate rows in array a
             a[0][0] = 1.0;
 
             for (int k = 1; k <= n; ++k) {
                 double d = 0.0;
-                int rk = r - k, pk = order_ - k;
+                int rk = r - k, pk = degree_ - k;
 
                 if (r >= k) {
                     a[s2][0] = a[s1][0] / ndu[pk + 1][rk];
@@ -329,7 +329,7 @@ class BSplineBasis {
                 }
 
                 int j1 = (rk >= -1) ? 1 : -rk;
-                int j2 = (r - 1 <= pk) ? k - 1 : order_ - r;
+                int j2 = (r - 1 <= pk) ? k - 1 : degree_ - r;
 
                 for (int j = j1; j <= j2; ++j) {
                     a[s2][j] = (a[s1][j] - a[s1][j - 1]) / ndu[pk + 1][rk + j];
@@ -349,20 +349,20 @@ class BSplineBasis {
         }
         
         // Multiply by the correct factors
-        auto r = order_;
+        auto r = degree_;
         for (int k = 1; k <= n; ++k) {
-            for (int j = 0; j <= order_; ++j) {
+            for (int j = 0; j <= degree_; ++j) {
                 ders[k][j] *= r;
             }
-            r *= (order_ - k);
+            r *= (degree_ - k);
         }
         
         if (!pad) 
             return ders[n];
         else {
             // create a vector of the same size of the basis functions, copy N in the right position, zeros elsewhere
-            std::vector<double> der_eval(knots_.size() - order_ + 1, 0.0);
-            for (int j = 0; j < order_ + 1; ++j) { der_eval[i - order_ + j] = ders[n][j]; }
+            std::vector<double> der_eval(knots_.size() - degree_ + 1, 0.0);
+            for (int j = 0; j < degree_ + 1; ++j) { der_eval[i - degree_ + j] = ders[n][j]; }
             return der_eval;
         }
     }
@@ -373,7 +373,7 @@ class BSplineBasis {
     constexpr int size() const { return basis_.size(); }
     constexpr const std::vector<double>& knots_vector() const { return knots_; }
     int n_knots() const { return knots_.size(); }
-    int order() const { return order_; }
+    int degree() const { return degree_; }
     bool periodicity() const { return periodicity_;}
     int n_basis() const { return n_basis_; }
 };

@@ -55,7 +55,7 @@ class sp_linear_form_assembly_loop :
         iterator end  (Base::end_.index()  , dof_handler_, Base::end_.marker()  );
 	// prepare assembly loop
         std::vector<int> active_dofs;
-        int n = Base::test_space_->order() + 1;
+        int n = Base::test_space_->degree() + 1;
         int q = Base::n_quadrature_nodes_;
         MdArray<double, MdExtents<Dynamic, Dynamic>> shape_values(n, q);
 

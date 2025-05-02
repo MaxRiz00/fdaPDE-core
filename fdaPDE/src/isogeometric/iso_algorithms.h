@@ -8,30 +8,30 @@ namespace fdapde {
         std::array<std::vector<double>, LocalDim> knots;
         MdArray<double, full_dynamic_extent_t<LocalDim>> weights;
         MdArray<double, full_dynamic_extent_t<LocalDim + 1>> control_points;
-        std::array<int, LocalDim> order;
+        std::array<int, LocalDim> degree;
         int flags = 0;
     
         IsoMeshData(std::array<std::vector<double>, LocalDim> knots,
                     MdArray<double, full_dynamic_extent_t<LocalDim>> weights,
                     MdArray<double, full_dynamic_extent_t<LocalDim + 1>> control_points,
-                    std::array<int, LocalDim> order,
+                    std::array<int, LocalDim> degree,
                     int flags = 0)
             : knots(std::move(knots)),
             weights(std::move(weights)),
             control_points(std::move(control_points)),
-            order(std::move(order)),
+            degree(std::move(degree)),
             flags(flags) {}
 
         // constructor for 1D
         IsoMeshData(std::vector<double> knots,
                     MdArray<double, full_dynamic_extent_t<1>> weights,
                     MdArray<double, full_dynamic_extent_t<2>> control_points,
-                    int order,
+                    int degree,
                     int flags = 0)
             : knots({knots}),
             weights(std::move(weights)),
             control_points(std::move(control_points)),
-            order({order}),
+            degree({degree}),
             flags(flags) {}
         };
 
@@ -229,7 +229,7 @@ IsoMeshData<2> create_revolved_ISO_surface(const IsoMeshData<1>& curve, double r
     new_knots[0] = knotVectorU;
     new_knots[1] = curve.knots[0];
 
-    std::array<int, 2> new_order = {degreeU, curve.order[0]};
+    std::array<int, 2> new_order = {degreeU, curve.degree[0]};
     //std::cout << "new_order: " << new_order[0] << " " << new_order[1] << std::endl;
 
     return IsoMeshData<2>(new_knots, weights, control_points, new_order);
@@ -243,7 +243,7 @@ IsoMeshData<1> knots_refinement(const IsoMeshData<1>& mesh_data, std::vector<dou
     auto old_cp = mesh_data.control_points;
     auto old_w = mesh_data.weights;
     auto knots_ = mesh_data.knots[0];
-    auto order_ = mesh_data.order[0];
+    auto order_ = mesh_data.degree[0];
     int EmbedDim = old_cp.extent(1);
 
     MdArray<double, MdExtents<Dynamic,Dynamic>> new_cp;

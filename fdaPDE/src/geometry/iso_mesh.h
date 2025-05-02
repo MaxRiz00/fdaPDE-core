@@ -61,35 +61,35 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * @param knots Knot vectors for each parametric direction
      * @param weights NURBS weights
      * @param control_points Control points of the mesh
-     * @param order Polynomial degree (per direction)
+     * @param degree Polynomial degree (per direction)
      * @param flags Optional behavior flags
      */
     IsoMeshBase(std::array<std::vector<double>,LocalDim> & knots,MdArray<double,full_dynamic_extent_t<LocalDim>> & weights, 
-         MdArray<double,full_dynamic_extent_t<LocalDim+1>> & control_points, std::array<int,LocalDim> order, int flags=0) {
-            initialize(knots, weights, control_points, order, flags);
+         MdArray<double,full_dynamic_extent_t<LocalDim+1>> & control_points, std::array<int,LocalDim> degree, int flags=0) {
+            initialize(knots, weights, control_points, degree, flags);
         };
     
     /// Initialize the mesh with the same parameters as the constructor of IsoMeshBase, overwriting any previous data.
     void initialize(std::array<std::vector<double>, LocalDim> & knots,
             MdArray<double, full_dynamic_extent_t<LocalDim>> & weights,
             MdArray<double, full_dynamic_extent_t<LocalDim + 1>> & control_points,
-            std::array<int, LocalDim> order,
+            std::array<int, LocalDim> degree,
             int flags = 0) {
                 // Assign to internal data members
                 flags_          = flags;
-                order_          = order;
+                degree_          = degree;
                 control_points_ = control_points;
                 weights_        = weights;
 
                 // Pad and store the knots
                 for(int i = 0; i < LocalDim; i++){
                     int n = knots[i].size();
-                    knots_[i].resize(n + 2 * order[i]);
-                    knots_[i] = pad_knots(knots[i], order[i]);
+                    knots_[i].resize(n + 2 * degree[i]);
+                    knots_[i] = pad_knots(knots[i], degree[i]);
                 }
 
                 // Compute the basis
-                basis_ = NurbsBasis<LocalDim>(knots_, weights, order);
+                basis_ = NurbsBasis<LocalDim>(knots_, weights, degree);
 
                 // Compute the parametric nodes
                 n_cells_ = 1; 
@@ -118,8 +118,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 std::array<std::vector<double>,LocalDim> open_uniform_knots;
                 std::array<int,LocalDim> basis_dims;
                 for(int i = 0; i < LocalDim; i++){
-                    open_uniform_knots[i] = pad_knots(param_nodes_[i], order[i]);
-                    basis_dims[i] = open_uniform_knots[i].size() - order[i] - 1;
+                    open_uniform_knots[i] = pad_knots(param_nodes_[i], degree[i]);
+                    basis_dims[i] = open_uniform_knots[i].size() - degree[i] - 1;
                 }
                 MdArray<double, full_dynamic_extent_t<LocalDim>> unitary_weights;
                 unitary_weights.resize(basis_dims);
@@ -128,7 +128,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 std::array<bool, LocalDim> dummy_periodic = {0,1};
                 
 
-                basis_pde_ = NurbsBasis<LocalDim>(open_uniform_knots, unitary_weights, order, periodic_dims_); //basis_;
+                basis_pde_ = NurbsBasis<LocalDim>(open_uniform_knots, unitary_weights, degree, periodic_dims_); //basis_;
                 //
             }
 
@@ -140,7 +140,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     const std::array<std::vector<double>,LocalDim>& knots() const { return knots_; } // this contains also the repetitions (if any)
     const std::array<std::vector<double>,LocalDim>& param_nodes() const { return param_nodes_; } // (only unique knots)
     const MdArray<double, full_dynamic_extent_t<LocalDim>>& weights() const { return weights_; }
-    const std::array<int,LocalDim>& order() const { return order_; }
+    const std::array<int,LocalDim>& degree() const { return degree_; }
     int n_cells() const { return n_cells_; }
     int n_nodes() const { return n_nodes_; }
     std::array<int, LocalDim> n_control_points() const {
@@ -151,7 +151,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     }
     const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cells() const { return cells_; }
     IsoMeshData<LocalDim> data() const {
-        return IsoMeshData<LocalDim>{knots_, weights_, control_points_, order_};
+        return IsoMeshData<LocalDim>{knots_, weights_, control_points_, degree_};
     }  
     std::vector<int> nodes_markers() const { return nodes_markers_; }
     std::vector<int> cells_markers() const { return cells_markers_; }
@@ -170,10 +170,10 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * @return Physical coordinate in embedding space
      */
     Eigen::Matrix<double, EmbedDim, 1> eval_param(const Eigen::Matrix<double, LocalDim,1>& u) const {
-        for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
+        //for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
         std::vector<std::vector<double>> basis_eval(LocalDim);
         std::array<int,LocalDim> spans= {0};
-        auto order = this->basis_.order();
+        auto degree = this->basis_.degree();
         auto nurb = this->basis_[0];
         double total_weight = 0.0;
         
@@ -192,7 +192,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             std::array<int,LocalDim> full_indices;
             for(int i = 0; i < LocalDim; i++){
                 eval *= basis_eval[i][index[i]];
-                full_indices[i] = spans[i] - order[i] + index[i];
+                full_indices[i] = spans[i] - degree[i] + index[i];
             }
 
             Eigen::Matrix<double, EmbedDim, 1> cp;
@@ -208,7 +208,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             total_weight += eval * w ;  // Accumulate total weight
 
             for (int d = LocalDim - 1; d >= 0; d--) {
-            if (++index[d] > order[d]) {
+            if (++index[d] > degree[d]) {
                 index[d] = 0;
                 if (d == 0) done = true;
             } else 
@@ -220,7 +220,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
 
     /**
-     * @brief Evaluate the first and (if needed) second order derivatives of the NURBS mapping at `u`
+     * @brief Evaluate the first and (if needed) second degree derivatives of the NURBS mapping at `u`
      * 
      * Based on Algorithm A4.3 from *The NURBS Book* pag 134.
      * 
@@ -238,7 +238,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         std::vector<std::vector<double>> basis_deriv_eval(LocalDim);
         std::vector<std::vector<double>> basis_second_deriv_eval(LocalDim);
         std::array<int, LocalDim> spans = {0};
-        auto order = this->basis_.order();
+        auto degree = this->basis_.degree();
         auto nurb = this->basis_[0];
         double total_weight = 0.0;
     
@@ -279,7 +279,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 if (compute_second) {
                     eval_sec_der[i] = basis_second_deriv_eval[i][index[i]];
                 }
-                full_indices[i] = spans[i] - order[i] + index[i];
+                full_indices[i] = spans[i] - degree[i] + index[i];
             }
     
             Eigen::Matrix<double, EmbedDim, 1> cp;
@@ -342,7 +342,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             }
     
             for (int d = LocalDim - 1; d >= 0; d--) {
-                if (++index[d] > order[d]) {
+                if (++index[d] > degree[d]) {
                     index[d] = 0;
                     if (d == 0) done = true;
                 } else {
@@ -406,7 +406,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             std::vector<double> valid_knots;
             for (double mk : knot_list) {
                 int s = std::count(knots_[j].begin(), knots_[j].end(), mk);  
-                int r = order_[j] - s;  
+                int r = degree_[j] - s;  
                 for (int _ = 0; _ < r; _++) valid_knots.push_back(mk);
             }
 
@@ -498,7 +498,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     old_w(m) = previous_weights(current_index);
                 }
 
-                IsoMeshData<1> mesh_data(knots_[k], old_w, old_cp, order_[k], flags_);
+                IsoMeshData<1> mesh_data(knots_[k], old_w, old_cp, degree_[k], flags_);
                 auto refined_mesh = iso_algorithms::knots_refinement(mesh_data,refinement_knots[k]);
                 
                 updated_knots[k] = refined_mesh.knots[0];
@@ -533,7 +533,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
         }
         // Update the mesh
-        initialize(updated_knots, refined_weights, refined_cp, order_, flags_);
+        initialize(updated_knots, refined_weights, refined_cp, degree_, flags_);
     }
 
     /**
@@ -563,7 +563,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         std::array<decltype(Cp.template slice<local_dim>(0)), embed_dim> cp_slices;
         for (int i = 0; i < embed_dim; ++i)
             cp_slices[i] = Cp.template slice<local_dim>(i);
-        std::array<int, local_dim> index = this->order_;
+        std::array<int, local_dim> index = this->degree_;
         std::vector<std::array<int, local_dim>> valid_spans;
 
         // tic
@@ -587,7 +587,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
             for (int d = local_dim - 1; d >= 0; d--) {
                 if (++index[d] > this->weights_.extent(d) - 1) {
-                    index[d] = this->order_[d];
+                    index[d] = this->degree_[d];
                     if (d == 0) done = true;
                 } else break;
             }
@@ -650,12 +650,18 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         //std::cout<<"Initial guess: "<<u.transpose()<<std::endl;
         bool conv1 = false;
         bool conv2 = false;
+        u_old(0) = 0.05;
+        u_old(1) = 0.78;
+
+
 
         // tic
         start = std::chrono::high_resolution_clock::now();
 
         while(counter < max_iters && !conv1 && !conv2){
+            
             auto S = this->eval_param(u_old);
+            std::cout<<"u: "<<u.transpose()<<std::endl;
             Eigen::Matrix<double, embed_dim, 1> r = S - p;
 
             if(r.norm() < tol1) conv1 = true;
@@ -869,7 +875,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 }
             }
         }
-        // order the neighbors rows in increasing order, but put the -1 at the end (ONLY FOR TESTS)
+        // degree the neighbors rows in increasing degree, but put the -1 at the end (ONLY FOR TESTS)
         /*
         for(int i = 0; i < n_cells_; ++i){
             std::vector<int> row(neighbors.row(i).data(), neighbors.row(i).data() + neighbors.cols());
@@ -1092,12 +1098,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         for (int i = 0; i < EmbedDim; ++i)
             cp_slices[i] = Cp.template slice<LocalDim>(i);
     
-        std::array<int, LocalDim> index = this->order_;
+        std::array<int, LocalDim> index = this->degree_;
         bool done = false;
         do {
             std::array<int, LocalDim> new_index;
             for (int i = 0; i < LocalDim; ++i)
-                new_index[i] = index[i] - this->order_[i];
+                new_index[i] = index[i] - this->degree_[i];
     
             Eigen::Matrix<double, EmbedDim, 1> P_min, P_max;
             P_min.setConstant(std::numeric_limits<double>::max());
@@ -1114,7 +1120,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     
                 for (int d = LocalDim - 1; d >= 0; --d) {
                     if (++new_index[d] > index[d]) {
-                        new_index[d] = index[d] - this->order_[d];
+                        new_index[d] = index[d] - this->degree_[d];
                         if (d == 0) span_done = true;
                     } else break;
                 }
@@ -1124,7 +1130,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     
             for (int d = LocalDim - 1; d >= 0; --d) {
                 if (++index[d] > this->weights_.extent(d) - 1) {
-                    index[d] = this->order_[d];
+                    index[d] = this->degree_[d];
                     if (d == 0) done = true;
                 } else break;
             }
@@ -1134,7 +1140,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     // === Member Variables === //
     
     std::array<std::vector<double>,LocalDim> knots_;            ///< Knot vectors in each direction
-    std::array<int,LocalDim> order_ {};                         ///< Polynomial order in each direction
+    std::array<int,LocalDim> degree_ {};                         ///< Polynomial degree in each direction
     std::array<std::vector<double>,LocalDim> param_nodes_;      ///< Unique parametric node positions in each direction
     MdArray<double,full_dynamic_extent_t<LocalDim>> weights_;   ///< NURBS weights in each direction
     MdArray<double,full_dynamic_extent_t<LocalDim+1>> control_points_; ///< Control points in each direction
@@ -1189,8 +1195,8 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
      * @see IsoMeshBase::IsoMeshBase
      */
     IsoMesh(std::array<std::vector<double>, 2>& knots, MdArray<double, MdExtents<Dynamic, Dynamic>>& weights,
-         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>>& control_points, std::array<int,2> order, int flags = 0) :
-        Base(knots, weights, control_points, order, flags) {  
+         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>>& control_points, std::array<int,2> degree, int flags = 0) :
+        Base(knots, weights, control_points, degree, flags) {  
             compute_cells_();  
         }
 
@@ -1289,7 +1295,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
             Eigen::Matrix<double, embed_dim, 1> p0 = this->phys_node(node0);
             Eigen::Matrix<double, embed_dim, 1> p1 = this->phys_node(node1);
 
-            // Ensure ordering is consistent to avoid duplicate mismatches
+            // Ensure degreeing is consistent to avoid duplicate mismatches
             if (p0.norm() > p1.norm()) std::swap(p0, p1);
 
             boundary_edge_list.emplace_back(p0, p1);
@@ -1337,7 +1343,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
             std::vector<double>{0.0, 0.0, 1.0, 1.0},
             std::vector<double>{0.0, 0.0, 1.0, 1.0}
         };
-        std::array<int, 2> order = {1, 1};
+        std::array<int, 2> degree = {1, 1};
 
         MdArray<double, MdExtents<Dynamic,Dynamic>> weights(2, 2);
         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>> control_points(2, 2, N);
@@ -1359,7 +1365,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
             }
         }
 
-        return IsoMesh<2, N>(knots, weights, control_points, order);
+        return IsoMesh<2, N>(knots, weights, control_points, degree);
     }
 
     /**
@@ -1374,8 +1380,8 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
 
         // Create a semicircle as a 1D Mesh embdedded in 3D
         std::array<std::vector<double>, 1> start_knots = { std::vector<double>{0, 0, 0, 0.5, 1, 1, 1} };
-        std::array<int,1> start_order = {2};
-        int num_ctrl_points = start_knots[0].size() - start_order[0] - 1;
+        std::array<int,1> start_degree = {2};
+        int num_ctrl_points = start_knots[0].size() - start_degree[0] - 1;
         std::vector<double> wj = { 1, 1 / 2.0, 1 / 2.0, 1 };
 
         //std::vector<std::vector<double>> Pj = {
@@ -1403,14 +1409,14 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         }
 
         // Create a IsoMeshData object
-        IsoMeshData<1> semicircle(start_knots, start_weights, start_cp, start_order);
+        IsoMeshData<1> semicircle(start_knots, start_weights, start_cp, start_degree);
 
         // Create a 2D mesh by rotating the 1D mesh around the z-axis
         IsoMeshData<2> sphere = iso_algorithms::create_revolved_ISO_surface(semicircle, 2 * M_PI, Eigen::Matrix<double,3,1>(0,0,1));
 
         // Create the IsoMesh object
 
-        IsoMesh<2, N> mesh(sphere.knots, sphere.weights, sphere.control_points, sphere.order);
+        IsoMesh<2, N> mesh(sphere.knots, sphere.weights, sphere.control_points, sphere.degree);
         //mesh.refine_knots({3,3});
         return mesh;
 
@@ -1430,7 +1436,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         std::array<std::vector<double>, 1> start_knots = {
             std::vector<double>{0,0,0,0.25,0.25,0.5,0.5,0.75,0.75,1,1,1}
         };
-        std::array<int,1> start_order = {2}; // Degree 2 (quadratic)
+        std::array<int,1> start_degree = {2}; // Degree 2 (quadratic)
         int num_ctrl_points = 9;
         
         std::vector<double> wj = {
@@ -1469,14 +1475,14 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
 
 
         // Create a IsoMeshData object
-        IsoMeshData<1> circle(start_knots, start_weights, start_cp, start_order);
+        IsoMeshData<1> circle(start_knots, start_weights, start_cp, start_degree);
 
         // Create a 2D mesh by rotating the 1D mesh around the z-axis
         IsoMeshData<2> torus = iso_algorithms::create_revolved_ISO_surface(circle, 2 * M_PI);
 
         // Create the IsoMesh object
 
-        IsoMesh<2, N> mesh(torus.knots, torus.weights, torus.control_points, torus.order);
+        IsoMesh<2, N> mesh(torus.knots, torus.weights, torus.control_points, torus.degree);
         //mesh.refine_knots({3,3});
         return mesh;
 
@@ -1661,8 +1667,8 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
      * @see IsoMeshBase::IsoMeshBase
      */
     IsoMesh(std::array<std::vector<double>, 3>& knots,MdArray<double, MdExtents<Dynamic, Dynamic, Dynamic>>& weights,
-         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic,Dynamic>>& control_points, std::array<int,3> order, int flags = 0):
-         Base(knots, weights, control_points, order, flags) {
+         MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic,Dynamic>>& control_points, std::array<int,3> degree, int flags = 0):
+         Base(knots, weights, control_points, degree, flags) {
             compute_cells_();
     }
 

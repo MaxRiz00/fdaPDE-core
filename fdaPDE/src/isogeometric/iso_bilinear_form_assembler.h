@@ -111,8 +111,8 @@ class iso_bilinear_form_assembly_loop :
         int n1 = 1, n2 = 1;
 
         for(int i = 0; i<local_dim; i++){
-            n1*= (test_space_->order())[i] + 1;
-            n2*= (is_galerkin ? (test_space_->order())[i] : (trial_space_->order())[i]) + 1;
+            n1*= (test_space_->degree())[i] + 1;
+            n2*= (is_galerkin ? (test_space_->degree())[i] : (trial_space_->degree())[i]) + 1;
         }
 
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_param_shape_values(n1,q), trial_param_shape_values(n2, q);

@@ -105,7 +105,7 @@ struct sp_assembler_base {
                 for (int j = 0; j < local_dim; ++j) { quad_nodes__(i, j) = quad_rule.nodes(i, j); }
 	    }
         } else {
-            internals::get_sp_quadrature(test_space_->order(), quad_nodes__, quad_weights_);
+            internals::get_sp_quadrature(test_space_->degree(), quad_nodes__, quad_weights_);
         }
 	// build grid of quadrature nodes on reference domain
 	n_quadrature_nodes_ = quad_nodes__.rows();

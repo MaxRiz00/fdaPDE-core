@@ -59,7 +59,7 @@ template <> class DofHandler<1, 1, spline_tag> {
     };
     // constructor
     DofHandler() = default;
-    DofHandler(const TriangulationType& triangulation) : triangulation_(std::addressof(triangulation)), order_() { }
+    DofHandler(const TriangulationType& triangulation) : triangulation_(std::addressof(triangulation)), degree_() { }
     // getters
     CellType cell(int id) const { return CellType(id, this); }
     Eigen::Map<const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>> dofs() const {   // dofs active on cell
@@ -90,7 +90,7 @@ template <> class DofHandler<1, 1, spline_tag> {
     // (property P2.2, pag 55, Piegl, L., & Tiller, W. (2012). The NURBS book. Springer Science & Business Media.)
     std::vector<int> active_dofs(int i) const {
         std::vector<int> dofs;
-        for (int j = 0; j < order_ + 1; ++j) { dofs.push_back(i + j); }
+        for (int j = 0; j < degree_ + 1; ++j) { dofs.push_back(i + j); }
         return dofs;
     }
     template <typename ContainerT> void active_dofs(int i, ContainerT& dst) const { dst = active_dofs(i); }
@@ -187,14 +187,14 @@ template <> class DofHandler<1, 1, spline_tag> {
 
     template <typename SpType> void enumerate(SpType&& sp) {
         n_dofs_ = sp.size();
-        order_ = sp.order();
-        n_dofs_per_cell_ = order_ + 1;
+        degree_ = sp.degree();
+        n_dofs_per_cell_ = degree_ + 1;
         dofs_coords_.resize(n_dofs_);
         for (int i = 0; i < n_dofs_; ++i) { dofs_coords_[i] = sp[i].knot(); }
         int n_cells = triangulation()->n_cells();
         for (int j = 0; j < n_cells; ++j) {
             dofs_.push_back(j);
-	    dofs_.push_back(j + order_);
+	    dofs_.push_back(j + degree_);
         }	
         // Regardless of the number of physical dofs at the interval boundary, only the basis functions associated with
         // the first and last dofs are non-zero at the boundary nodes. Hence, we treat only these dofs as boundary dofs
@@ -212,7 +212,7 @@ template <> class DofHandler<1, 1, spline_tag> {
     int n_dofs_per_cell_ = 0, n_dofs_ = 0;
     std::vector<int> dofs_markers_;
     const TriangulationType* triangulation_;
-    int order_;
+    int degree_;
 };
 
 }   // namespace fdapde

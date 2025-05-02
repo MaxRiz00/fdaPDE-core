@@ -59,7 +59,7 @@ class iso_linear_form_assembly_loop :
         int n = 1;
 
         for(int i = 0; i<local_dim; i++){
-            n*= (Base::test_space_->order())[i] + 1;
+            n*= (Base::test_space_->degree())[i] + 1;
         }
 
         int q = Base::n_quadrature_nodes_;

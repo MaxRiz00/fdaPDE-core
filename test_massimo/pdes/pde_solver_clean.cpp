@@ -17,7 +17,7 @@ void export_mesh(const IsoMesh<2,3>& mesh, const std::string& path) {
 
     // ---- 1. Order ----
     std::ofstream order_file(path + "order.txt");
-    auto order = mesh.order();
+    auto order = mesh.degree();
     for (int d = 0; d < 2; d++) {
         order_file << order[d] << " ";
     }

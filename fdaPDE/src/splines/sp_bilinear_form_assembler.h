@@ -66,9 +66,9 @@ class sp_bilinear_form_assembly_loop :
         fdapde_assert(test_dof_handler()->n_dofs() != 0 && trial_dof_handler()->n_dofs() != 0);
         if constexpr (sizeof...(Quadrature_) == 0) {
             // default to higher-order quadrature
-            if (test_space_->order() != trial_space_->order()) {
+            if (test_space_->degree() != trial_space_->degree()) {
                 internals::get_sp_quadrature(
-                  test_space_->order() > trial_space_->order() ? test_space_->order() : trial_space_->order(),
+                  test_space_->degree() > trial_space_->degree() ? test_space_->degree() : trial_space_->degree(),
                   Base::quad_nodes_, Base::quad_weights_);
             }
         }
@@ -89,7 +89,7 @@ class sp_bilinear_form_assembly_loop :
         iterator end  (Base::end_.index()  , test_dof_handler(), Base::end_.marker()  );
 	// prepare assembly loop
         std::vector<int> test_active_dofs, trial_active_dofs;
-        int n1 = test_space_->order() + 1, n2 = (is_galerkin ? test_space_->order() : trial_space_->order()) + 1;
+        int n1 = test_space_->degree() + 1, n2 = (is_galerkin ? test_space_->degree() : trial_space_->degree()) + 1;
         int q = Base::n_quadrature_nodes_;
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_values(n1, q), trial_shape_values(n2, q);
         MdArray<double, MdExtents<Dynamic, Dynamic>> test_shape_dx    (n1, q), trial_shape_dx    (n2, q);
