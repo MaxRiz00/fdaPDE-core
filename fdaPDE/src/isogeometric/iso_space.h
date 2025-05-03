@@ -58,7 +58,7 @@ template <typename IsoMesh_> class IsoSpace {
 
     IsoSpace() = default;
     IsoSpace(const IsoMesh_& mesh) :
-        mesh_(std::addressof(mesh)), dof_handler_(mesh), degree_(mesh.degree()), basis_(mesh.basis_pde()) { } //copiare la base della mesh ? metterla nel referce domain , perche
+        mesh_(std::addressof(mesh)), dof_handler_(mesh), degree_(mesh.basis_pde().degree()), basis_(mesh.basis_pde()) { } //copiare la base della mesh ? metterla nel referce domain , perche
 
     // observers
     const IsoMesh& mesh() const { return *mesh_; }

@@ -1,143 +1,7 @@
 #include "isogeometric.h"
-
-#include <unsupported/Eigen/SparseExtra>
-#include <fstream>
-#include <cassert>
+#include "helpers.h"
 
 using namespace fdapde;
-
-template<typename T> using SpMatrix = Eigen::SparseMatrix<T>;
-
-void export_mesh(const IsoMesh<2,3>& mesh, const std::string& path) {
-    std::cout << "Exporting mesh to: " << path << std::endl;
-
-    // Create directory if not exists
-    std::string cmd = "mkdir -p " + path;
-    system(cmd.c_str());
-
-    // ---- 1. Order ----
-    std::ofstream order_file(path + "order.txt");
-    auto order = mesh.degree();
-    for (int d = 0; d < 2; d++) {
-        order_file << order[d] << " ";
-    }
-
-// ---- 2. Knots ----
-auto knots = mesh.knots();
-
-SpMatrix<double> knots_x(1, knots[0].size());
-SpMatrix<double> knots_y(1, knots[1].size());
-
-std::vector<Eigen::Triplet<double>> triplets_kx, triplets_ky;
-
-for (int i = 0; i < knots[0].size(); i++) {
-    triplets_kx.emplace_back(0, i, knots[0][i]);
-}
-for (int i = 0; i < knots[1].size(); i++) {
-    triplets_ky.emplace_back(0, i, knots[1][i]);
-}
-
-knots_x.setFromTriplets(triplets_kx.begin(), triplets_kx.end());
-knots_y.setFromTriplets(triplets_ky.begin(), triplets_ky.end());
-
-Eigen::saveMarket(knots_x, path + "knots_x.mtx");
-Eigen::saveMarket(knots_y, path + "knots_y.mtx");
-
-    // ---- 3. Weights ----
-    auto weights = mesh.weights();
-    int rows = weights.extent(0);
-    int cols = weights.extent(1);
-    SpMatrix<double> weights_sp(rows, cols);
-    std::vector<Eigen::Triplet<double>> w_triplets;
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            w_triplets.emplace_back(i, j, weights(i, j));
-        }
-    }
-    weights_sp.setFromTriplets(w_triplets.begin(), w_triplets.end());
-    Eigen::saveMarket(weights_sp, path + "weights.mtx");
-
-    // ---- 4. Control points ----
-    auto ctrlpts = mesh.control_points();
-    int r = ctrlpts.extent(0);
-    int c = ctrlpts.extent(1);
-
-    SpMatrix<double> ctrl_x(r, c), ctrl_y(r, c), ctrl_z(r, c);
-    std::vector<Eigen::Triplet<double>> triplets_x, triplets_y, triplets_z;
-
-    for (int i = 0; i < r; i++) {
-        for (int j = 0; j < c; j++) {
-            triplets_x.emplace_back(i, j, ctrlpts(i, j, 0));
-            triplets_y.emplace_back(i, j, ctrlpts(i, j, 1));
-            triplets_z.emplace_back(i, j, ctrlpts(i, j, 2));
-        }
-    }
-
-    ctrl_x.setFromTriplets(triplets_x.begin(), triplets_x.end());
-    ctrl_y.setFromTriplets(triplets_y.begin(), triplets_y.end());
-    ctrl_z.setFromTriplets(triplets_z.begin(), triplets_z.end());
-
-    Eigen::saveMarket(ctrl_x, path + "ctrlpts_x.mtx");
-    Eigen::saveMarket(ctrl_y, path + "ctrlpts_y.mtx");
-    Eigen::saveMarket(ctrl_z, path + "ctrlpts_z.mtx");
-
-    std::cout << "Export complete!" << std::endl;
-}
-
-IsoMesh<2, 3> load_mesh(const std::string& folder_path) {
-    using SpMatrix = Eigen::SparseMatrix<double>;
-
-    std::array<int, 2> order;
-    SpMatrix knots_x, knots_y, weights;
-    SpMatrix control_points_x, control_points_y, control_points_z;
-
-    std::string path = folder_path;
-
-    // Load order
-    std::ifstream order_file(path + "order.txt");
-    for (int i = 0; i < 2; i++) {
-        order_file >> order[i];
-    }
-
-    // Load matrices
-    Eigen::loadMarket(knots_x, path + "knots_x.mtx");
-    Eigen::loadMarket(knots_y, path + "knots_y.mtx");
-    Eigen::loadMarket(weights, path + "weights.mtx");
-    Eigen::loadMarket(control_points_x, path + "ctrlpts_x.mtx");
-    Eigen::loadMarket(control_points_y, path + "ctrlpts_y.mtx");
-    Eigen::loadMarket(control_points_z, path + "ctrlpts_z.mtx");
-
-    // Reconstruct data structures
-    std::array<std::vector<double>, 2> nodes;
-    nodes[0].resize(knots_x.cols());
-    nodes[1].resize(knots_y.cols());
-
-    for (size_t i = 0; i < nodes[0].size(); i++) {
-        nodes[0][i] = knots_x.coeff(0, i);
-    }
-
-    for (size_t i = 0; i < nodes[1].size(); i++) {
-        nodes[1][i] = knots_y.coeff(0, i);
-    }
-
-    MdArray<double, full_dynamic_extent_t<2>> weights_(weights.rows(), weights.cols());
-    for (int i = 0; i < weights.rows(); i++) {
-        for (int j = 0; j < weights.cols(); j++) {
-            weights_(i, j) = weights.coeff(i, j);
-        }
-    }
-
-    MdArray<double, full_dynamic_extent_t<3>> control_points(control_points_x.rows(), control_points_x.cols(), 3);
-    for (int i = 0; i < control_points_x.rows(); i++) {
-        for (int j = 0; j < control_points_x.cols(); j++) {
-            control_points(i, j, 0) = control_points_x.coeff(i, j);
-            control_points(i, j, 1) = control_points_y.coeff(i, j);
-            control_points(i, j, 2) = control_points_z.coeff(i, j);
-        }
-    }
-
-    return IsoMesh<2, 3>(nodes, weights_, control_points, order);
-}
 
 int main(){
 
@@ -153,7 +17,7 @@ int main(){
 
     // print the number of cells
     std::cout << "Number of cells: " << mesh.n_cells() << std::endl;
-    mesh.refine_knots({3,3});
+    mesh.refine_knots({1,1});
     
     //mesh.refine_knots({0,0});
     // print the knots
@@ -168,7 +32,7 @@ int main(){
 
     
 
-    std::string save_path = "../sphere/"; // or wherever you want
+    std::string save_path = "../torus/"; // or wherever you want
     export_mesh(mesh, save_path);
     
     IsoSpace Vh(mesh);
@@ -188,7 +52,8 @@ int main(){
     */
 
     //(x-x0) * (y-y0) * (y-y0) - (y-y0) * (z-z0)* (z-z0) + (x-x0) * (x-x0) * (z-z0);
-
+    
+    /*
     ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
         double x = p(0);
         double y = p(1);
@@ -198,7 +63,7 @@ int main(){
         double phi = std::atan2(y, x);
         double theta = std::acos(z / r );  
 
-        return 4 * std::sin(theta) * std::sin( phi);
+        return 2 * std::sin(theta) * std::sin( phi);
         })> u;
 
         // evaluation of u at poles
@@ -216,11 +81,15 @@ int main(){
         return std::sin(theta) * std::sin( phi);
         })> u_exact;
 
+        */
+
     
-    constexpr double alpha = 8.; // 3.
-    constexpr double beta = 6.0; //
-    
+
     /*
+    constexpr double alpha = 4.; // 3.
+    constexpr double beta = 4.0; //
+    
+    
 
     ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
         double x = p(0);
@@ -253,10 +122,45 @@ int main(){
             return std::sin(alpha * phi) * std::sin(beta * theta);
             })> u_exact;
     */
-    
 
     
+
+    ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
+        double x = p(0);
+        double y = p(1);
+        double z = p(2);
+
+        int m = 2;
+        int n = 3;
+
+        double phi = std::atan2(y, x);
+        double theta = std::atan2(z, std::sqrt(x*x + y*y) - 2);
     
+        return std::sin(m * theta) * std::sin(n * phi);
+    })> u_exact;
+    
+    ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
+        double x = p(0);
+        double y = p(1);
+        double z = p(2);
+
+        double R = 2;
+        double r = 1;
+
+        int m = 2;
+        int n = 3;
+
+    
+        double phi = std::atan2(y, x);
+        double theta = std::atan2(z, std::sqrt(x*x + y*y) - 2);
+
+        return (m * std::sin(n * phi) * std::cos(m * theta) * std::sin(theta) / (r * (R + r * std::cos(theta) ))) +
+                std::sin(n * phi) * std::sin(m * theta) * (m * m/(r * r) + n * n / ((R + r * std::cos(theta) ) * (R + r * std::cos(theta) )));
+        
+        //std::sin(phi) * std::sin(theta)* (2  * (1 + std::cos(theta)) / (2 + std::cos(theta)) + 1/((2 + std::cos(theta)) * (2 + std::cos(theta))) );
+    })> u;
+    
+
 
     auto start = std::chrono::high_resolution_clock::now();
     auto a = integral(mesh,QGL2DP9)(dot(grad(f), grad(v))); // dot(grad(f), grad(v)) laplacian(f)*laplacian(v)
@@ -318,6 +222,12 @@ int main(){
     Eigen::VectorXd rhs = Eigen::VectorXd::Zero(counter + 1);
     rhs.head(counter) = b_reduced;
     Eigen::VectorXd uh_reduced = solver.solve(rhs).head(counter);
+
+    std::cout << "uh_reduced: " << uh_reduced.transpose() << std::endl;
+    std::cout << "uh_reduced size: " << uh_reduced.size() << std::endl;
+
+    uh_reduced.setZero();
+    uh_reduced(11) = 1;
     
 
     /*
@@ -409,7 +319,7 @@ int main(){
     sol(17) = 1;
     solution = sol;
     */
-    int nn = 10;
+    int nn = 5;
     
 
     // create a result folder

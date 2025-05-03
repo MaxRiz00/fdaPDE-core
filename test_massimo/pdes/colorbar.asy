@@ -11,7 +11,7 @@ import plain;
 
 
 
-size(300);
+size(400);
 //currentprojection = perspective((0,5,-10),up=(0,1,0));
 // sphere ,showtarget=true, autoadjust=false, center=true
 //currentprojection =orthographic((2,2,2),up=(0,1,0)); 
@@ -31,7 +31,7 @@ currentlight = light(
 
 
 // === SETTINGS ===
-int num_points_per_curve = 10;
+int num_points_per_curve = 5;
 pen interiorEdgePen = gray + 1bp;
 pen boundaryEdgePen = blue + 1.2bp;
 pen quadPen = lightblue ;
@@ -205,8 +205,8 @@ while (!eof(surfFile)) {
     grid[cid_index][i][j] = (x, y, z);
     scalarGrid[cid_index][i][j] = s;
 
-    if (s < minScalar) minScalar = s; //s
-    if (s > maxScalar) maxScalar = s; //s
+    if (s < minScalar) minScalar = 0; //s
+    if (s > maxScalar) maxScalar = 1; //s
   }
 }
 
@@ -214,148 +214,46 @@ while (!eof(surfFile)) {
 write("Min scalar: " + string(minScalar) );
 write("Max scalar: " + string(maxScalar) );
 
-
-
-surface wholeSurface;
-
-// === PLOT SURFACE ===
-
-for (int c = 0; c < grid.length; ++c) {
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < N; ++j) {
-      triple p1 = grid[c][i][j];
-      triple p2 = grid[c][i+1][j];
-      triple p3 = grid[c][i+1][j+1];
-      triple p4 = grid[c][i][j+1];
-
-      real s1 = scalarGrid[c][i][j];
-      real s2 = scalarGrid[c][i+1][j];
-      real s3 = scalarGrid[c][i+1][j+1];
-      real s4 = scalarGrid[c][i][j+1];
-
-      // Triangle 1: p1-p2-p3
-      real t1 = ((s1 + s2 + s3) / 3 - minScalar) / (maxScalar - minScalar + 1e-10);
-      pen color1 = colormap2(t1);
-      draw(surface(p1--p2--p3--cycle),      surfacepen = material(
-        diffusepen = color1              // gives surface its color under light
-        ,emissivepen = gray(0.1)       // Helps in shadows
-        ,specularpen = black        // Mild highlight
-      ));
-
-      // Triangle 2: p1-p3-p4
-      real t2 = ((s1 + s3 + s4) / 3 - minScalar) / (maxScalar - minScalar + 1e-10);
-      pen color2 = colormap2(t2);
-      draw(surface(p1--p3--p4--cycle), surfacepen = material(
-        diffusepen = color2
-        ,emissivepen = gray(0.1)      // Helps in shadows
-        ,specularpen = black        // Mild highlight
-      ));
-    }
-  }
-}
-//material Spen  = material(white+opacity(0.8),emissivepen=gray(0.05),specularpen =mediumgray);
-
-//draw(wholeSurface,surfacepen=Spen,render(compression=Low,merge=true));
-
-// === PLOT CURVED EDGES ===
-/*
-
-int num_edges = edges.length;
-for (int i = 0; i < num_edges; ++i) {
-  triple[] curve;
-  int start = i * num_points_per_curve;
-  for (int j = 0; j < num_points_per_curve; ++j) {
-    triple pt = nurbs_edges[start + j];
-    curve.push(pt); // lift radially from origin
-  }
-
-  // Select pens
-  pen edgePenVisible = bflags[i] == 1 ? boundaryEdgePen : interiorEdgePen;
-  pen edgePenHidden = edgePenVisible + opacity(0.2); // faded version
-
-  // Draw each segment with visibility check
-  for (int j = 0; j < curve.length - 1; ++j) {
-    triple p = curve[j];
-    triple q = curve[j + 1];
-    draw(p -- q, edgePenVisible );
-  }
-}
-
-
-  
-  
-*/
-
   
 
 
 
-// === LOAD CONTROL POINTS GRID ===
-/*
 
-pen visibleLine = gray + 0.8bp;
-pen hiddenLine = gray + opacity(0.5) + 0.8bp;
-pen visibleDot = gray + 3bp;
-pen hiddenDot = gray + 3bp + opacity(0.6);
 
-triple[] control_points_flat;
-int num_rows = 0;
-int num_cols = 0;
+// === CREATE 2D OVERLAY PICTURE ===
+picture colorbar;
 
-file fcp = input(folder + "control_points.txt");
-bool firstLine = true;
+real w = 0.2;
+real h = 2.0;
+pair origin = (2, 1);
+int numSteps = 100;
 
-while (!eof(fcp)) {
-  string line = fcp;
-  string[] p = split(line);
+for (int i = 0; i < numSteps; ++i) {
+  real t = i / (real)(numSteps - 1);
+  pen color = colormap2(t);
+  real y0 = t * h;
+  real y1 = (t + 1.0/numSteps) * h;
 
-  if (firstLine) {
-    if (p.length >= 2) {
-      num_rows = (int) p[0];
-      num_cols = (int) p[1];
-      firstLine = false;
-    }
-    continue;
-  }
-
-  if (p.length >= 3)
-    control_points_flat.push(((real) p[0], (real) p[1], (real) p[2]));
+  fill(colorbar, (origin.x, origin.y + y0) -- 
+                 (origin.x + w, origin.y + y0) -- 
+                 (origin.x + w, origin.y + y1) -- 
+                 (origin.x, origin.y + y1) -- cycle, 
+       color);
 }
 
-// === RECONSTRUCT GRID ===
-if (control_points_flat.length != num_rows * num_cols) {
-  write("Error: mismatch in control point count.");
-} else {
-  triple[][] control_grid;
-  int idx = 0;
-  for (int i = 0; i < num_rows; ++i) {
-    triple[] row;
-    for (int j = 0; j < num_cols; ++j) {
-      row.push(control_points_flat[idx]);
-      idx = idx+1;
-    }
-    control_grid.push(row);
-  }
-  
-  for (int i = 0; i < num_rows; ++i) {
-    for (int j = 0; j < num_cols; ++j) {
-      triple p = control_grid[i][j];
+real labelOffset = 0.03; // consistent horizontal offset
 
-      if (j + 1 < num_cols) {
-        triple q = control_grid[i][j + 1];
-        draw(p -- q, visibleLine);
-      }
+label(colorbar, scale(2)*format("%g", minScalar), 
+      (origin.x + w + labelOffset, origin.y), E);
 
-      if (i + 1 < num_rows) {
-        triple q = control_grid[i + 1][j];
-        draw(p -- q, visibleLine);
-      }
+label(colorbar, scale(2)*format("%g", (minScalar + maxScalar)/2), 
+      (origin.x + w + labelOffset, origin.y + h/2), E);
 
-      dot(p, visibleDot);
-    }
-  }
-}
-*/
+label(colorbar, scale(2)*format("%g", maxScalar), 
+      (origin.x + w + labelOffset, origin.y + h), E);
+
+// === ADD 2D PICTURE TO CURRENT OUTPUT ===
+add(currentpicture, colorbar, above=true);  // <-- this is the key line
 
 
 

@@ -117,9 +117,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
                 std::array<std::vector<double>,LocalDim> open_uniform_knots;
                 std::array<int,LocalDim> basis_dims;
+                std::array<int,LocalDim> new_degree;
                 for(int i = 0; i < LocalDim; i++){
-                    open_uniform_knots[i] = pad_knots(param_nodes_[i], degree[i]);
-                    basis_dims[i] = open_uniform_knots[i].size() - degree[i] - 1;
+                    new_degree[i] = this->degree_[i] ;
+                }
+                for(int i = 0; i < LocalDim; i++){
+                    open_uniform_knots[i] = pad_knots(param_nodes_[i], new_degree[i]);
+                    basis_dims[i] = open_uniform_knots[i].size() - new_degree[i] - 1;
                 }
                 MdArray<double, full_dynamic_extent_t<LocalDim>> unitary_weights;
                 unitary_weights.resize(basis_dims);
@@ -128,7 +132,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 std::array<bool, LocalDim> dummy_periodic = {0,1};
                 
 
-                basis_pde_ = NurbsBasis<LocalDim>(open_uniform_knots, unitary_weights, degree, periodic_dims_); //basis_;
+                basis_pde_ = NurbsBasis<LocalDim>(open_uniform_knots, unitary_weights, new_degree, periodic_dims_); //basis_;
+                std::cout<<"Basis PDE: "<<std::endl;
                 //
             }
 
@@ -1446,15 +1451,15 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         };
         
         std::vector<std::vector<double>> Pj = {
-            { R + r, 0, 0 },
-            { R + r, r, 0 },
-            { R,     r, 0 },
-            { R - r, r, 0 },
-            { R - r, 0, 0 },
-            { R - r, -r, 0 },
-            { R,     -r, 0 },
-            { R + r, -r, 0 },
-            { R + r,  0, 0 }  // Closing point (same as first)
+            { 0, R + r, 0 },
+            { 0, R + r, r },
+            { 0, R,     r },
+            { 0, R - r, r },
+            { 0, R - r, 0 },
+            { 0, R - r, -r },
+            { 0, R,     -r },
+            { 0, R + r, -r },
+            { 0, R + r, 0 }
         };
 
         // Initialize `MdArray`
@@ -1478,7 +1483,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         IsoMeshData<1> circle(start_knots, start_weights, start_cp, start_degree);
 
         // Create a 2D mesh by rotating the 1D mesh around the z-axis
-        IsoMeshData<2> torus = iso_algorithms::create_revolved_ISO_surface(circle, 2 * M_PI);
+        IsoMeshData<2> torus = iso_algorithms::create_revolved_ISO_surface(circle, 2 * M_PI, Eigen::Matrix<double,3,1>(0,0,1));
 
         // Create the IsoMesh object
 

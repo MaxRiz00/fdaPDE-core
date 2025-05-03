@@ -4,19 +4,13 @@
 using namespace fdapde;
 using vector_t = Eigen::Matrix<double, Dynamic, 1>;
 using matrix_t = Eigen::SparseMatrix<double>;
+
 int main(){
 
-    std::string folder = "torus/";
-    std::string path = "../../plots/data/" + folder + "/";
-
-    //auto mesh = load_mesh(path);
-    auto mesh =  IsoMesh<2,3>::torus();
-
-    // print the number of cells
-    std::cout << "Number of cells: " << mesh.n_cells() << std::endl;
+    auto mesh =  IsoMesh<2,3>::sphere();
     mesh.refine_knots({3,3});
-    
-    //mesh.refine_knots({0,0});
+
+    std::cout << "Number of cells: " << mesh.n_cells() << std::endl;
     // print the knots
     std::cout << "Knots: " << std::endl;
     for (int d = 0; d < 2; d++) {
@@ -27,9 +21,8 @@ int main(){
         std::cout << std::endl;
     }
 
-    
-
-    std::string save_path = "../torus/"; // or wherever you want
+    std::string save_path = "../sphere/"; // or wherever you want
+    std::string folder = "sphere";
     export_mesh(mesh, save_path);
     
     IsoSpace Vh(mesh);
@@ -37,49 +30,95 @@ int main(){
     TrialFunction f(Vh);
     TestFunction v(Vh);
 
-
     
+    /*
+    ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
+        return 1;
+    })>u;
+    */
+
+    /*
+    ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) { return sin(p[0]) * sin(p[1]) * sin(p[2]); })> u;
+    */
+
+    //(x-x0) * (y-y0) * (y-y0) - (y-y0) * (z-z0)* (z-z0) + (x-x0) * (x-x0) * (z-z0);
+    
+    
+    ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
+        double x = p(0);
+        double y = p(1);
+        double z = p(2);
+
+        double r = std::sqrt(x * x + y * y + z * z);
+        double phi = std::atan2(y, x);
+        double theta = std::acos(z / r );  
+
+        return 2 * std::sin(theta) * std::sin( phi);
+        })> u;
+
+        // evaluation of u at poles
+   
 
     ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
         double x = p(0);
         double y = p(1);
         double z = p(2);
 
-        int m = 2;
-        int n = 3;
-
+        double r = std::sqrt(x * x + y * y + z * z);
         double phi = std::atan2(y, x);
-        double theta = std::atan2(z, std::sqrt(x*x + y*y) - 2);
-    
-        return std::sin(m * theta) * std::sin(n * phi);
-    })> u_exact;
-    
-    ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
-        double x = p(0);
-        double y = p(1);
-        double z = p(2);
+        double theta = std::acos(z / r );  
 
-        double R = 2;
-        double r = 1;
+        return std::sin(theta) * std::sin( phi);
+        })> u_exact;
 
-        int m = 2;
-        int n = 3;
-
-    
-        double phi = std::atan2(y, x);
-        double theta = std::atan2(z, std::sqrt(x*x + y*y) - 2);
-
-        return (m * std::sin(n * phi) * std::cos(m * theta) * std::sin(theta) / (r * (R + r * std::cos(theta) ))) +
-                std::sin(n * phi) * std::sin(m * theta) * (m * m/(r * r) + n * n / ((R + r * std::cos(theta) ) * (R + r * std::cos(theta) )));
         
-        //std::sin(phi) * std::sin(theta)* (2  * (1 + std::cos(theta)) / (2 + std::cos(theta)) + 1/((2 + std::cos(theta)) * (2 + std::cos(theta))) );
-    })> u;
+
     
+
+    /*
+    constexpr double alpha = 4.; // 3.
+    constexpr double beta = 4.0; //
+    
+    
+
+    ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
+        double x = p(0);
+        double y = p(1);
+        double z = p(2);
+
+        double r = std::sqrt(x * x + y * y + z * z);
+        double phi = std::atan2(y, x);
+        double theta = std::acos(z / r );  
+
+        return std::sin(alpha * phi) * std::sin(beta * theta) * (
+            alpha * alpha / (std::sin(theta) * std::sin(theta) + 1e-10 ) +
+            beta * beta -
+            beta * (std::cos(theta) * std::cos(beta * theta)) / (std::sin(theta) * std::sin(beta * theta) + 1e-10)
+        );
+        })> u;
+
+        // evaluation of u at poles
+        std::cout<<"ECCO: " << u(Eigen::Matrix<double, 3, 1>(0,0,1))<<std::endl;
+        std::cout<<"ECCO: " << u(Eigen::Matrix<double, 3, 1>(0,0,-1))<<std::endl;
+
+
+        ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
+            double x = p(0);
+            double y = p(1);
+            double z = p(2);
+            double r = std::sqrt(x * x + y * y + z * z);
+            double phi = std::atan2(y, x);
+            double theta = std::acos(z / r );  
+            return std::sin(alpha * phi) * std::sin(beta * theta);
+            })> u_exact;
+    */
+
+
 
 
     auto start = std::chrono::high_resolution_clock::now();
     auto a = integral(mesh,QGL2DP9)(dot(grad(f), grad(v))); // dot(grad(f), grad(v)) laplacian(f)*laplacian(v)
-    auto m = integral(mesh, QGL2DP9)(v);
+    auto m = integral(mesh, QGL2DP9)(v); // for the boundary conditions
     auto F = integral(mesh,QGL2DP9)(u*v);
     //auto mm = integral(mesh,QGL2DP9)(f*v);
 
@@ -93,6 +132,7 @@ int main(){
     auto c = m.assemble();
     auto b = F.assemble();
 
+    // Reducing the system using the periodic BC
 
     const auto& dof_map = dof_handler.dof_map();
     std::unordered_map<int, int> reduced_indices;
@@ -140,30 +180,28 @@ int main(){
 
     std::cout << "uh_reduced: " << uh_reduced.transpose() << std::endl;
     std::cout << "uh_reduced size: " << uh_reduced.size() << std::endl;
+    
 
+    /*
+    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+    solver.compute(A_reduced);
+    Eigen::VectorXd uh_reduced = solver.solve(b_reduced);
+    */
 
     Eigen::VectorXd uh_full(dof_map.size());
     for (int i = 0; i < dof_map.size(); ++i) {
         int mapped = dof_map[i];
         uh_full[i] = uh_reduced[reduced_indices[mapped]];
     }
-        
+    
 
-
-    /*
-    
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-    solver.compute(A);
-    auto uh_full = solver.solve(b);
-    */
-    
-    
     
     std::cout << "uh_full: " << uh_full.transpose() << std::endl;
 
     IsoFunction solution(Vh);
     solution =  uh_full.topRows(A.rows());
-    int nn = 10;
+
+    int nn = 5; // number of evaluation per cell for each dimension (for plot purposes)
 
     export_results(mesh, solution, folder, std::make_optional(u_exact), nn); //std::nullopt if there is no solution 
 

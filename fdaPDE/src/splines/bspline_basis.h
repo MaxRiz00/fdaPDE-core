@@ -209,11 +209,6 @@ class BSplineBasis {
                 }
 
                 // print the padded values
-                //std::cout << "DERIVATIVE: Padded values: ";
-                //for (const auto& val : padded) {
-                //    std::cout << val << " ";
-                //}
-                //std::cout << std::endl;
                     
                 return padded;
             }
