@@ -66,7 +66,7 @@ namespace fdapde {
                 
                 for(int k=0;k<M;++k){
                     //M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], degree_[k]); //periodicity_[k]
-                    std::cout<<"Ecco la periodicity: "<<periodicity_[k]<<std::endl;
+                    //std::cout<<"Ecco la periodicity: "<<periodicity_[k]<<std::endl;
                     M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], degree_[k], periodicity_[k]);
                 }
                     

@@ -71,7 +71,6 @@ class BSplineBasis {
     std::vector<Spline> basis_ {};
     std::vector<double> knots_ {};
     std::vector<double> unique_knots_ {};
-    //std::optional<Eigen::Matrix<double,Dynamic,Dynamic>> T_per_; // nullopt means open basis
     bool periodicity_ = false;
     int n_basis_ = 0;
 
@@ -121,105 +120,6 @@ class BSplineBasis {
         }
     }
 
-    
-    // Optional: Activate periodicity with a transformation matrix
-    void set_periodic() {
-        // check if the knot is open and uniform, check the internal knots are equally spaced and not repeated
-        // TODO
-        
-        periodicity_ = true; }
-
-    std::vector<double> evaluate_basis(double x, bool pad = true) const {
-        std::vector<double> local;
-        
-        if (periodicity_) {
-            // index of the element in the unique knot vector [u_i, u_{i+1}]
-            int idx = findInterval(unique_knots_, x);
-            std::vector<double> N_der_open = evaluate_basis_(x, /*pad=*/false);
-            Eigen::Map<const Eigen::VectorXd> N_vec(N_der_open.data(), N_der_open.size());
-            auto T_per = internals::bs_periodic_transformation(degree_, idx, knots_.size() - 2 * degree_ - 1);
-            Eigen::VectorXd N_per = T_per * N_vec;
-            local.assign(N_per.data(), N_per.data() + N_per.size());
-            if (pad) {
-                int span = find_span(x);
-                int n_total = knots_.size() - degree_ - 1;  // total basis functions
-                int n_unique = n_basis();                 // unique basis functions (periodic)
-                std::vector<double> padded(n_total, 0.0);
-                for (int j = 0; j <= degree_; ++j) {
-                    int original_idx = span - degree_ + j;
-                    int wrapped_idx = (original_idx % n_total + n_total) % n_total;
-                    padded[wrapped_idx] += local[j];
-
-                    if (wrapped_idx < n_unique) {
-                        int mirror_idx = wrapped_idx + n_unique;
-                        if (mirror_idx < n_total)
-                            padded[mirror_idx] += local[j];
-                    } else {
-                        int mirror_idx = wrapped_idx - n_unique;
-                        if (mirror_idx >= 0)
-                            padded[mirror_idx] += local[j];
-                    }
-                }
-                // print the padded values
-                //std::cout << "Padded values: ";
-                //for (const auto& val : padded) {
-                //    std::cout << val << " ";
-                //}
-                //std::cout << std::endl;
-                    
-                return padded;
-            }
-        } else {
-            local = evaluate_basis_(x, /*pad=*/pad);
-        }
-    
-        return local;
-    }
-    
-    std::vector<double> evaluate_der_basis(double x, int n = 1, bool pad = true) const {
-        std::vector<double> local;
-    
-        if (periodicity_) {
-            // index of the element in the unique knot vector [u_i, u_{i+1}]
-            int idx = findInterval(unique_knots_, x);
-            std::vector<double> N_der_open = evaluate_der_basis_(x, n, /*pad=*/false);
-            Eigen::Map<const Eigen::VectorXd> N_vec(N_der_open.data(), N_der_open.size());
-            auto T_per = internals::bs_periodic_transformation(degree_, idx, knots_.size() - 2 * degree_ - 1);
-            Eigen::VectorXd N_per = T_per * N_vec;
-            local.assign(N_per.data(), N_per.data() + N_per.size());
-            if (pad) {
-                int span = find_span(x);
-                int n_total = knots_.size() - degree_ - 1;  // total basis functions
-                int n_unique = n_basis();                 // unique basis functions (periodic)
-                std::vector<double> padded(n_total, 0.0);
-                for (int j = 0; j <= degree_; ++j) {
-                    int original_idx = span - degree_ + j;
-                    int wrapped_idx = (original_idx % n_total + n_total) % n_total;
-                    padded[wrapped_idx] += local[j];
-
-                    if (wrapped_idx < n_unique) {
-                        int mirror_idx = wrapped_idx + n_unique;
-                        if (mirror_idx < n_total)
-                            padded[mirror_idx] += local[j];
-                    } else {
-                        int mirror_idx = wrapped_idx - n_unique;
-                        if (mirror_idx >= 0)
-                            padded[mirror_idx] += local[j];
-                    }
-                }
-
-                // print the padded values
-                    
-                return padded;
-            }
-        } else {
-
-            local = evaluate_der_basis_(x, n, /*pad=*/pad);
-        }
-        return local;
-    }
-
-        
     // Algorithm A2.1 from NURBS book
     int find_span(double x, int n = - 1) const {
         if (n == -1) n = knots_.size() - degree_ - 1;
@@ -232,7 +132,38 @@ class BSplineBasis {
         return low;
     }
 
-    
+    std::vector<double> evaluate_basis(double x, bool pad = true) const {
+        if (!periodicity_) {
+            return evaluate_basis_(x, pad);
+        }
+
+        int idx = findInterval(unique_knots_, x);
+        std::vector<double> local = evaluate_basis_(x, false);
+        Eigen::Map<const Eigen::VectorXd> N_vec(local.data(), local.size());
+        auto T_per = internals::bs_periodic_transformation(degree_, idx, knots_.size() - 2 * degree_ - 1);
+        Eigen::VectorXd N_per = T_per * N_vec;
+
+        std::vector<double> transformed(N_per.data(), N_per.data() + N_per.size());
+        return pad ? pad_periodic_values(transformed, x) : transformed;
+    }
+
+    std::vector<double> evaluate_der_basis(double x, int n = 1, bool pad = true) const {
+        if (!periodicity_) {
+            return evaluate_der_basis_(x, n, pad);
+        }
+
+        int idx = findInterval(unique_knots_, x);
+        std::vector<double> local = evaluate_der_basis_(x, n, false);
+        Eigen::Map<const Eigen::VectorXd> N_vec(local.data(), local.size());
+        auto T_per = internals::bs_periodic_transformation(degree_, idx, knots_.size() - 2 * degree_ - 1);
+        Eigen::VectorXd N_per = T_per * N_vec;
+
+        std::vector<double> transformed(N_per.data(), N_per.data() + N_per.size());
+        return pad ? pad_periodic_values(transformed, x) : transformed;
+    }
+        
+
+    private:
     //Algorithm A2. 2 from NURBS book pag. 70 computes all the nonvanishing
     //basis functions and stores them in the array N [0] , ... ,N [p]
     // padded with zeros
@@ -362,6 +293,24 @@ class BSplineBasis {
         }
     }
 
+    std::vector<double> pad_periodic_values(const std::vector<double>& local, double x) const {
+        int span = find_span(x);
+        int n_total = knots_.size() - degree_ - 1;
+        int n_unique = n_basis();
+        std::vector<double> padded(n_total, 0.0);
+        for (int j = 0; j <= degree_; ++j) {
+            int original_idx = span - degree_ + j;
+            int wrapped_idx = (original_idx % n_total + n_total) % n_total;
+            padded[wrapped_idx] += local[j];
+    
+            int mirror_idx = (wrapped_idx < n_unique) ? wrapped_idx + n_unique : wrapped_idx - n_unique;
+            if (mirror_idx >= 0 && mirror_idx < n_total) {
+                padded[mirror_idx] += local[j];
+            }
+        }
+        return padded;
+    }
+    
     public:
     // getters
     constexpr const Spline& operator[](int i) const { return basis_[i]; }
