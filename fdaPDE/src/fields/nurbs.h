@@ -66,6 +66,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
         double num0_ = 0.0;
         std::array<std::size_t, M> minIdx_;
         std::array<int, M> extents_;
+        std::array<int, M> periodicity_ = {0}; // 0 = non-periodic, 1 = periodic
 
         /**
          * @brief Initialize basis and weights arrays for efficient evaluation.
@@ -106,12 +107,12 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                 { knots[i] } -> std::convertible_to<double>;
                 { knots.size() } -> std::convertible_to<std::size_t>;
             })
-        Nurbs(std::array<KnotsVectorType,M>&& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>&& index, std::array<int,M>& degree): 
-            index_(std::move(index)), degree_(degree){
+        Nurbs(std::array<KnotsVectorType,M>&& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, std::array<int,M>&& index, std::array<int,M>& degree, std::array<int,M>& periodicity = {0}):
+            index_(std::move(index)), degree_(degree), periodicity_(periodicity) {
             
             for (std::size_t i = 0; i < M; ++i) {
                 std::vector<double> knots_ = pad_knots(knots[i], degree_[i]);
-                spline_basis_[i] = std::make_shared<BSplineBasis>(knots_, degree_[i]);
+                spline_basis_[i] = std::make_shared<BSplineBasis>(knots_, degree_[i], periodicity[i]);
             }
             // initialize the gradient
             for (std::size_t i = 0; i < M; ++i){
@@ -138,8 +139,8 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
         requires(requires(KnotsVectorType knots) {
                 { knots.size() } -> std::convertible_to<std::size_t>;
             })
-        Nurbs(KnotsVectorType& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, int index, int degree): 
-        Nurbs(std::array<std::vector<double>,M>{std::move(knots)}, weights, std::array<int,M>{index}, std::array<int,M>{degree}) {
+        Nurbs(KnotsVectorType& knots, MdArray<double,full_dynamic_extent_t<M>>& weights, int index, int degree, bool periodicity = false ): 
+        Nurbs(std::array<std::vector<double>,M>{std::move(knots)}, weights, std::array<int,M>{index}, std::array<int,M>{degree}, std::array<int,M>{periodicity}) {
             fdapde_static_assert(M == 1, THIS_METHOD_IS_ONLY_FOR_1D_NURBS);
         }
 
@@ -152,7 +153,8 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
          */
         Nurbs(std::array<std::shared_ptr<BSplineBasis>, M> spline_basis, MdArray<double,full_dynamic_extent_t<M>>& weights,std::array<int,M>& index) : spline_basis_(spline_basis), index_(index) { 
             for (std::size_t i = 0; i < M; ++i) {
-                degree_[i] = spline_basis[i]->degree();           
+                degree_[i] = spline_basis[i]->degree();   
+                periodicity_[i] = spline_basis[i]->periodicity();        
             }
             // allocate for the gradient
             for (std::size_t i = 0; i < M; ++i){

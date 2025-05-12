@@ -355,9 +355,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 }
             }
         }
-        auto dSw_ = dSw; // backup BEFORE scaling
+        auto dS = dSw; // backup BEFORE scaling
         for (int j = 0; j < LocalDim; j++) {
-            dSw.col(j) = (dSw.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
+            dS.col(j) = (dSw.col(j) - (Sw * dW(j) / total_weight)) / total_weight;
         }
     
         if (compute_second) {
@@ -365,14 +365,14 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 for (int k = 0; k < LocalDim; k++) {
                     for (int h = 0; h < EmbedDim; h++) {
                         (*d2Sw)(h, j, k) = ((*d2Sw)(h, j, k) 
-                        - (dSw_(h, j) * dW(k) + dSw_(h, k) * dW(j) + Sw(h) * d2W(j, k)) / total_weight
+                        - (dSw(h, j) * dW(k) + dSw(h, k) * dW(j) + Sw(h) * d2W(j, k)) / total_weight
                         + 2 * Sw(h) * dW(j) * dW(k) / (total_weight * total_weight)) / total_weight;
                     }
                 }
             }
         }
     
-        return {dSw, compute_second ? std::move(d2Sw) : std::nullopt};
+        return {dS, compute_second ? std::move(d2Sw) : std::nullopt};
     } 
 
     // === Utilities === // 
@@ -651,12 +651,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         t1 = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         int counter = 0;
+        u(0) = 1.8;
+        u(1) = 1.6;
         u_old = u;
         //std::cout<<"Initial guess: "<<u.transpose()<<std::endl;
         bool conv1 = false;
         bool conv2 = false;
-        u_old(0) = 0.05;
-        u_old(1) = 0.78;
+
 
 
 
@@ -666,7 +667,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         while(counter < max_iters && !conv1 && !conv2){
             
             auto S = this->eval_param(u_old);
-            std::cout<<"u: "<<u.transpose()<<std::endl;
+            std::cout<<"S: "<<S.transpose()<<std::endl;
+            //std::cout<<"u_old: "<<u_old.transpose()<<std::endl;
             Eigen::Matrix<double, embed_dim, 1> r = S - p;
 
             if(r.norm() < tol1) conv1 = true;
@@ -719,6 +721,12 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             u_old = u;
 
             ++counter;
+        }
+        if(counter > 10 && counter < max_iters){
+            std::cout<<"Converged in "<<counter<<" iterations."<<std::endl;
+            std::cout<<"P: "<<p.transpose()<<std::endl;
+        } else if(counter > max_iters){
+            std::cout<<"Did not converge: try to increase the number of iterations."<<std::endl;
         }
 
         // toc

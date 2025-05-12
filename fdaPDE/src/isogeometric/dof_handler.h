@@ -172,9 +172,11 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
     void set_hom_dirichlet_constraint(int marker = BoundaryAll) {
         dof_constraints_.set_hom_dirichlet_constraint(marker);
-
         
     }
+
+    //ivoid enforce_periodic_constraints()
+
     
     
     void get_boundary_dofs_for_dimension(int dim, bool min_side, std::vector<int>& dofs) const {

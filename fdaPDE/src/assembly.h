@@ -298,7 +298,7 @@ template <typename Triangulation, int Options, typename... Quadrature> class int
 // main entry points for operator discretization
 template <typename Triangulation, typename... Quadrature>
 auto integral(const Triangulation& triangulation, Quadrature... quadrature) {
-              std::cout<<"integral: cell begin id: "<<triangulation.cells_begin()->id()<<std::endl;;
+              //std::cout<<"integral: cell begin id: "<<triangulation.cells_begin()->id()<<std::endl;;
     return internals::integrator_dispatch<Triangulation, CellMajor, Quadrature...>(
       triangulation.cells_begin(), triangulation.cells_end(), quadrature...);
 }
