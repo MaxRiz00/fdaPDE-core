@@ -258,7 +258,7 @@ struct PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 2> :
     PartialDerivative() = default;
     PartialDerivative(const TrialFunction<IsoSpace_, iso_tag>& f, int i, int j) :
         TrialFunction<IsoSpace_, iso_tag>::MixedPartialDerivative(f, i, j) {
-            std::cout << "PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 2>" << std::endl;
+            //std::cout << "PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 2>" << std::endl;
          }
 };
 
@@ -292,32 +292,37 @@ template <typename IsoSpace_> class IsoFunction : public ScalarFieldBase<IsoSpac
 
     Scalar operator()(const InputType& p){
         int e_id = iso_space_->mesh().locate_param(p);
-        //std::cout << "p = " << p.transpose() << std::endl;
-        //std::cout << "e_id = " << e_id << std::endl;
-        // print the left and right bounds of the element
-        //std::cout << "left = " << iso_space_->mesh().cell(e_id).left_coords() << std::endl;
-        //std::cout << "right = " << iso_space_->mesh().cell(e_id).right_coords() << std::endl;
         if (e_id == -1) return std::numeric_limits<Scalar>::quiet_NaN();   // return NaN if point lies outside domain
         // map p to reference cell and evaluate
         typename DofHandlerType::CellType cell = iso_space_->dof_handler().cell(e_id);
         InputType ref_p = cell.inverse_affine_map(p) ; // da capire
         std::vector<int> active_dofs = cell.dofs();
-        //std::cout << "active_dofs size= " << active_dofs.size() << std::endl;
-        //std::cout<<"coeff_.size() = " << coeff_.size() << std::endl;
 
         Scalar value = 0;
         for (int i = 0, n = active_dofs.size(); i < n; ++i) {
             value += coeff_[active_dofs[i]] * iso_space_->eval_shape_value(active_dofs[i], p); // perchy ref p ???
-
-            //std::cout<<"coeff_[" << active_dofs[i] << "] = " << coeff_[active_dofs[i]] << std::endl;
-            //std::cout<<"iso_space_->eval_shape_value(" << active_dofs[i] << ", p) = " << iso_space_->eval_shape_value(active_dofs[i], p) << std::endl;
         }
-
-        //std::cout<<"Value = " << value << std::endl;
-
         return value;
-
     }
+
+    Eigen::Matrix<double, embed_dim, 1> phys_grad(const InputType& p) {
+        int e_id = iso_space_->mesh().locate_param(p);
+        if (e_id == -1) return Eigen::Matrix<double, embed_dim, 1>::Zero();
+        // map p to reference cell and evaluate
+        typename DofHandlerType::CellType cell = iso_space_->dof_handler().cell(e_id);
+        Eigen::Matrix<double, embed_dim, local_dim> F = iso_space_->mesh().eval_param_derivatives(p).first_derivative;
+        InputType ref_p = cell.inverse_affine_map(p);
+        std::vector<int> active_dofs = cell.dofs();
+
+        Eigen::Matrix<double, local_dim, 1> grad = Eigen::Matrix<double, local_dim, 1>::Zero();
+        for (int i = 0, n = active_dofs.size(); i < n; ++i) {
+            grad += coeff_[active_dofs[i]] * iso_space_->eval_shape_grad(active_dofs[i], p);
+        }
+        return F * (F.transpose() * F).inverse() * grad;
+    }
+
+
+
     // norm evaluation
     double l2_squared_norm() {
         TrialFunction u(*iso_space_);
@@ -356,58 +361,82 @@ template <typename IsoSpace_> class IsoFunction : public ScalarFieldBase<IsoSpac
 
 // given a not iso_assembler_packet callable type Derived_, builds a map from a discrete set of points (e.g., quadrature
 // nodes) to the evaluation of Derived_ at that points, so that the results is sp_assembler_packet evaluable
-template <typename Derived_> struct IsoMap : public ScalarFieldBase<Derived_::StaticInputSize, IsoMap<Derived_>> {
-    private:
-    using OutputType = decltype(std::declval<Derived_>().operator()(std::declval<typename Derived_::InputType>()));
-    using Derived = std::decay_t<Derived_>;
-    using MatrixType = Eigen::Matrix<double, Dynamic, Dynamic>;
+// IsoMap specialization for FeFunction types
 
-    public:
+template <typename Derived_>
+struct IsoMap :
+    public std::conditional_t<
+      internals::is_scalar_field_v<Derived_>, ScalarFieldBase<Derived_::StaticInputSize, IsoMap<Derived_>>,
+      MatrixFieldBase<Derived_::StaticInputSize, IsoMap<Derived_>>> {
+   private:
+    static constexpr bool is_scalar = internals::is_scalar_field_v<Derived_>;
+    using Derived = std::decay_t<Derived_>;
+   public:
     using InputType = internals::iso_assembler_packet<Derived::StaticInputSize>;
     using Scalar = double;
     static constexpr int StaticInputSize = Derived::StaticInputSize;
-    using Base = ScalarFieldBase<StaticInputSize, IsoMap<Derived>>;
+    using Base = std::conditional_t<
+      is_scalar, ScalarFieldBase<StaticInputSize, IsoMap<Derived>>, MatrixFieldBase<StaticInputSize, IsoMap<Derived>>>;
     static constexpr int NestAsRef = 0;
     static constexpr int XprBits = Derived::XprBits | int(iso_assembler_flags::compute_physical_quad_nodes);
     static constexpr int ReadOnly = 1;
-    static constexpr int Rows = 1;
-    static constexpr int Cols = 1;
+    static constexpr int Rows = []() { if constexpr(is_scalar) return 1; else return Derived::Rows; }();
+    static constexpr int Cols = []() { if constexpr(is_scalar) return 1; else return Derived::Cols; }();
 
     constexpr IsoMap() = default;
-    constexpr IsoMap(const Derived_& xpr) : xpr_(&xpr) { }
-
+    constexpr IsoMap(const Derived_& xpr) : xpr_(xpr) { }
     template <typename CellIterator>
     void init(
-      std::unordered_map<const void*, MatrixType>& buff, const MatrixType& nodes, [[maybe_unused]] CellIterator begin,
+      const Eigen::Matrix<double, Dynamic, Dynamic>& nodes, [[maybe_unused]] CellIterator begin,
       [[maybe_unused]] CellIterator end) const {
-        const void* ptr = reinterpret_cast<const void*>(xpr_);
-        if (buff.find(ptr) == buff.end()) {
-            Eigen::Matrix<double, Dynamic, Dynamic> mapped(nodes.rows(), Rows * Cols);
-            for (int i = 0, n = nodes.rows(); i < n; ++i) { 
-                mapped(i, 0) = xpr_->operator()(nodes.row(i)); }
-            buff[ptr] = mapped;
-            map_ = &buff[ptr];
+        map_.resize(nodes.rows(), Rows * Cols);
+        if constexpr (is_scalar) {
+            for (int i = 0, n = nodes.rows(); i < n; ++i) { map_(i, 0) = xpr_(nodes.row(i)); }
         } else {
-            map_ = &buff[ptr];
+            for (int i = 0, n = nodes.rows(); i < n; ++i) {
+                auto tmp = xpr_(nodes.row(i));
+                //std::cout << "tmp: " << tmp << std::endl;
+                if constexpr (Cols == 1) {
+                    for (int j = 0; j < tmp.size(); ++j) { map_(i, j) = tmp[j]; }
+                } else {   // tmp is a matrix
+                    for (int j = 0; j < tmp.rows(); ++j) {
+                        for (int k = 0; k < tmp.cols(); ++k) { map_(i, j) = tmp(j, k); }
+                    }
+                }
+            }
+        }
+	return;
+    }
+    // fe assembler evaluation
+    constexpr auto operator()(const InputType& iso_packet) const {
+        if constexpr (is_scalar) {
+            return map_(iso_packet.quad_node_id, 0);
+        } else {
+            if constexpr (Cols == 1) {
+                return map_.row(iso_packet.quad_node_id);
+            } else {   // reshape the flattened matrix to its correct Rows x Cols format
+                return Eigen::Matrix<double, Rows, Cols, Eigen::RowMajor>(map_.row(iso_packet.quad_node_id));
+            }
         }
     }
-
-    // iso assembler evaluation
-    constexpr OutputType operator()(const InputType& iso_packet) const {
-        return map_->operator()(iso_packet.quad_node_id, 0);
+    constexpr auto eval(int i, const InputType& iso_packet) const {
+        fdapde_static_assert(Rows != 1 && Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTOR_FIELDS);
+        //std::cout << "eval(int i) Rows != 1 && Cols == 1" << std::endl;
+        //std::cout<<map_(iso_packet.quad_node_id, i)<<std::endl;
+        return map_(iso_packet.quad_node_id, i);
+    }
+    constexpr auto eval(int i, int j, const InputType& iso_packet) const {
+        fdapde_static_assert(Rows != 1 && Cols != 1, THIS_METHOD_IS_ONLY_FOR_MATRIX_FIELDS);
+        return map_(iso_packet.quad_node_id, i * Rows + j);
     }
     constexpr const Derived& derived() const { return xpr_; }
     constexpr int input_size() const { return StaticInputSize; }
     constexpr int rows() const { return Rows; }
     constexpr int cols() const { return Cols; }
-
-
-    private:
-    const Derived* xpr_;
-    mutable const MatrixType* map_;
-
+   private:
+    Derived xpr_;
+    mutable Eigen::Matrix<Scalar, Dynamic, Dynamic> map_;
 };
-
 #endif
 
 

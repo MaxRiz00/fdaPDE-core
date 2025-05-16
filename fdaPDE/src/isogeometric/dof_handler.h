@@ -48,7 +48,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
         CellType(int cell_id, const DofHandler* dof_handler):
             Base(cell_id, dof_handler->mesh()), dof_handler_(dof_handler) { } 
             std::vector<int> dofs() const {
-                return dof_handler_->active_dofs(Base::id());
+                //return dof_handler_->active_dofs(Base::id());
+                return dof_handler_->get_dofs(Base::id());
             }
             /*
             std::vector<int> dofs_markers() const {
@@ -83,7 +84,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
         //const auto& dims = mesh_->n_control_points();
         for (int d = 0; d < local_dim; ++d) {
             dims_[d] = basis_pde_[0].spline_basis()[d]->n_knots() - order_[d] - 1;
-            std::cout << "Dimension " << d << ": " << dims_[d] << std::endl;
+            //std::cout << "Dimension " << d << ": " << dims_[d] << std::endl;
         }
         
 
@@ -493,6 +494,17 @@ template<int N> class DofHandler<2, N, iso_tag> {
     std::vector<int> dof_map() const {
         return dof_map_;
     }
+
+    std::vector<int> get_dofs(int id) const{
+        std::vector<int> dofs;
+        for (int i = 0; i < n_dofs_per_cell_; ++i) {
+            dofs.push_back(dofs_(id, i));
+        }
+        return dofs;
+    }
+
+    
+
 
 
     private:

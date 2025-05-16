@@ -133,7 +133,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 
 
                 basis_pde_ = NurbsBasis<LocalDim>(open_uniform_knots, unitary_weights, new_degree, periodic_dims_); //basis_;
-                std::cout<<"Basis PDE: "<<std::endl;
+                //std::cout<<"Basis PDE: "<<std::endl;
                 //
             }
 
@@ -651,15 +651,10 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         t1 = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         int counter = 0;
-        u(0) = 1.8;
-        u(1) = 1.6;
         u_old = u;
         //std::cout<<"Initial guess: "<<u.transpose()<<std::endl;
         bool conv1 = false;
         bool conv2 = false;
-
-
-
 
         // tic
         start = std::chrono::high_resolution_clock::now();
@@ -667,7 +662,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         while(counter < max_iters && !conv1 && !conv2){
             
             auto S = this->eval_param(u_old);
-            std::cout<<"S: "<<S.transpose()<<std::endl;
+            //std::cout<<"S: "<<S.transpose()<<std::endl;
             //std::cout<<"u_old: "<<u_old.transpose()<<std::endl;
             Eigen::Matrix<double, embed_dim, 1> r = S - p;
 
@@ -912,6 +907,32 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         return patch;
     }
     */
+
+    /**
+     * @brief Compute the maximum cell diameter (h_max) across the mesh.
+     * 
+     * The diameter is the Euclidean distance between diagonally opposite parametric nodes of each cell,
+     * mapped to physical space.
+     * 
+     * @return h_max value (maximum cell size in physical space)
+     */
+    double h_max() const {
+        double max_diameter = 0.0;
+
+        for (int cid = 0; cid < n_cells_; ++cid) {
+            auto [u0, u1] = compute_lr_vertices(cid);             // Parametric bounding corners
+            Eigen::Matrix<double, EmbedDim, 1> x0 = eval_param(u0); // Map to physical space
+            Eigen::Matrix<double, EmbedDim, 1> x1 = eval_param(u1); // Map to physical space
+
+            double diameter = (x1 - x0).norm();                   // Euclidean distance
+            if (diameter > max_diameter) {
+                max_diameter = diameter;
+            }
+        }
+
+        return max_diameter;
+    }
+
 
     /// wrapper for the compute multiindex for a cell
     std::array<int, LocalDim> cell_multi_index(int id) const {
@@ -1497,6 +1518,75 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
 
         IsoMesh<2, N> mesh(torus.knots, torus.weights, torus.control_points, torus.degree);
         //mesh.refine_knots({3,3});
+        return mesh;
+
+        
+    }
+
+    // quarter of a ring
+
+    static IsoMesh<2,N> quarter_ring(double R = 2. , double r = 1.) {
+        //fdapde_static_assert(N == 3, THIS_METHOD_IS_ONLY_FOR_3D_MANIFOLDS);
+        fdapde_assert(R > 0 && r > 0 && R - r > 0 && R + r > 0);
+
+        std::array<std::vector<double>, 1> start_knots = {
+            std::vector<double>{0,0,1,1}
+        };
+        std::array<int,1> start_degree = {1}; // Degree 2 (quadratic)
+        int num_ctrl_points = 2;
+        
+        std::vector<double> wj = {
+            1.0, 1.0
+        };
+        
+        std::vector<std::vector<double>> Pj = {
+            { r, 0, 0 },
+            //{(r + R) / 2.0, 0, 0},
+            { R, 0, 0 }
+        };
+
+        // Initialize `MdArray`
+        MdArray<double, MdExtents<Dynamic>> start_weights(num_ctrl_points);
+        MdArray<double, MdExtents<Dynamic, Dynamic>> start_cp(num_ctrl_points, 3);
+
+        // Fill `start_weights` with values from `wj`
+        for (int i = 0; i < num_ctrl_points; i++) {
+            start_weights(i) = wj[i];
+        }
+
+        // Fill `start_cp` with control points `Pj`
+        for (int i = 0; i < num_ctrl_points; i++) {
+            for (int j = 0; j < 3; j++) {
+                start_cp(i, j) = Pj[i][j];
+            }
+        }
+
+
+        // Create a IsoMeshData object
+        IsoMeshData<1> line(start_knots, start_weights, start_cp, start_degree);
+
+        // Create a 2D mesh by rotating the 1D mesh around the z-axis
+        IsoMeshData<2> quarter_ring = iso_algorithms::create_revolved_ISO_surface(line, M_PI/2, Eigen::Matrix<double,3,1>(0,0,1));
+
+        // Create the IsoMesh object
+
+        MdArray<double, full_dynamic_extent_t<local_dim+1>> new_cp;
+
+        if constexpr(N== 2){
+            new_cp.resize(quarter_ring.control_points.extent(0), quarter_ring.control_points.extent(1), 2);
+            for(int i = 0; i < quarter_ring.control_points.extent(0); i++){
+                for(int j = 0; j < quarter_ring.control_points.extent(1); j++){
+                    new_cp(i,j,0) = quarter_ring.control_points(i,j,0);
+                    new_cp(i,j,1) = quarter_ring.control_points(i,j,1);
+                }
+            }
+            
+        } else {
+            new_cp = quarter_ring.control_points;
+        }
+
+        IsoMesh<2, N> mesh(quarter_ring.knots, quarter_ring.weights, new_cp, quarter_ring.degree);
+        mesh.refine_knots({0,1});
         return mesh;
 
         

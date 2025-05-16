@@ -65,16 +65,14 @@ class iso_linear_form_assembly_loop :
         int q = Base::n_quadrature_nodes_;
         //std::cout << "n: " << n << ", q: " << q << std::endl;
         MdArray<double, MdExtents<Dynamic, Dynamic>> shape_values(n, q);
-        //std::cout << "Shape values: " << std::endl;
 
         MdArray<double, MdExtents<Dynamic>> metric_dets(q);
 
         
-        std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>> iso_map_buff;
+        //std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>> iso_map_buff;
         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_physical_quad_nodes)) {
-            //std::cout << "Distributing quadrature nodes..." << std::endl;
             Base::distribute_quadrature_nodes(
-              iso_map_buff, begin, end);   // distribute quadrature nodes on physical mesh (if required)
+              begin, end);   // distribute quadrature nodes on physical mesh (if required)
         }
         
         // start assembly loop
@@ -86,7 +84,16 @@ class iso_linear_form_assembly_loop :
             active_dofs = it->dofs();
             //std::cout << std::endl;
             Base::eval_param_shape_values(Base::test_space_->basis(), active_dofs, it, shape_values);
+            //if constexpr(embed_dim == 2){
+            //    for(int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
+            //        metric_dets(q_k) = 1;
+            //    }
+            //}
+            //else
             Base::eval_metric_determinant(it, metric_dets); // metric det(F^T F)
+
+            
+                
             // perform integration of weak form for (i, j)-th basis pair
             for (int i = 0; i < n; ++i) {   // test function loop
                 double value = 0;

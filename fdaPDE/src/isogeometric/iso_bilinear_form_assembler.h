@@ -128,6 +128,11 @@ class iso_bilinear_form_assembly_loop :
             param_hess(q);
         
         MdArray<double, MdExtents<Dynamic>> metric_dets(q);
+
+        if constexpr (Form::XprBits & int(iso_assembler_flags::compute_physical_quad_nodes)) {
+            Base::distribute_quadrature_nodes(begin, end);
+        }
+
         
 
         // distribute quadrature nodes on physical mesh (if required) ..... da capire
@@ -138,8 +143,15 @@ class iso_bilinear_form_assembly_loop :
         //std::cout << "Assembling cells..." << std::endl;
         int local_cell_id = 0;
 
-        auto reduced_dof_map = test_dof_handler()->reduced_dof_map();
+        //auto reduced_dof_map = test_dof_handler()->reduced_dof_map();
+        MdArray<Eigen::Matrix<double, embed_dim, local_dim> , MdExtents< Dynamic>> grad_transf(q);
+
+        double time1 = 0;
+        double time2 = 0;
         for(iterator it = begin; it!= end; ++it) {
+
+            auto start = std::chrono::high_resolution_clock::now();
+            //std::cout << "Assembling cell " << it->id() << std::endl;
             //std::cout << "Assembling cell " << it->id() << std::endl;
             test_active_dofs = it->dofs();
 
@@ -151,6 +163,9 @@ class iso_bilinear_form_assembly_loop :
             iso_packet.cell_measure = it->parametric_measure();
             //std::cout << "Cell measure: " << iso_packet.cell_measure << std::endl;
 
+            
+            //std::cout << "EHI: " << std::endl;
+
             if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_values)) {
                 //std::cout<<"Computing values..."<<std::endl;
                 Base::eval_param_shape_values(test_space_->basis(), test_active_dofs, it, test_param_shape_values);
@@ -158,36 +173,63 @@ class iso_bilinear_form_assembly_loop :
                     trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
                     trial_param_shape_values);
             }
-            if constexpr ( int(iso_assembler_flags::compute_shape_grad)) { //Form::XprBits &
+            //std::cout << "EHI2: " << std::endl;
+            if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_grad)) { //Form::XprBits &
                 //std::cout<<"Computing grads..."<<std::endl;
                 Base::eval_param_shape_grads(test_space_->basis(), test_active_dofs, it, test_param_shape_grads);
                 Base::eval_param_shape_grads(
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it, trial_param_shape_grads);
+
+                //if constexpr (embed_dim == 2){
+                    //identity matrix
+                //    for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
+                //    grad_transf(q_k) = Eigen::Matrix<double, embed_dim, local_dim>::Identity();
+                //    }
+                //}
+                //else{
+                    // precompute F(F^T F)^-1 for each q_k
+                    Base::eval_param_grad(it, param_grad); // F
+                    for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
+                        auto G = param_grad(q_k).transpose() * param_grad(q_k);
+                        grad_transf(q_k) = param_grad(q_k) * G.inverse();
+                        //metric_dets(q_k) = std::sqrt(G.determinant());
+                        //grad_transf(q_k) = Eigen::Matrix<double, embed_dim, local_dim>::Identity();
+                        //std::cout << "Grad transf: " << param_grad(q_k) << std::endl;
+                    }
+                    
+                //    }
+                //}
                 
             }
+            //std::cout << "EHI3: " << std::endl;
             if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_hess)) { //Form::XprBits &
                 //std::cout<<"Computing hessians..."<<std::endl;
                 Base::eval_param_shape_hess(test_space_->basis(), test_active_dofs, it, test_param_shape_hess);
                 Base::eval_param_shape_hess(
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
                   trial_param_shape_hess);
+                Base::eval_param_hess(it, param_hess);
             }
 
-            Base::eval_param_grad(it, param_grad); // F
+            //Base::eval_param_grad(it, param_grad); // F
             Base::eval_metric_determinant(it, metric_dets); // metric sqrt det(F^T F)
-            Base::eval_param_hess(it, param_hess); 
+            //metric_dets.set_constant(1);
+             
             
-            // precompute F(F^T F)^-1 for each q_k
-            MdArray<Eigen::Matrix<double, embed_dim, local_dim> , MdExtents< Dynamic>> grad_transf(q);
-            for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
-                grad_transf(q_k) = param_grad(q_k) * (param_grad(q_k).transpose() * param_grad(q_k)).inverse();
-            }
-            //std::cout << "Grad transf: " << grad_transf(0).rows() << " x " << grad_transf(0).cols() << std::endl;
+            //std::cout << "Metric det: "  << std::endl;
+            
             // print Form::XprBits
             //std::cout << "Form::XprBits = 0x" << std::hex << Form::XprBits << std::endl;
             //std::cout << "compute_shape_hess = 0x" << std::hex << int(fdapde::iso_assembler_flags::compute_shape_hess) << std::endl;
 
-            std::map<std::pair<int, int>, double> mat_entries;
+            //std::map<std::pair<int, int>, double> mat_entries;
+
+            auto end = std::chrono::high_resolution_clock::now();
+
+            // duration in floating point seconds
+            time1 += std::chrono::duration<double>(end - start).count();
+
+            start = std::chrono::high_resolution_clock::now();
 
             // perform integration of weak form for (i,j)-th basis pair
             for(int i = 0; i<n2; ++i){
@@ -200,10 +242,12 @@ class iso_bilinear_form_assembly_loop :
                             iso_packet.trial_value = trial_param_shape_values(i, q_k) ;
                             iso_packet.test_value  = test_param_shape_values (j, q_k) ;
                         }
+                        //std::cout << "Trial value: " << i << ": " << iso_packet.trial_value << std::endl;
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_grad)) {
                             auto temp_trial_grad = trial_param_shape_grads.template slice<0,1>(i, q_k); 
                             auto temp_test_grad  = test_param_shape_grads.template slice<0,1>(j, q_k);
-
+                            //std::cout<<"Checkpoint 1"<<std::endl;
+                            /*
                             // Project onto the tangent plane
                             Eigen::Matrix<double, embed_dim, 1> n = ((param_grad(q_k).col(0)).cross(param_grad(q_k).col(1))).normalized();
                             Eigen::Matrix<double, embed_dim, embed_dim> P = Eigen::Matrix<double, embed_dim, embed_dim>::Identity() - n * n.transpose();
@@ -226,13 +270,20 @@ class iso_bilinear_form_assembly_loop :
                             // project onto the tangent plane
                             auto phys_trial_grad = P * trial_grad_;
                             auto phys_test_grad  = P * test_grad_;
+                            */
 
                             // assign to 
 
-
-
-                            /*
-
+                            //if constexpr(embed_dim == 2){
+                            //    std::cout<<"Prima di convertire in iso_packet"<<std::endl;
+                            //    for(int k = 0; k < embed_dim; ++k) {
+                            //        iso_packet.trial_grad(k) = temp_trial_grad(k);
+                            //        iso_packet.test_grad(k)  = temp_test_grad(k);
+                            //    }
+                            //    std::cout<<"Dopo di convertire in iso_packet"<<std::endl;
+                            //}
+                            //else{
+                                                            
                             //iso_packet.param_grad = param_grad(q_k);
                             // convert to eigen matrix
                             Eigen::Matrix<double, local_dim, 1> trial_grad, test_grad;
@@ -241,13 +292,16 @@ class iso_bilinear_form_assembly_loop :
                                 trial_grad(k) =  temp_trial_grad(k);
                                 test_grad(k)  = temp_test_grad(k);
                             }
+                                //std::cout << "Trial grad: " << i << ": " << trial_grad.transpose() << std::endl;
+                                //std::cout << "Test grad: " << j << ": " << test_grad.transpose() << std::endl;
+
                             // convert to physical gradient
                             // print the dimensions of grad_transf(q_k)
                             //std::cout << "Grad transf: " << grad_transf(q_k).rows() << " x " << grad_transf(q_k).cols() << std::endl;
-                            Eigen::Matrix<double, 3, 1> phys_trial_grad = grad_transf(q_k) *  trial_grad;
-                            Eigen::Matrix<double, 3, 1> phys_test_grad  = grad_transf(q_k) * test_grad;
+                            Eigen::Matrix<double, embed_dim, 1> phys_trial_grad = grad_transf(q_k) *  trial_grad;
+                            Eigen::Matrix<double, embed_dim, 1> phys_test_grad  = grad_transf(q_k) * test_grad;
                             //std::cout << "Trial grad: " << i <<": "<< phys_trial_grad.transpose() << std::endl;
-                            */
+                            
 
                             // assign to iso_packet
                             //iso_packet.trial_grad.resize(embed_dim);
@@ -256,12 +310,15 @@ class iso_bilinear_form_assembly_loop :
                                 iso_packet.trial_grad(k) = phys_trial_grad(k);
                                 iso_packet.test_grad(k)  = phys_test_grad(k);
                             }
+                            //std::cout<<"Checkpoint 2"<<std::endl;
                             //std::cout << "Test grad: "<< j <<": " << phys_test_grad.transpose() << std::endl;
+                        //}
 
                         }
                         // print Form::XprBits bitmask
                         //std::cout << "Form::XprBits = 0x" << std::hex << Form::XprBits << std::endl;
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_hess)) {
+                            std::cout<<"Computing hessians..."<<std::endl;
                             auto temp_trial_grad = trial_param_shape_grads.template slice<0,1>(i, q_k); 
                             auto temp_test_grad  = test_param_shape_grads.template slice<0,1>(j, q_k);
                             Eigen::Matrix<double, local_dim, 1> trial_grad, test_grad;
@@ -393,9 +450,13 @@ class iso_bilinear_form_assembly_loop :
                         
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_physical_quad_nodes)) {
                             iso_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
+                            //std::cout << "Quad node id: " << iso_packet.quad_node_id << std::endl;
                         }
+                        //std::cout << "Quad node: " << q_k << std::endl;
                         value += Base::quad_weights_(q_k, 0) * form_(iso_packet) * metric_dets(q_k);
+                        //std::cout << "Value: " << value << std::endl;
                     }
+                    //std::cout<<"Checkpoint 3"<<std::endl;
 
                     
                     //std::cout<<"Couple: "<<reduced_dof_map[test_active_dofs[j]]<<", "<<reduced_dof_map[is_galerkin ? test_active_dofs[i] : trial_active_dofs[i]]<<std::endl;
@@ -403,13 +464,24 @@ class iso_bilinear_form_assembly_loop :
                         test_active_dofs[j],
                         is_galerkin ? test_active_dofs[i] : trial_active_dofs[i],
                         value * iso_packet.cell_measure);
+                    //std::cout<<"Checkpoint 4"<<std::endl;
                     
 
                 }   
 
+
             }
+            
+            end = std::chrono::high_resolution_clock::now();
+
+            time2+= std::chrono::duration<double>(end - start).count();
+            
             local_cell_id++;
         }
+
+        //std::cout << "Time1: " << time1 << " seconds" << std::endl;
+        //std::cout << "Time2: " << time2 << " seconds" << std::endl;
+        //std::cout << "Assembling cells done." << std::endl;
         return;
 
     }

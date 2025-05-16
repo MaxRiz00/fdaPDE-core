@@ -36,7 +36,7 @@ TrialFunction(FunctionSpace_ function_space)
 namespace internals {
 
 // forward declaration of isomesh
-template <int LocalDim, int EmbedDim> class IsoMesh;
+//template <int LocalDim, int EmbedDim> class IsoMesh;
 
 // set of internal utilities to write weak form assembly loops
 

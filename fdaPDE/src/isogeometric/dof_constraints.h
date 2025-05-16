@@ -63,7 +63,7 @@ template <typename DofHandler> class DofConstraints {
     //template <typename... Callable>
     void set_hom_dirichlet_constraint(int marker = BoundaryAll) { // Callable g
         int n_boundary_dofs = dof_handler_->n_boundary_dofs(marker);
-        std::cout<<"n_boundary_dofs: "<<n_boundary_dofs<<std::endl;
+        //std::cout<<"n_boundary_dofs: "<<n_boundary_dofs<<std::endl;
        // fdapde_assert(sizeof...(Callable) == dof_handler_->dof_multiplicity() &&
        //             (marker == BoundaryAll || n_boundary_dofs > 0));
         // to extend to vectorial case eventually
@@ -72,7 +72,7 @@ template <typename DofHandler> class DofConstraints {
             it != dof_handler_->boundary_dofs_end(marker); ++it) {
                 //std::cout<<"it: "<<std::endl;
             int dof_id = it->id();
-            std::cout<<"DIRICHLET: "<<dof_id<<std::endl;
+            //std::cout<<"DIRICHLET: "<<dof_id<<std::endl;
             //std::cout<<"dof_id: "<<dof_id<<std::endl;
             constraint_pattern_.emplace_back(dof_id, dof_id, 1.0);  // fix DOF
             constraint_values_.emplace_back(dof_id, 0.0);           // to 0

@@ -226,16 +226,8 @@ void export_results(
     
                 eval_file << it->id() << "," << i << "," << j << ","
                           << phys_point(0) << "," << phys_point(1) << "," << phys_point(2) << ","
-                          << solution(param_point) << "\n";
-    
-                if (u_exact.has_value()) {
-                    error(i, j) = solution(param_point) - (*u_exact)(phys_point);
-                }
+                          << (*u_exact)(phys_point) << "\n";
             }
-        }
-    
-        if (u_exact.has_value()) {
-            std::cout << "Error (cell " << it->id() << "): " << error.mean() << std::endl;
         }
     }
 }

@@ -31,7 +31,7 @@ int main(){
     // order
     std::array<int,2> order;
 
-    std::string folder = "curly_plate_ref0";
+    std::string folder = "curved";
     std::string path = "../../plots/data/" + folder + "/";
 
     SpMatrix<double> knots_x, knots_y, weights;
@@ -96,12 +96,12 @@ int main(){
         std::cout<<std::endl;
     }
 
-
+    /*
     
     // linspace of the parametric domain
     std::array<std::vector<double>, 3> test_u;
-    test_u[0] = linspace(mesh.knots()[0][0], mesh.knots()[0][mesh.knots()[0].size()-1], 80);
-    test_u[1] = linspace(mesh.knots()[1][0], mesh.knots()[1][mesh.knots()[1].size()-1], 80);
+    test_u[0] = linspace(mesh.knots()[0][0] + 1e-5, mesh.knots()[0][mesh.knots()[0].size()-1]-1e-5, 80);
+    test_u[1] = linspace(mesh.knots()[1][0]+ 1e-5, mesh.knots()[1][mesh.knots()[1].size()-1]-1e-5, 80);
 
     std::vector<Eigen::Matrix<double, 3, 1>> test_P;
     std::vector<Eigen::Matrix<double, 2, 1>> test_n;
@@ -117,7 +117,7 @@ int main(){
     std::cout<<"# test points: "<<test_P.size()<<std::endl;
 
     // tic
-    /*
+    
     auto start = std::chrono::high_resolution_clock::now();
 
     Eigen::Matrix<double, 3, 1> P ;
@@ -136,8 +136,8 @@ int main(){
     */
      
     double t1,t2;
-    Eigen::Matrix<double, 3, 1> P(-1.2,    9.24, -0.9324);
-    Eigen::Matrix<double, 2, 1> u_true(0.3, 0.86);
+    Eigen::Matrix<double, 3, 1> P(-22.1458,  22.1458,  0.14152);
+    Eigen::Matrix<double, 2, 1> u_true(2.9, 2.9);
 
     std::cout<<"Ecco:"<<mesh.eval_param(u_true).transpose()<<std::endl;
 

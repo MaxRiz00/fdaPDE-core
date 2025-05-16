@@ -150,28 +150,14 @@ struct iso_assembler_base{
         void eval_param_shape_values(
             BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell, DstMdArray& dst) const {
 
-            //std::cout<<"Evaluating cell ID: " << cell->id() << std::endl;
 
             using BasisType = std::decay_t<BasisType__>;
             int n_basis =active_dofs.size(); // attenzione 1d
 
             for(int i=0; i < n_basis; ++i){
                 // evaluation of \psi_i at q_j, j = 1, ..., n_quadrature_nodes
-                //std::cout << "Evaluating dof " << active_dofs[i] <<std::endl;
-                /*
-                auto eval = basis[active_dofs[i]].evaluate_components_on_knots() ;
-                for(int k = 0; k < local_dim; ++k){
-                    for(auto ev: eval[k]){
-                        std::cout<<ev<<" ";
-                    }
-                    std::cout<<std::endl;
-                }
-                    */
                 for(int j=0; j < n_quadrature_nodes_; ++j){
-                    //std::cout << "Evaluating quad node " << quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose() << std::endl;
-
-                    dst(i, j) = basis[active_dofs[i]](quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
-                    
+                    dst(i, j) = basis[active_dofs[i]](quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());                
                 }
             }
             return;
@@ -180,17 +166,18 @@ struct iso_assembler_base{
 
         // evaluation of 1-st order derivative of basis function
         template <typename BasisType__, typename IteratorType, typename DstMdArray>
-            requires(requires(BasisType__ basis, int i, int k) { basis[i].derive(k); })
+            //requires(requires(BasisType__ basis, int i, int k) { basis[i].derive(k); })
             void eval_param_shape_grads(
             BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell, DstMdArray& dst) const {
             using BasisType = std::decay_t<BasisType__>;
-            using DerivativeType = decltype(std::declval<BasisType>()[std::declval<int>()].derive(std::declval<int>()));
+            //using DerivativeType = decltype(std::declval<BasisType>()[std::declval<int>()].derive(std::declval<int>()));
             int n_basis = active_dofs.size();
             for (int i = 0; i < n_basis; ++i) {
                 for (int j = 0; j < n_quadrature_nodes_; ++j) {  
+                    auto der = basis[active_dofs[i]].gradient(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
                     for(int k = 0; k < local_dim; ++k){
-                        DerivativeType der = basis[active_dofs[i]].derive(k);
-                        dst(i, j, k) = der(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
+                        //DerivativeType der = basis[active_dofs[i]].derive(k);
+                        dst(i, j, k) = der(k);
                     }
                 }
             }
@@ -265,7 +252,7 @@ struct iso_assembler_base{
 
 
         void distribute_quadrature_nodes (
-            std::unordered_map<const void*, Eigen::Matrix<double, Dynamic, Dynamic>>& iso_map_buff, dof_iterator begin,
+             dof_iterator begin,
             dof_iterator end) const {
               Eigen::Matrix<double, Dynamic, Dynamic> phys_quad_nodes;
               // not need the linear map since they are already in the parametric space
@@ -288,8 +275,9 @@ struct iso_assembler_base{
                     return;
                 }),
                 decltype([]<typename Xpr_>() {
-                    return requires(Xpr_ xpr) { xpr.init(iso_map_buff, phys_quad_nodes, begin, end); };
-                })>(form_, iso_map_buff, phys_quad_nodes, begin, end);
+                    return requires(Xpr_ xpr) { xpr.init(phys_quad_nodes, begin, end); };
+                })>(form_, phys_quad_nodes, begin, end);
+            //std::cout << "Distributing quadrature nodes done." << std::endl;
               return;
           }
 
