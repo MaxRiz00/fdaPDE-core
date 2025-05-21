@@ -188,23 +188,23 @@ struct iso_assembler_base{
         template <typename BasisType__, typename IteratorType, typename DstMdArray>
         void eval_param_shape_hess(
             BasisType__&& basis, const std::vector<int>& active_dofs, IteratorType cell, DstMdArray& dst) const {
+            
             using BasisType = std::decay_t<BasisType__>;
-            using SecondDerivativeType = decltype(std::declval<BasisType>()[std::declval<int>()].deriveTwice(std::declval<int>()));
             int n_basis = active_dofs.size();
+        
             for (int i = 0; i < n_basis; ++i) {
-                for(int k = 0; k < local_dim; ++k){
-                    for(int l = 0; l < local_dim; ++l){
-                        SecondDerivativeType hess = basis[active_dofs[i]].deriveTwice(k, l);
-                        for (int j = 0; j < n_quadrature_nodes_; ++j) {
-                            
-                            //evaluation of \nabla{\psi_i}(q_j), i = 1, ..., n_basis, j = 1, ..., n_quadrature_nodes
-                            dst(i, j, k, l) = hess(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());
-                            //std::cout << "Hess: " << i << ", " << j << ", " << k << ", " << l << ": " << dst(i, j, k, l) << std::endl;
+                for (int j = 0; j < n_quadrature_nodes_; ++j) {
+                    // Evaluate Hessian of the i-th basis function at the j-th quadrature point
+                    auto qp = quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose();
+                    auto hess = basis[active_dofs[i]].hessian(qp);  // Assuming this returns a matrix-like object
+        
+                    for (int k = 0; k < local_dim; ++k) {
+                        for (int l = 0; l < local_dim; ++l) {
+                            dst(i, j, k, l) = hess(k, l);
                         }
                     }
                 }
             }
-            return;
         }
         template <typename IteratorType, typename DstMdArray>
         void eval_metric_determinant(IteratorType cell, DstMdArray& dst) const {

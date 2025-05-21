@@ -192,7 +192,7 @@ class iso_bilinear_form_assembly_loop :
                     for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
                         auto G = param_grad(q_k).transpose() * param_grad(q_k);
                         grad_transf(q_k) = param_grad(q_k) * G.inverse();
-                        //metric_dets(q_k) = std::sqrt(G.determinant());
+                        metric_dets(q_k) = std::sqrt(G.determinant());
                         //grad_transf(q_k) = Eigen::Matrix<double, embed_dim, local_dim>::Identity();
                         //std::cout << "Grad transf: " << param_grad(q_k) << std::endl;
                     }
@@ -204,15 +204,27 @@ class iso_bilinear_form_assembly_loop :
             //std::cout << "EHI3: " << std::endl;
             if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_hess)) { //Form::XprBits &
                 //std::cout<<"Computing hessians..."<<std::endl;
+                Base::eval_param_shape_grads(test_space_->basis(), test_active_dofs, it, test_param_shape_grads);
+                Base::eval_param_shape_grads(
+                  trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it, trial_param_shape_grads);
                 Base::eval_param_shape_hess(test_space_->basis(), test_active_dofs, it, test_param_shape_hess);
                 Base::eval_param_shape_hess(
                   trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
                   trial_param_shape_hess);
                 Base::eval_param_hess(it, param_hess);
+                Base::eval_param_grad(it, param_grad); // F
+                for (int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
+                    auto G = param_grad(q_k).transpose() * param_grad(q_k);
+                    grad_transf(q_k) = param_grad(q_k) * G.inverse();
+                    metric_dets(q_k) = std::sqrt(G.determinant());
+                    //grad_transf(q_k) = Eigen::Matrix<double, embed_dim, local_dim>::Identity();
+                    //std::cout << "Grad transf: " << param_grad(q_k) << std::endl;
+                }
+
             }
 
             //Base::eval_param_grad(it, param_grad); // F
-            Base::eval_metric_determinant(it, metric_dets); // metric sqrt det(F^T F)
+            //Base::eval_metric_determinant(it, metric_dets); // metric sqrt det(F^T F)
             //metric_dets.set_constant(1);
              
             
@@ -318,7 +330,7 @@ class iso_bilinear_form_assembly_loop :
                         // print Form::XprBits bitmask
                         //std::cout << "Form::XprBits = 0x" << std::hex << Form::XprBits << std::endl;
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_hess)) {
-                            std::cout<<"Computing hessians..."<<std::endl;
+                            //std::cout<<"Computing hessians..."<<std::endl;
                             auto temp_trial_grad = trial_param_shape_grads.template slice<0,1>(i, q_k); 
                             auto temp_test_grad  = test_param_shape_grads.template slice<0,1>(j, q_k);
                             Eigen::Matrix<double, local_dim, 1> trial_grad, test_grad;
@@ -345,20 +357,31 @@ class iso_bilinear_form_assembly_loop :
                             Eigen::Matrix<double, embed_dim, embed_dim> phys_test_hess;
                             //phys_trial_hess = param_grad(q_k) * trial_hess * param_grad(q_k).transpose();
                             //phys_test_hess  = param_grad(q_k) * test_hess * param_grad(q_k).transpose();
-
+                            Eigen::Matrix<double, embed_dim, embed_dim> P;
                             // Project onto the tangent plane
+                            if constexpr(embed_dim == 2){
+                                 P = Eigen::Matrix<double, embed_dim, embed_dim>::Identity();
+
+                            }
+                            else{
                             Eigen::Matrix<double, embed_dim, 1> n = ((param_grad(q_k).col(0)).cross(param_grad(q_k).col(1))).normalized();
-                            Eigen::Matrix<double, embed_dim, embed_dim> P = Eigen::Matrix<double, embed_dim, embed_dim>::Identity() - n * n.transpose();
+                            P = Eigen::Matrix<double, embed_dim, embed_dim>::Identity() - n * n.transpose();
+                            }
                             
                             phys_trial_hess.setZero();
                             phys_test_hess.setZero();
+                            phys_trial_hess = dxi_dx.transpose() * trial_hess * dxi_dx;
+                            phys_test_hess  = dxi_dx.transpose() * test_hess  * dxi_dx;
+
+                            //std::cout << "Trial hess: " << i << ": " << phys_trial_hess << std::endl;
+                            //std::cout << "Test hess: " << j << ": " << phys_test_hess << std::endl;
                             // Add curvature correction term
                             for (int ii = 0; ii < embed_dim; ++ii) {
                                 for (int jj = 0; jj < embed_dim; ++jj) {
                                     for(int k =0 ; k<local_dim; ++k){
                                         for(int n =0 ; n<local_dim; ++n){
-                                            phys_trial_hess(ii,jj) += dxi_dx(n,ii) * dxi_dx(k,jj) * trial_hess(k,n);
-                                            phys_test_hess(ii,jj)  += dxi_dx(n,ii) * dxi_dx(k,jj) * test_hess(k,n);
+                                            //phys_trial_hess(ii,jj) += dxi_dx(n,ii) * dxi_dx(k,jj) * trial_hess(k,n);
+                                            //phys_test_hess(ii,jj)  += dxi_dx(n,ii) * dxi_dx(k,jj) * test_hess(k,n);
                                         }
 
                                     }
@@ -369,11 +392,12 @@ class iso_bilinear_form_assembly_loop :
                                             for (int beta = 0; beta < local_dim; ++beta) {
                                                 for (int gamma = 0; gamma < local_dim; ++gamma) {
                                                     //std::cout<<"alpha: "<<alpha<<", beta: "<<beta<<", gamma: "<<gamma<<std::endl;
-                                                    //std::cout<<param_hess(q_k)(kk, beta, gamma)<<std::endl;
                                                     d2xi -= dxi_dx(alpha, kk) * param_hess(q_k)(kk, beta, gamma) * dxi_dx(beta, ii) * dxi_dx(gamma, jj);
+                                                    
                                                 }
                                             }
                                         }
+                                        //std::cout<<"d2xi: "<<trial_grad(alpha)<<std::endl;
                                         phys_trial_hess(ii, jj) += trial_grad(alpha) * d2xi;
                                         phys_test_hess(ii, jj)  += test_grad(alpha)  * d2xi;
                                     }

@@ -264,7 +264,7 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     
                     }
 
-                    auto der_eval = spline_basis_[i_]->evaluate_der_basis(p(i_),1);
+                    auto der_eval = spline_basis_[i_]->evaluate_der_basis(p(i_),1)[1];
 
                     num_derived = num * der_eval[index_[i_]];
 
@@ -369,8 +369,8 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
                     }
 
                     if (i_!=j_){
-                        auto der_eval_i = spline_basis_[i_]->evaluate_der_basis(p[i_],1);
-                        auto der_eval_j = spline_basis_[j_]->evaluate_der_basis(p[j_],1);
+                        auto der_eval_i = spline_basis_[i_]->evaluate_der_basis(p[i_],1)[1];
+                        auto der_eval_j = spline_basis_[j_]->evaluate_der_basis(p[j_],1)[1];
 
                         auto der_i = der_eval_i[index_[i_]];
                         auto der_j = der_eval_j[index_[j_]];
@@ -419,8 +419,8 @@ class Nurbs: public ScalarFieldBase<M,Nurbs<M>> {
 
 
                     else{
-                        auto der_eval_i = spline_basis_[i_]->evaluate_der_basis(p[i_],1);
-                        auto der_eval_ij = spline_basis_[i_]->evaluate_der_basis(p[i_],2);
+                        auto der_eval_i = spline_basis_[i_]->evaluate_der_basis(p[i_],1)[1];
+                        auto der_eval_ij = spline_basis_[i_]->evaluate_der_basis(p[i_],2)[2];
 
                         num_der_i = num_der_j = num * der_eval_i[index_[i_]];
                         num_der_ij = num * der_eval_ij[index_[i_]];

@@ -33,6 +33,7 @@ int main() {
 
         constexpr int alpha = 3;
         constexpr int beta = 5;
+        constexpr int lambda = 3;
 
         // Forcing term (Laplacian of u_exact)
         ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
@@ -40,8 +41,7 @@ int main() {
             double r = std::sqrt(x * x + y * y + z * z);
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
-            return std::sin(alpha * phi) * std::sin(beta * theta) *( alpha*alpha/(std::sin(theta)*std::sin(theta)) +
-                 beta*beta  - beta*((std::cos(theta) * std::cos(beta * theta))/(std::sin(theta) * std::sin(beta * theta))));
+            return lambda * lambda *(lambda + 1) * (lambda + 1) * std::sin(lambda * phi) * std::pow(std::sin(theta),lambda) ;
         })> u;
 
         // Exact solution
@@ -50,7 +50,7 @@ int main() {
             double r = std::sqrt(x * x + y * y + z * z);
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
-            return std::sin(beta * theta) * std::sin(alpha * phi);
+            return std::sin(lambda * phi) * std::pow(std::sin(theta), lambda);
         })> u_exact;
 
 
@@ -63,12 +63,10 @@ int main() {
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
         
-            double df_dtheta = beta * std::cos(beta * theta) * std::sin(alpha * phi);
-            double df_dphi = alpha * std::cos(alpha * phi) * std::sin(beta * theta);
-            double sintheta = std::sin(theta);
+            double df_dtheta = lambda *std::cos(theta) * std::sin(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
+            double df_dphi = lambda * std::cos(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
         
-            return df_dtheta * std::cos(theta) * std::cos(phi)
-                 - (df_dphi / sintheta) * std::sin(phi);
+            return (x * z * df_dtheta - y * df_dphi)/std::sqrt(x*x + y*y);
         };
         
         df_exact(1, 0) = [=](const Vec& p) {
@@ -77,12 +75,10 @@ int main() {
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
         
-            double df_dtheta = beta * std::cos(beta * theta) * std::sin(alpha * phi);
-            double df_dphi = alpha * std::cos(alpha * phi) * std::sin(beta * theta);
-            double sintheta = std::sin(theta);
+            double df_dtheta = lambda *std::cos(theta) * std::sin(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
+            double df_dphi = lambda * std::cos(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
         
-            return df_dtheta * std::cos(theta) * std::sin(phi)
-                 + (df_dphi / sintheta) * std::cos(phi);
+            return (y * z * df_dtheta + x * df_dphi)/std::sqrt(x*x + y*y);
         };
         
         df_exact(2, 0) = [=](const Vec& p) {
@@ -91,12 +87,13 @@ int main() {
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
         
-            double df_dtheta = beta * std::cos(beta * theta) * std::sin(alpha * phi);
-            return -df_dtheta * std::sin(theta);
+            double df_dtheta = lambda *std::cos(theta) * std::sin(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
+            double df_dphi = lambda * std::cos(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
+            return -df_dtheta * std::sqrt(x*x + y*y) ;
         };
 
         // Assemble system
-        auto a = integral(mesh, QGL2DP9)(dot(grad(f), grad(v)));
+        auto a = integral(mesh, QGL2DP9)(laplacian(f) *laplacian(v));
         auto m = integral(mesh, QGL2DP9)(v);
         auto F = integral(mesh, QGL2DP9)(u * v);
 
@@ -105,63 +102,34 @@ int main() {
         Eigen::VectorXd b = F.assemble();
         Eigen::VectorXd c = m.assemble();
 
+        //std::cout<<"Size of A: " << A.rows() << "x" << A.cols() << std::endl;
 
+        dof_handler.enforce_periodic_constraints(A,b);
+        dof_handler.enforce_periodic_constraints(c);
 
-        // Apply periodic BC reduction
-        const auto& dof_map = dof_handler.dof_map();
-        std::unordered_map<int, int> reduced_indices;
-        std::vector<int> keep_dofs;
-        int counter = 0;
+        std::cout << "b: "<<A.toDense() << std::endl;
 
-        for (int i = 0; i < dof_map.size(); ++i) {
-            if (dof_map[i] == i) {
-                reduced_indices[i] = counter++;
-                keep_dofs.push_back(i);
-            }
-        }
+        //std::cout << "Size of A after periodic constraints: " << A.rows() << "x" << A.cols() << std::endl;
 
-        Eigen::SparseMatrix<double> A_reduced(counter, counter);
-        Eigen::VectorXd b_reduced = Eigen::VectorXd::Zero(counter);
-        Eigen::VectorXd c_reduced = Eigen::VectorXd::Zero(counter);
+        int counter = b.size();
 
-        for (int k = 0; k < A.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<double>::InnerIterator it(A, k); it; ++it) {
-                int i = dof_map[it.row()];
-                int j = dof_map[it.col()];
-                if (reduced_indices.count(i) && reduced_indices.count(j)) {
-                    A_reduced.coeffRef(reduced_indices[i], reduced_indices[j]) += it.value();
-                }
-            }
-        }
-
-        for (int i = 0; i < b.size(); ++i) {
-            int mapped = dof_map[i];
-            if (reduced_indices.count(mapped)) {
-                b_reduced[reduced_indices[mapped]] += b[i];
-                c_reduced[reduced_indices[mapped]] += c[i];
-            }
-        }
+ 
 
         // Solve system with constraint (e.g., for unique solution on closed surface)
         Eigen::SparseMatrix<double> Zero(1, 1);
-        SparseBlockMatrix<double, 2, 2> D(A_reduced, c_reduced.sparseView(), c_reduced.transpose().sparseView(), Zero);
+        SparseBlockMatrix<double, 2, 2> D(A, c.sparseView(), c.transpose().sparseView(), Zero);
 
         Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
         solver.compute(D);
         Eigen::VectorXd rhs = Eigen::VectorXd::Zero(counter + 1);
-        rhs.head(counter) = b_reduced;
+        rhs.head(counter) = b;
         Eigen::VectorXd uh_reduced = solver.solve(rhs).head(counter);
 
-        // Expand to full solution
-        Eigen::VectorXd uh_full(dof_map.size());
-        for (int i = 0; i < dof_map.size(); ++i) {
-            int mapped = dof_map[i];
-            uh_full[i] = uh_reduced[reduced_indices[mapped]];
-        }
+        Eigen::VectorXd uh_full = dof_handler.expand_solution(uh_reduced);
 
         // Create IsoFunction
         IsoFunction solution(Vh);
-        solution = uh_full.topRows(A.rows());
+        solution = uh_full;
 
         // Define error field
         ScalarField<3> err_field(
@@ -199,7 +167,7 @@ int main() {
         double h_max = mesh.h_max();
 
         std::cout << "h_max: " << h_max << ", L2 error: " << error_L2 << ", H1 error: "<<error_H1<<std::endl;
-        //file << h_max << "," << error_L2 << ","<<error_H1<< std::endl;
+        file << h_max << "," << error_L2 << ","<<error_H1<< std::endl;
 
         // Optional: export for visualization
         std::string result_folder = "../results/sphere" + std::to_string(r) + "/";

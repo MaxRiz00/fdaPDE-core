@@ -154,28 +154,38 @@ class BSplineBasis {
         return pad ? pad_periodic_values(transformed, x) : transformed;
     }
 
-    std::vector<double> evaluate_der_basis(double x, int n = 1, bool pad = true) const {
+    std::vector<std::vector<double>> evaluate_der_basis(double x, int n = 1, bool pad = true) const {
+        std::vector<std::vector<double>> result(n + 1);  // [0] = value, [1] = 1st deriv, ..., [n] = n-th deriv
         if (!periodicity_) {
-            auto N = evaluate_der_basis_(x,n);
-            int i = find_span(x);
-            std::vector<double> padded_N(knots_.size() - degree_ - 1, 0.0);
-            int start_index = i - degree_;
-            for (int j = 0; j <= degree_; j++) {
-                padded_N[start_index + j] = N[j];
+            auto ders = evaluate_der_basis_all_(x, n);  // Get unpadded [0, ..., n] derivatives
+            int span = find_span(x);
+    
+            if (pad) {
+                int total = knots_.size() - degree_ - 1;
+                for (int k = 0; k <= n; ++k) {
+                    result[k].resize(total, 0.0);
+                    for (int j = 0; j <= degree_; ++j) {
+                        result[k][span - degree_ + j] = ders[k][j];
+                    }
+                }
+            } else {
+                result = std::move(ders);
             }
-            return pad ? padded_N : N;
+        } else {
+            int idx = findInterval(unique_knots_, x);
+            auto local = evaluate_der_basis_all_(x, n);
+            for (int k = 0; k <= n; ++k) {
+                Eigen::Map<const Eigen::VectorXd> N_vec(local[k].data(), local[k].size());
+                auto T_per = internals::bs_periodic_transformation(degree_, idx, knots_.size() - 2 * degree_ - 1);
+                Eigen::VectorXd N_per = T_per * N_vec;
+    
+                std::vector<double> transformed(N_per.data(), N_per.data() + N_per.size());
+                result[k] = pad ? pad_periodic_values(transformed, x) : transformed;
+            }
         }
-
-        int idx = findInterval(unique_knots_, x);
-        std::vector<double> local = evaluate_der_basis_(x, n);
-        Eigen::Map<const Eigen::VectorXd> N_vec(local.data(), local.size());
-        auto T_per = internals::bs_periodic_transformation(degree_, idx, knots_.size() - 2 * degree_ - 1);
-        Eigen::VectorXd N_per = T_per * N_vec;
-
-        std::vector<double> transformed(N_per.data(), N_per.data() + N_per.size());
-        return pad ? pad_periodic_values(transformed, x) : transformed;
+    
+        return result;
     }
-        
 
     private:
     //Algorithm A2. 2 from NURBS book pag. 70 computes all the nonvanishing
@@ -207,7 +217,7 @@ class BSplineBasis {
     }
 
     // A2.3 Evaluate the nth derivative of B-spline basis functions at x, padded with zeros
-    std::vector<double> evaluate_der_basis_(double x, int n=1) const {
+    std::vector<std::vector<double>> evaluate_der_basis_all_(double x, int n=1) const {
         // Degree (p) and knot vector (U) from the class
 
         int i = find_span(x);
@@ -288,7 +298,7 @@ class BSplineBasis {
             r *= (degree_ - k);
         }
 
-        return ders[n];
+        return ders;
     }
 
     std::vector<double> pad_periodic_values(const std::vector<double>& local, double x) const {

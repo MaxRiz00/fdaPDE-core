@@ -79,6 +79,17 @@ template <typename DofHandler> class DofConstraints {
         }
     }
 
+    void set_clamped_hom_constraint() {
+        // Set Dirichlet constraint: u = 0 on marker
+        int n_dofs = dof_handler_->n_dofs();
+        for (int i = 0; i < n_dofs; ++i) {
+            if(dof_handler_->is_dof_on_boundary(i) || dof_handler_->is_dof_on_adjacent_boundary(i)) {
+                constraint_pattern_.emplace_back(i, i, 1.0); // fix DOF
+                constraint_values_.emplace_back(i, 0.0);    // to 0
+            }
+        }
+    }
+
     // Set periodic constraint: dof_slave = dof_master
     void set_master_slave_constraint(int master_id, int slave_id) {
         // Adds a constraint: dof_slave - dof_master = 0

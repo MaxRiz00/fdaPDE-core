@@ -33,6 +33,7 @@ int main() {
 
         constexpr int alpha = 3;
         constexpr int beta = 5;
+        constexpr int lambda = 3;
 
         // Forcing term (Laplacian of u_exact)
         ScalarField<3, decltype([](const Eigen::Matrix<double, 3, 1>& p) {
@@ -40,8 +41,7 @@ int main() {
             double r = std::sqrt(x * x + y * y + z * z);
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
-            return std::sin(alpha * phi) * std::sin(beta * theta) *( alpha*alpha/(std::sin(theta)*std::sin(theta)) +
-                 beta*beta  - beta*((std::cos(theta) * std::cos(beta * theta))/(std::sin(theta) * std::sin(beta * theta))));
+            return lambda * lambda *(lambda + 1) * (lambda + 1) * std::sin(lambda * phi) * std::pow(std::sin(theta),lambda) ;
         })> u;
 
         // Exact solution
@@ -50,7 +50,7 @@ int main() {
             double r = std::sqrt(x * x + y * y + z * z);
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
-            return std::sin(beta * theta) * std::sin(alpha * phi);
+            return std::sin(lambda * phi) * std::pow(std::sin(theta), lambda);
         })> u_exact;
 
 
@@ -63,12 +63,10 @@ int main() {
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
         
-            double df_dtheta = beta * std::cos(beta * theta) * std::sin(alpha * phi);
-            double df_dphi = alpha * std::cos(alpha * phi) * std::sin(beta * theta);
-            double sintheta = std::sin(theta);
+            double df_dtheta = lambda *std::cos(theta) * std::sin(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
+            double df_dphi = lambda * std::cos(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
         
-            return df_dtheta * std::cos(theta) * std::cos(phi)
-                 - (df_dphi / sintheta) * std::sin(phi);
+            return (x * z * df_dtheta - y * df_dphi)/std::sqrt(x*x + y*y);
         };
         
         df_exact(1, 0) = [=](const Vec& p) {
@@ -77,12 +75,10 @@ int main() {
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
         
-            double df_dtheta = beta * std::cos(beta * theta) * std::sin(alpha * phi);
-            double df_dphi = alpha * std::cos(alpha * phi) * std::sin(beta * theta);
-            double sintheta = std::sin(theta);
+            double df_dtheta = lambda *std::cos(theta) * std::sin(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
+            double df_dphi = lambda * std::cos(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
         
-            return df_dtheta * std::cos(theta) * std::sin(phi)
-                 + (df_dphi / sintheta) * std::cos(phi);
+            return (y * z * df_dtheta + x * df_dphi)/std::sqrt(x*x + y*y);
         };
         
         df_exact(2, 0) = [=](const Vec& p) {
@@ -91,12 +87,13 @@ int main() {
             double phi = std::atan2(y, x);
             double theta = std::acos(z / r);
         
-            double df_dtheta = beta * std::cos(beta * theta) * std::sin(alpha * phi);
-            return -df_dtheta * std::sin(theta);
+            double df_dtheta = lambda *std::cos(theta) * std::sin(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
+            double df_dphi = lambda * std::cos(lambda * phi) * std::pow(std::sin(theta), lambda - 1);
+            return -df_dtheta * std::sqrt(x*x + y*y) ;
         };
 
         // Assemble system
-        auto a = integral(mesh, QGL2DP9)(dot(grad(f), grad(v)));
+        auto a = integral(mesh, QGL2DP9)(laplacian(f) *laplacian(v));
         auto m = integral(mesh, QGL2DP9)(v);
         auto F = integral(mesh, QGL2DP9)(u * v);
 
@@ -104,8 +101,6 @@ int main() {
         Eigen::SparseMatrix<double> A = a.assemble();
         Eigen::VectorXd b = F.assemble();
         Eigen::VectorXd c = m.assemble();
-
-
 
         // Apply periodic BC reduction
         const auto& dof_map = dof_handler.dof_map();
@@ -141,6 +136,8 @@ int main() {
                 c_reduced[reduced_indices[mapped]] += c[i];
             }
         }
+
+        std::cout<<"b reduced: " << A_reduced.toDense() << std::endl;
 
         // Solve system with constraint (e.g., for unique solution on closed surface)
         Eigen::SparseMatrix<double> Zero(1, 1);
@@ -199,7 +196,7 @@ int main() {
         double h_max = mesh.h_max();
 
         std::cout << "h_max: " << h_max << ", L2 error: " << error_L2 << ", H1 error: "<<error_H1<<std::endl;
-        //file << h_max << "," << error_L2 << ","<<error_H1<< std::endl;
+        file << h_max << "," << error_L2 << ","<<error_H1<< std::endl;
 
         // Optional: export for visualization
         std::string result_folder = "../results/sphere" + std::to_string(r) + "/";

@@ -6,6 +6,16 @@
 using namespace fdapde;
 template<typename T> using SpMatrix = Eigen::SparseMatrix<T>;
 
+template <int M>
+constexpr auto get_knot_names() {
+    if constexpr (M == 3)
+        return std::array<std::string, 3>{"x", "y", "z"};
+    else
+        return std::array<std::string, 2>{"x", "y"};
+}
+
+template <int M, int N> IsoMesh<M,N> load_mesh(const std::string& folder_path);
+
 void export_mesh(const IsoMesh<2,3>& mesh, const std::string& path) {
     std::cout << "Exporting mesh to: " << path << std::endl;
 
@@ -82,7 +92,8 @@ Eigen::saveMarket(knots_y, path + "knots_y.mtx");
     std::cout << "Export complete!" << std::endl;
 }
 
-IsoMesh<2, 3> load_mesh(const std::string& folder_path) {
+template<>
+IsoMesh<2, 3> load_mesh<2,3>(const std::string& folder_path) {
     using SpMatrix = Eigen::SparseMatrix<double>;
 
     std::array<int, 2> order;
@@ -138,30 +149,88 @@ IsoMesh<2, 3> load_mesh(const std::string& folder_path) {
 }
 
 
-template <typename ExactFieldT, int N>
+template<>
+IsoMesh<3, 3> load_mesh<3, 3>(const std::string& folder_path) {
+    using SpMatrix = Eigen::SparseMatrix<double>;
+
+    std::array<int, 3> order;
+    std::array<std::vector<double>, 3> nodes;
+    SpMatrix knots_x, knots_y, knots_z;
+    SpMatrix weights_sp, ctrlpts_sp;
+
+    std::string path = folder_path;
+
+    // Load knot vectors
+    Eigen::loadMarket(knots_x, path + "knots_x.mtx");
+    Eigen::loadMarket(knots_y, path + "knots_y.mtx");
+    Eigen::loadMarket(knots_z, path + "knots_z.mtx");
+
+    nodes[0].resize(knots_x.cols());
+    nodes[1].resize(knots_y.cols());
+    nodes[2].resize(knots_z.cols());
+
+    for (size_t i = 0; i < nodes[0].size(); i++) nodes[0][i] = knots_x.coeff(0, i);
+    for (size_t i = 0; i < nodes[1].size(); i++) nodes[1][i] = knots_y.coeff(0, i);
+    for (size_t i = 0; i < nodes[2].size(); i++) nodes[2][i] = knots_z.coeff(0, i);
+
+    // Load order
+    std::ifstream order_file(path + "order.txt");
+    for (int i = 0; i < 3; ++i) {
+        order_file >> order[i];
+    }
+
+    // Dimensions
+    size_t n_x = nodes[0].size() - order[0] - 1;
+    size_t n_y = nodes[1].size() - order[1] - 1;
+    size_t n_z = nodes[2].size() - order[2] - 1;
+    size_t total_size = n_x * n_y * n_z;
+
+    // Load weights
+    Eigen::loadMarket(weights_sp, path + "weights.mtx");
+
+    MdArray<double, full_dynamic_extent_t<3>> weights_(n_x, n_y, n_z);
+    for (int k = 0; k < weights_sp.rows(); ++k) {
+        size_t x = k / (n_y * n_z);
+        size_t y = (k / n_z) % n_y;
+        size_t z = k % n_z;
+        weights_(x, y, z) = weights_sp.coeff(k, 0);
+    }
+
+    // Load control points
+    Eigen::loadMarket(ctrlpts_sp, path + "ctrlpts.mtx");
+
+    MdArray<double, full_dynamic_extent_t<4>> control_points(n_x, n_y, n_z, 3);
+    for (int i = 0; i < ctrlpts_sp.rows(); ++i) {
+        size_t x = i / (n_y * n_z);
+        size_t y = (i / n_z) % n_y;
+        size_t z = i % n_z;
+
+        control_points(x, y, z, 0) = ctrlpts_sp.coeff(i, 0);
+        control_points(x, y, z, 1) = ctrlpts_sp.coeff(i, 1);
+        control_points(x, y, z, 2) = ctrlpts_sp.coeff(i, 2);
+    }
+
+    return IsoMesh<3, 3>(nodes, weights_, control_points, order);
+}
+
+
+
+template <typename ExactFieldT>
 void export_results(
-    IsoMesh<2, N>& mesh,
-    IsoFunction<IsoSpace<IsoMesh<2, N>>>& solution,
+    IsoMesh<2, 3>& mesh,
+    IsoFunction<IsoSpace<IsoMesh<2, 3>>>& solution,
     const std::string& folder,
     const std::optional<ExactFieldT>& u_exact,
     int nn = 10
 ) {
-    auto extend_to_3d = [](const auto& v) -> Eigen::Matrix<double, 3, 1> {
-        if constexpr (N == 2) {
-            return Eigen::Matrix<double, 3, 1>(v[0], v[1], 0.0);
-        } else {
-            return Eigen::Matrix<double, 3, 1>(v[0], v[1], v[2]);
-        }
-    };
-
     std::string result_folder = "../results/" + folder + "/";
     std::string command = "mkdir -p " + result_folder;
     system(command.c_str());
 
     std::ofstream nodes_file(result_folder + "nodes.txt");
     for (int i = 0; i < mesh.n_nodes(); ++i) {
-        auto p3d = extend_to_3d(mesh.phys_node(i));
-        nodes_file << p3d[0] << " " << p3d[1] << " " << p3d[2] << "\n";
+        auto p = mesh.phys_node(i);
+        nodes_file << p[0] << " " << p[1] << " " << p[2] << "\n";
     }
 
     std::ofstream edges_file(result_folder + "edges.txt");
@@ -183,13 +252,7 @@ void export_results(
     control_points_file << cps.extent(0) << " " << cps.extent(1) << "\n";
     for (int i = 0; i < cps.extent(0); ++i) {
         for (int j = 0; j < cps.extent(1); ++j) {
-            Eigen::Vector3d cp;
-            if constexpr (N == 2) {
-                cp << cps(i, j, 0), cps(i, j, 1), 0.0;
-            } else {
-                cp << cps(i, j, 0), cps(i, j, 1), cps(i, j, 2);
-            }
-            control_points_file << cp[0] << " " << cp[1] << " " << cp[2] << "\n";
+            control_points_file << cps(i, j, 0) << " " << cps(i, j, 1) << " " << cps(i, j, 2) << "\n";
         }
     }
 
@@ -205,8 +268,7 @@ void export_results(
     for (auto it = mesh.edges_begin(); it != mesh.edges_end(); ++it) {
         auto eval = it->evaluation(nn);
         for (int i = 0; i < eval.rows(); ++i) {
-            auto p3d = extend_to_3d(eval.row(i));
-            edge_ref_file << p3d[0] << " " << p3d[1] << " " << p3d[2] << "\n";
+            edge_ref_file << eval(i, 0) << " " << eval(i, 1) << " " << eval(i, 2) << "\n";
         }
     }
 
@@ -218,41 +280,31 @@ void export_results(
         }
         cells_file << "\n";
     }
-    
+
     std::ofstream eval_file(result_folder + "refined_surface_points.csv");
     for (auto it = mesh.cells_begin(); it != mesh.cells_end(); ++it) {
         MdArray<double, full_dynamic_extent_t<3>> param_points;
         MdArray<double, full_dynamic_extent_t<3>> eval = it->linspace_evaluation(nn, param_points);
     
+        std::ofstream eval_file(result_folder + "refined_surface_points.csv", std::ios_base::app);
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> error;
+    
         if (u_exact.has_value()) {
             error.resize(eval.extent(0), eval.extent(1));
         }
     
         for (int i = 0; i < eval.extent(0); ++i) {
             for (int j = 0; j < eval.extent(1); ++j) {
-                Eigen::Vector3d eval_point;
-                if constexpr (N == 2) {
-                    eval_point << eval(i, j, 0), eval(i, j, 1), 0.0;
-                } else { // N == 3
-                    eval_point << eval(i, j, 0), eval(i, j, 1), eval(i, j, 2);
-                }
+                Eigen::Matrix<double, 2, 1> param_point;
+                param_point << param_points(i, j, 0), param_points(i, j, 1);
+    
+                Eigen::Matrix<double, 3, 1> phys_point;
+                phys_point << eval(i, j, 0), eval(i, j, 1), eval(i, j, 2);
     
                 eval_file << it->id() << "," << i << "," << j << ","
-                          << eval_point(0) << "," << eval_point(1) << "," << eval_point(2) << ",";
-    
-                if (u_exact.has_value()) {
-                    if constexpr (N == 2) {
-                        Eigen::Vector2d eval_point_2d(eval(i, j, 0), eval(i, j, 1));
-                        eval_file << (*u_exact)(eval_point_2d);
-                    } else {
-                        eval_file << (*u_exact)(eval_point);
-                    }
-                }
-    
-                eval_file << "\n";
+                          << phys_point(0) << "," << phys_point(1) << "," << phys_point(2) << ","
+                          << (*u_exact)(phys_point) << "\n";
             }
         }
     }
-        
 }

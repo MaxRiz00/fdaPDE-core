@@ -119,7 +119,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 std::array<int,LocalDim> basis_dims;
                 std::array<int,LocalDim> new_degree;
                 for(int i = 0; i < LocalDim; i++){
-                    new_degree[i] = this->degree_[i] ;
+                    new_degree[i] = this->degree_[i];
                 }
                 for(int i = 0; i < LocalDim; i++){
                     open_uniform_knots[i] = pad_knots(param_nodes_[i], new_degree[i]);
@@ -249,10 +249,11 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     
         for (int i = 0; i < LocalDim; i++) {
             auto basis = nurb.spline_basis()[i];
-            basis_eval[i] = basis->evaluate_basis(u(i), false);
-            basis_deriv_eval[i] = basis->evaluate_der_basis(u(i), 1, false);
+            auto eval = basis->evaluate_der_basis(u(i), 1, false);
+            basis_eval[i] = eval[0];
+            basis_deriv_eval[i] = eval[1];
             if (compute_second) {
-                basis_second_deriv_eval[i] = basis->evaluate_der_basis(u(i), 2, false);
+                basis_second_deriv_eval[i] = basis->evaluate_der_basis(u(i), 2, false)[2];
             }
             spans[i] = basis->find_span(u(i));
         }
@@ -412,7 +413,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             for (double mk : knot_list) {
                 int s = std::count(knots_[j].begin(), knots_[j].end(), mk);  
                 int r = degree_[j] - s;  
-                for (int _ = 0; _ < r; _++) valid_knots.push_back(mk);
+                if (s == 0) valid_knots.push_back(mk);
+                //for (int _ = 0; _ < r; _++) valid_knots.push_back(mk);
             }
 
             refinement_knots[j].insert(refinement_knots[j].end(), valid_knots.begin(), valid_knots.end());
@@ -717,12 +719,14 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
             ++counter;
         }
+        /*
         if(counter > 10 && counter < max_iters){
             std::cout<<"Converged in "<<counter<<" iterations."<<std::endl;
             std::cout<<"P: "<<p.transpose()<<std::endl;
         } else if(counter > max_iters){
             std::cout<<"Did not converge: try to increase the number of iterations."<<std::endl;
         }
+            */
 
         // toc
         end = std::chrono::high_resolution_clock::now();
@@ -1370,35 +1374,36 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
      * @param L Length of the square side (default = 1.0)
      * @return IsoMesh<2,N> representing the square
      */
-    static IsoMesh<2,N> square(double L = 1.0) {
+    static IsoMesh<2, N> square(double L = 1.0) {
         static_assert(N == 2 || N == 3, "This method is only valid for N=2 or N=3");
-
+    
+        // Quadratic open uniform knot vector: degree 2 => need 3 repeated knots at each end
         std::array<std::vector<double>, 2> knots = {
-            std::vector<double>{0.0, 0.0, 1.0, 1.0},
-            std::vector<double>{0.0, 0.0, 1.0, 1.0}
+            std::vector<double>{0.0, 0.0, 0.0, 1.0, 1.0, 1.0},
+            std::vector<double>{0.0, 0.0, 0.0, 1.0, 1.0, 1.0}
         };
-        std::array<int, 2> degree = {1, 1};
-
-        MdArray<double, MdExtents<Dynamic,Dynamic>> weights(2, 2);
-        MdArray<double, MdExtents<Dynamic,Dynamic,Dynamic>> control_points(2, 2, N);
-        
-        for (int i = 0; i < 2; ++i) {
-            double u = i * L;
-            for (int j = 0; j < 2; ++j) {
-                double v = j * L;
-                if constexpr (N == 2) {
-                    weights(i, j) = 1.0;
-                    control_points(i, j, 0) = u;
-                    control_points(i, j, 1) = v;
-                } else if constexpr (N == 3) {
-                    weights(i, j) = 1.0;
-                    control_points(i, j, 0) = u;
-                    control_points(i, j, 1) = v;
+    
+        std::array<int, 2> degree = {2, 2};
+    
+        // 3 control points per direction (degree + 1 for open knot vector)
+        MdArray<double, MdExtents<Dynamic, Dynamic>> weights(3, 3);
+        MdArray<double, MdExtents<Dynamic, Dynamic, Dynamic>> control_points(3, 3, N);
+    
+        for (int i = 0; i < 3; ++i) {
+            double u = i * L / 2.0;  // Since domain goes from 0 to L with 3 points
+            for (int j = 0; j < 3; ++j) {
+                double v = j * L / 2.0;
+    
+                weights(i, j) = 1.0;
+    
+                control_points(i, j, 0) = u;
+                control_points(i, j, 1) = v;
+    
+                if constexpr (N == 3)
                     control_points(i, j, 2) = 0.0;
-                }
             }
         }
-
+    
         return IsoMesh<2, N>(knots, weights, control_points, degree);
     }
 
@@ -1530,18 +1535,18 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         fdapde_assert(R > 0 && r > 0 && R - r > 0 && R + r > 0);
 
         std::array<std::vector<double>, 1> start_knots = {
-            std::vector<double>{0,0,1,1}
+            std::vector<double>{0,0,0,1,1,1}
         };
-        std::array<int,1> start_degree = {1}; // Degree 2 (quadratic)
-        int num_ctrl_points = 2;
+        std::array<int,1> start_degree = {2}; // Degree 2 (quadratic)
+        int num_ctrl_points = 3;
         
         std::vector<double> wj = {
-            1.0, 1.0
+            1.0, 1.0, 1.0
         };
         
         std::vector<std::vector<double>> Pj = {
             { r, 0, 0 },
-            //{(r + R) / 2.0, 0, 0},
+            {(r + R) / 2.0, 0, 0},
             { R, 0, 0 }
         };
 
@@ -1586,7 +1591,7 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         }
 
         IsoMesh<2, N> mesh(quarter_ring.knots, quarter_ring.weights, new_cp, quarter_ring.degree);
-        mesh.refine_knots({0,1});
+        //mesh.refine_knots({0,1});
         return mesh;
 
         

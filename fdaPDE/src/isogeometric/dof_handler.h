@@ -99,6 +99,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
         // Initialize boundary dofs
         boundary_dofs_.resize(n_dofs_);
+        adj_boundary_dofs_.resize(n_dofs_);
 
         for(int id = 0; id < n_dofs_; id++) {
             auto multi_index = unflatten(id);
@@ -107,8 +108,14 @@ template<int N> class DofHandler<2, N, iso_tag> {
                     boundary_dofs_.set(id);
                     break;
                 }
+                if((multi_index[d] == 1 || multi_index[d] == dims_[d] - 2) && (!mesh_->is_periodic(d))) {
+                    //std::cout << "Warning: DOF " << id << " is on the boundary but not on the first or last knot." << std::endl;
+                    adj_boundary_dofs_.set(id);
+                    break;
+                }
             }
         }
+        //std::cout << "Boundary dofs: " << boundary_dofs_.count() << std::endl;
 
         // for the moment unmarked dofs
         dofs_markers_ = std::vector<int>(n_dofs_, Unmarked);
@@ -120,38 +127,13 @@ template<int N> class DofHandler<2, N, iso_tag> {
         }
 
         build_periodic_dof_map();
-        /*
-        // print the periodic dof map
-        std::cout << "Periodic DOF map: " << std::endl;
-        for (int i = 0; i < n_dofs_; ++i) {
-            std::cout << "DOF " << i << " maps to " << dof_map_[i] << std::endl;
 
-         }
-            */
-
-
-         int next_index = 0;
-
+        int counter = 0;
         for (int i = 0; i < dof_map_.size(); ++i) {
-            int mapped = dof_map_[i];
-            if (compressed_map_.find(mapped) == compressed_map_.end()) {
-                compressed_map_[mapped] = next_index++;
+            if (dof_map_[i] == i) {
+                reduced_indices_[i] = counter++;
             }
         }
-
-        reduced_dof_map_.resize(n_dofs_);
-        for (int i = 0; i < n_dofs_; ++i) {
-            reduced_dof_map_[i] = compressed_map_[dof_map_[i]];
-        }
-
-        // Print the reduced dof map
-        //std::cout << "Reduced DOF map: " << std::endl;
-        //for (int i = 0; i <n_dofs_; ++i) {
-          //  std::cout << "DOF " << i << " maps to " << reduced_dof_map_[i] << std::endl;
-        //}
-        // Print the number of mapped dofs
-        //std::cout << "Number of mapped DOFs: " << n_mapped_dofs_ << std::endl;
-        // Print the number of dofs
 
 
     }
@@ -176,7 +158,35 @@ template<int N> class DofHandler<2, N, iso_tag> {
         
     }
 
-    //ivoid enforce_periodic_constraints()
+    void set_clamped_hom_constraint(){
+        dof_constraints_.set_clamped_hom_constraint();
+    }
+
+    // Overload for matrix only
+    void enforce_periodic_constraints(Eigen::SparseMatrix<double>& A) {
+        enforce_periodic_constraints_(&A, nullptr);
+    }
+
+    // Overload for vector only
+    void enforce_periodic_constraints(Eigen::VectorXd& b) {
+        enforce_periodic_constraints_(nullptr, &b);
+    }
+
+    // Overload for both matrix and vector
+    void enforce_periodic_constraints(Eigen::SparseMatrix<double>& A, Eigen::VectorXd& b) {
+        enforce_periodic_constraints_(&A, &b);
+    }
+
+
+    // Expand a reduced solution vector to the full DOF vector (for periodicity)
+    Eigen::VectorXd expand_solution(const Eigen::VectorXd& reduced_sol) const {
+        Eigen::VectorXd full_sol(dof_map_.size());
+        for (int i = 0; i < dof_map_.size(); ++i) {
+            int mapped = dof_map_[i];
+            full_sol[i] = reduced_sol[reduced_indices_.at(mapped)];
+        }
+        return full_sol;
+    }
 
     
     
@@ -298,6 +308,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
     int n_dofs() const { return n_dofs_; }
     int n_dofs_per_cell() const { return n_dofs_per_cell_; }
     bool is_dof_on_boundary(int i) const { return boundary_dofs_[i]; }
+    bool is_dof_on_adjacent_boundary(int i) const { return adj_boundary_dofs_[i]; }
     const std::vector<int>& dofs_markers() const { return dofs_markers_; }
     int dof_marker(int dof) const { return dofs_markers_[dof]; }
     int n_boundary_dofs() const { return boundary_dofs_.count(); }
@@ -314,8 +325,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
         return result;
     }
 
-    int n_mapped_dofs() const { return n_mapped_dofs_; }
-    const std::vector<int>& reduced_dof_map() const { return reduced_dof_map_; }
     std::array<int, local_dim> dims() const { return dims_; }
 
     // iterate over geometric cells coupled with dofs, possibly filtered by marker
@@ -503,21 +512,60 @@ template<int N> class DofHandler<2, N, iso_tag> {
         return dofs;
     }
 
-    
+
+    private:
+
+    // Enforce periodic constraints by reducing the system to the set of unique DOFs (for periodic BCs)
+    void enforce_periodic_constraints_(Eigen::SparseMatrix<double>* A = nullptr,
+        Eigen::VectorXd* b = nullptr) {
+
+        const auto& map = dof_map_;
+        auto reduce_vector = [&](Eigen::VectorXd* vec) {
+            if (!vec) return Eigen::VectorXd{};
+            Eigen::VectorXd reduced = Eigen::VectorXd::Zero(reduced_indices_.size());
+            for (int i = 0; i < vec->size(); ++i) {
+                int mapped = map[i];
+                if (reduced_indices_.count(mapped)) {
+                    reduced[reduced_indices_[mapped]] += (*vec)[i];
+                }
+            }
+            *vec = reduced;
+            return reduced;
+        };
+
+        if (b) {
+            *b = reduce_vector(b);
+        }
+
+        if (A) {
+            Eigen::SparseMatrix<double> A_reduced(reduced_indices_.size(), reduced_indices_.size());
+            for (int k = 0; k < A->outerSize(); ++k) {
+                for (Eigen::SparseMatrix<double>::InnerIterator it(*A, k); it; ++it) {
+                    int i = map[it.row()];
+                    int j = map[it.col()];
+                    if (reduced_indices_.count(i) && reduced_indices_.count(j)) {
+                        A_reduced.coeffRef(reduced_indices_[i], reduced_indices_[j]) += it.value();
+                    }
+                }
+            }
+            *A = A_reduced;
+        }
+    }
+
 
 
 
     private:
     std::vector<int> dof_map_;  // dof_map_[original_dof] = reduced_dof
-    int n_mapped_dofs_;         // Number of unique DOFs after collapsing periodic ones
-    std::unordered_map<int, int> compressed_map_; // map old index → compressed index
-    std::vector<int> reduced_dof_map_; // reduced_dof_map_[compressed_dof] = original_dof
+    std::unordered_map<int, int> reduced_indices_; 
+    int n_mapped_dofs_ = 0; // number of unique dofs after periodicity
     
     
     NurbsBasis<local_dim> basis_pde_;
     std::array<int,local_dim> dims_; // number of control points in each direction
     Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_; // dofs active on cell: each row = global DOFs on one cell ...
     BinaryVector<Dynamic> boundary_dofs_; // boundary dofs
+    BinaryVector<Dynamic> adj_boundary_dofs_; // nonvanishing first der boundary dofs
     int n_dofs_per_cell_ = 0, n_dofs_ = 0;
     std::vector<int> dofs_markers_; // dofs markers
     const MeshType* mesh_;
