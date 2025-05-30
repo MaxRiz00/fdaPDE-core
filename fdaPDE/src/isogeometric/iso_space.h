@@ -57,8 +57,14 @@ template <typename IsoMesh_> class IsoSpace {
       internals::iso_linear_form_assembly_loop <Triangulation__, Form__, Options__, Quadrature__...>;
 
     IsoSpace() = default;
+
+    // constructor with only mesh, uses default basis (same as mesh)
     IsoSpace(const IsoMesh_& mesh) :
-        mesh_(std::addressof(mesh)), dof_handler_(mesh), degree_(mesh.basis_pde().degree()), basis_(mesh.basis_pde()) { } //copiare la base della mesh ? metterla nel referce domain , perche
+        mesh_(std::addressof(mesh)), dof_handler_(mesh), degree_(mesh.basis().degree()), basis_(mesh.basis()) { } 
+
+    // constructor with mesh and basis (customized)
+    IsoSpace(const IsoMesh_& mesh, BasisType& basis) :
+        mesh_(std::addressof(mesh)), dof_handler_(mesh, basis), degree_(basis.degree()), basis_(basis) { } 
 
     // observers
     const IsoMesh& mesh() const { return *mesh_; }
@@ -98,7 +104,7 @@ template <typename IsoMesh_> class IsoSpace {
     const IsoMesh* mesh_;
     DofHandlerType dof_handler_;
     BasisType basis_;
-    std::vector<ShapeFunctionType> ok_basis_;
+    //std::vector<ShapeFunctionType> ok_basis_;
     std::array<int, local_dim> degree_;
 
 

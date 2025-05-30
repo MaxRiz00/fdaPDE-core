@@ -18,16 +18,34 @@ int main() {
     using Vec = Eigen::Matrix<double, M, 1>;
     using Fun = std::function<double(const Vec&)>;
 
-    std::vector<int> ref_levels = {0};
+    std::vector<int> ref_levels = {0,1,2,3,4,5};
 
     for (int r : ref_levels) {
         std::cout << "Refinement level: " << r << std::endl;
+
+        constexpr int LocalDim = 2;
+        constexpr int EmbedDim = 3;
 
         auto mesh = IsoMesh<2,3>::sphere();
         if(r > 0) mesh.refine_knots({r, r});
         std::cout << "Number of cells: " << mesh.n_cells() << std::endl;
 
-        IsoSpace Vh(mesh);
+        std::array<std::vector<double>,LocalDim> open_uniform_knots;
+        std::array<int,LocalDim> basis_dims;
+        std::array<int,LocalDim> new_degree;
+        for(int i = 0; i < LocalDim; i++){
+            new_degree[i] = mesh.degree()[i] ;
+        }
+        for(int i = 0; i < LocalDim; i++){
+            open_uniform_knots[i] = pad_knots(mesh.param_nodes()[i], new_degree[i]);
+            basis_dims[i] = open_uniform_knots[i].size() - new_degree[i] - 1;
+        }
+        MdArray<double, full_dynamic_extent_t<LocalDim>> unitary_weights;
+        unitary_weights.resize(basis_dims);
+        unitary_weights.set_constant(1.0);
+        auto basis_pde = NurbsBasis<LocalDim>(open_uniform_knots, unitary_weights, new_degree, mesh.is_periodic()); //bas
+
+        IsoSpace Vh(mesh, basis_pde);
         TrialFunction f(Vh);
         TestFunction v(Vh);
 
@@ -107,15 +125,8 @@ int main() {
         dof_handler.enforce_periodic_constraints(A,b);
         dof_handler.enforce_periodic_constraints(c);
 
-        std::cout << "b: "<<A.toDense() << std::endl;
-
-        //std::cout << "Size of A after periodic constraints: " << A.rows() << "x" << A.cols() << std::endl;
-
-        int counter = b.size();
-
- 
-
         // Solve system with constraint (e.g., for unique solution on closed surface)
+        int counter = b.size();
         Eigen::SparseMatrix<double> Zero(1, 1);
         SparseBlockMatrix<double, 2, 2> D(A, c.sparseView(), c.transpose().sparseView(), Zero);
 
@@ -155,7 +166,6 @@ int main() {
             auto u = mesh.invert_point(p,t1,t2,5);
             return solution.phys_grad(u)(1);
         };
-
         df_appx(2, 0) = [&](const Vec& p) {
             double t1,t2;
             auto u = mesh.invert_point(p,t1,t2,5);

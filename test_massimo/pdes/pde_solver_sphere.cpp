@@ -18,7 +18,7 @@ int main() {
     using Vec = Eigen::Matrix<double, M, 1>;
     using Fun = std::function<double(const Vec&)>;
 
-    std::vector<int> ref_levels = {0};
+    std::vector<int> ref_levels = {0,1,2,3,4,5};
 
     for (int r : ref_levels) {
         std::cout << "Refinement level: " << r << std::endl;

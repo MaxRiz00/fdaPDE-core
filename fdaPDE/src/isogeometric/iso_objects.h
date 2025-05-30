@@ -305,7 +305,7 @@ template <typename IsoSpace_> class IsoFunction : public ScalarFieldBase<IsoSpac
         return value;
     }
 
-    Eigen::Matrix<double, embed_dim, 1> phys_grad(const InputType& p) {
+    Eigen::Matrix<double, embed_dim, 1> phys_grad(const InputType& p) const{
         int e_id = iso_space_->mesh().locate_param(p);
         if (e_id == -1) return Eigen::Matrix<double, embed_dim, 1>::Zero();
         // map p to reference cell and evaluate
@@ -320,6 +320,64 @@ template <typename IsoSpace_> class IsoFunction : public ScalarFieldBase<IsoSpac
         }
         return F * (F.transpose() * F).inverse() * grad;
     }
+
+    Eigen::Matrix<double, embed_dim, embed_dim> phys_hess(const InputType& p) const{
+        int e_id = iso_space_->mesh().locate_param(p);
+        if (e_id == -1) return Eigen::Matrix<double, embed_dim, embed_dim>::Zero();
+        // map p to reference cell and evaluate
+        typename DofHandlerType::CellType cell = iso_space_->dof_handler().cell(e_id);
+        auto ders = iso_space_->mesh().eval_param_derivatives(p,true);
+
+        Eigen::Matrix<double, embed_dim, local_dim> F = ders.first_derivative;
+        MdArray<double, MdExtents<embed_dim, local_dim, local_dim>> param_hess = *(ders.second_derivative);
+
+        std::vector<int> active_dofs = cell.dofs();
+
+        Eigen::Matrix<double, local_dim, local_dim> hess = Eigen::Matrix<double, local_dim, local_dim>::Zero();
+        for (int i = 0, n = active_dofs.size(); i < n; ++i) {
+            hess += coeff_[active_dofs[i]] * iso_space_->eval_shape_hess(active_dofs[i], p);  
+        }
+
+        Eigen::Matrix<double, embed_dim, embed_dim> phys_hess_;
+
+        Eigen::Matrix<double, local_dim, embed_dim> dxi_dx = (F.transpose() * F).inverse() * F.transpose();
+        phys_hess_ = dxi_dx.transpose() * hess * dxi_dx;
+
+
+        Eigen::Matrix<double, local_dim, 1> grad = Eigen::Matrix<double, local_dim, 1>::Zero();
+        for (int i = 0, n = active_dofs.size(); i < n; ++i) {
+            grad += coeff_[active_dofs[i]] * iso_space_->eval_shape_grad(active_dofs[i], p);
+        }
+
+        for (int ii = 0; ii < embed_dim; ++ii) {
+            for (int jj = 0; jj < embed_dim; ++jj) {
+                for (int alpha = 0; alpha < local_dim; ++alpha) {
+                    double d2xi = 0.0;
+                    for (int kk = 0; kk < embed_dim; ++kk) {
+                        for (int beta = 0; beta < local_dim; ++beta) {
+                            for (int gamma = 0; gamma < local_dim; ++gamma) {
+                                //std::cout<<"alpha: "<<alpha<<", beta: "<<beta<<", gamma: "<<gamma<<std::endl;
+                                d2xi -= dxi_dx(alpha, kk) * param_hess(kk, beta, gamma) * dxi_dx(beta, ii) * dxi_dx(gamma, jj); 
+                            }
+                        }
+                    }
+                    //std::cout<<"d2xi: "<<trial_grad(alpha)<<std::endl;
+                    phys_hess_(ii, jj) += grad(alpha) * d2xi;
+                }
+            }
+        }        
+        Eigen::Matrix<double, embed_dim, embed_dim> P;
+        if constexpr(embed_dim == 2){
+        P = Eigen::Matrix<double, embed_dim, embed_dim>::Identity();
+        }
+        else{
+        Eigen::Matrix<double, embed_dim, 1> n = ((F.col(0)).cross(F.col(1))).normalized();
+        P = Eigen::Matrix<double, embed_dim, embed_dim>::Identity() - n * n.transpose();
+        }
+        return P * phys_hess_ * P;
+    }
+
+
 
 
 

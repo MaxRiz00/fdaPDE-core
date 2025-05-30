@@ -1,8 +1,9 @@
 
 // PARTE MIA
 
-settings.render = 4; 
+settings.render = 5; 
 //settings.prc = true; // if true animation 3d active
+settings.outformat = "png"; // "pdf", "png", "svg", "eps"
 
 import three;
 import graph3;
@@ -11,7 +12,7 @@ import plain;
 
 
 
-size(400);
+size(250);
 //currentprojection = perspective((0,5,-10),up=(0,1,0));
 // sphere ,showtarget=true, autoadjust=false, center=true
 //currentprojection =orthographic((2,2,2),up=(0,1,0)); 
@@ -31,7 +32,7 @@ currentlight = light(
 
 
 // === SETTINGS ===
-int num_points_per_curve = 5;
+int num_points_per_curve = 30;
 pen interiorEdgePen = gray + 1bp;
 pen boundaryEdgePen = blue + 1.2bp;
 pen quadPen = lightblue ;
@@ -206,7 +207,7 @@ while (!eof(surfFile)) {
     scalarGrid[cid_index][i][j] = s;
 
     if (s < minScalar) minScalar = 0; //s
-    if (s > maxScalar) maxScalar = 1; //s
+    if (s > maxScalar) maxScalar = 6.06; //s
   }
 }
 
@@ -243,13 +244,13 @@ for (int i = 0; i < numSteps; ++i) {
 
 real labelOffset = 0.03; // consistent horizontal offset
 
-label(colorbar, scale(2)*format("%g", minScalar), 
+label(colorbar, scale(2)*format("%.1f", minScalar), 
       (origin.x + w + labelOffset, origin.y), E);
 
-label(colorbar, scale(2)*format("%g", (minScalar + maxScalar)/2), 
+label(colorbar, scale(2)*format("%.1f", (minScalar + maxScalar)/2), 
       (origin.x + w + labelOffset, origin.y + h/2), E);
 
-label(colorbar, scale(2)*format("%g", maxScalar), 
+label(colorbar, scale(2)*format("%.1f", maxScalar), 
       (origin.x + w + labelOffset, origin.y + h), E);
 
 // === ADD 2D PICTURE TO CURRENT OUTPUT ===

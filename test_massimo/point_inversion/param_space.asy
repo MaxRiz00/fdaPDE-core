@@ -52,3 +52,15 @@ for (int i = 0; i < u.length; ++i) {
 // === Optional: mark final converged point ===
 dot(u[u.length - 1], green+4bp);
 label("$u_n \equiv u_{true}$", u[u.length - 1], N, fontsize(5pt));
+
+
+/*
+curved data
+triple[] U = {
+  (-1.12667, 3.42, 8.55552),
+  (-12.9704, -25, 0),
+  (-25, -11.3082, 1.94795),
+  (-22.5042, -2.31358, 4.99),
+  (-22.1935, 25, 0.0688351)
+};
+*/

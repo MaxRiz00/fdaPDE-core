@@ -172,6 +172,7 @@ class iso_bilinear_form_assembly_loop :
                 Base::eval_param_shape_values(
                     trial_space_->basis(), is_petrov_galerkin ? trial_active_dofs : test_active_dofs, it,
                     trial_param_shape_values);
+                Base::eval_metric_determinant(it, metric_dets);
             }
             //std::cout << "EHI2: " << std::endl;
             if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_grad)) { //Form::XprBits &
@@ -253,6 +254,8 @@ class iso_bilinear_form_assembly_loop :
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_values)) {
                             iso_packet.trial_value = trial_param_shape_values(i, q_k) ;
                             iso_packet.test_value  = test_param_shape_values (j, q_k) ;
+
+
                         }
                         //std::cout << "Trial value: " << i << ": " << iso_packet.trial_value << std::endl;
                         if constexpr (Form::XprBits & int(iso_assembler_flags::compute_shape_grad)) {

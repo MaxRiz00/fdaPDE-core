@@ -11,7 +11,7 @@ import plain;
 
 
 
-size(1500);
+size(600);
 //currentprojection = perspective((10,10,10));
 // sphere 
 //currentprojection = perspective(12*(1, 1, 1),  showtarget=true, autoadjust=false, center=true);
@@ -19,7 +19,7 @@ size(1500);
 //currentlight = (5, 10, 10);
 
 
-currentprojection = perspective((5, 5, 5));
+//currentprojection = perspective((5, -5, -5));
 //defaultrender = render(merge = true);
 //currentlight = Viewport;
 
@@ -159,9 +159,9 @@ for (int c = 0; c < grid.length; ++c) {
     }
   }
 
-material Spen  = material(paleblue+opacity(0.9),emissivepen=gray(0.01),specularpen =black);
+material Spen  = material(paleblue+opacity(0.8),emissivepen=gray(0.01),specularpen =black);
 
-draw(wholeSurface,surfacepen=Spen,render(compression=Low,merge=true));
+draw(wholeSurface,surfacepen=Spen,render(compression=Zero,merge=true));
 
 
 // === PLOT CURVED EDGES ===
@@ -197,20 +197,20 @@ triple[] U = {
 
 triple U_true = (-1.2,    9.24, -0.9324);
 dot(U_true , green);
-label("$P_n \equiv P_{true}$", U_true,  NE, fontsize(10pt));
+label("$\mathbf{P}_n$", U_true ,  NE, fontsize(10pt));
 
 // Draw descent arrows
 
 for (int i = 0; i < U.length - 1; ++i) {
-  draw(U[i]--U[i+1], Arrow3(6));
+  draw(U[i]--U[i+1]  , arrow = Arrow3(6), p=black, light = nolight);
 }
-
+draw(U[U.length - 1]--U_true  , arrow = Arrow3(3), p=black, light = nolight);
 
 // Draw points
 for (int i = 0; i < U.length; ++i) {
   dot(U[i], red);
   if(i == 0) {
-    label("$P_{0}$", U[i] + (0,0.1,0.1), SW, fontsize(10pt));
+    label("$\mathbf{P}_{0}$", U[i] + (0,0.1,0.3), SW, fontsize(10pt));
   } 
   //label("$P_{" + string(i) + "}$", U[i] + (0,0.1,0.1), SW, fontsize(7pt));
 }

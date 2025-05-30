@@ -1,7 +1,7 @@
 
 // PARTE MIA
 
-settings.render = 4; 
+settings.render = 3; 
 //settings.prc = true; // if true animation 3d active
 
 import three;
@@ -11,11 +11,11 @@ import plain;
 
 
 
-size(300);
+size(250);
 //currentprojection = perspective((0,5,-10),up=(0,1,0));
 // sphere ,showtarget=true, autoadjust=false, center=true
-//currentprojection =orthographic((2,2,2),up=(0,1,0)); 
-currentprojection = perspective((15, 10,10),up=(0,0,1)); // sfera 100 toro 010 , up = (1,1,0)
+//currentprojection = orthographic((0, 0, 1), up = (0, 0, 1));
+currentprojection = perspective((14, 10,3),up=(0,0,1)); // sfera 100 toro 010 , up = (1,1,0)
 //currentprojection = perspective((5, 5, 5));
 //defaultrender = render(merge = true);
 //currentlight = Viewport;
@@ -31,7 +31,7 @@ currentlight = light(
 
 
 // === SETTINGS ===
-int num_points_per_curve = 10;
+int num_points_per_curve = 20;
 pen interiorEdgePen = gray + 1bp;
 pen boundaryEdgePen = blue + 1.2bp;
 pen quadPen = lightblue ;
@@ -159,16 +159,14 @@ int[][] edges = loadEdgeList(folder + "edges.txt");
 int[] bflags = loadFlags(folder + "boundary_edges.txt");
 
 
-/*
-triple origin = O; // bottom-left corner of the merged surface
 
-real axisLength = 5.0; // adjust as needed
+triple origin = 0.8*(1,-1,-1); // bottom-left corner of the merged surface
 
-draw(origin -- (origin + (axisLength+2,0,0)), Arrow3(6bp)); label("$x$", origin + (axisLength+2+0.2,0,0),fontsize(20pt));
-draw(origin -- (origin + (0,2*axisLength+2,0)), Arrow3(6bp)); label("$y$", origin + (0,2*axisLength+2+0.2,0),fontsize(20pt));
-draw(origin -- (origin + (0,0,axisLength/2)), Arrow3(6bp)); label("$z$", origin + (0,0,axisLength/2+0.2),fontsize(20pt));
+real axisLength = .2; // adjust as needed
 
-*/
+draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x$", origin + (axisLength+0.04,0,0),fontsize(9pt));
+draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$y$", origin + (0,axisLength+0.04,0),fontsize(9pt));
+draw(origin -- (origin + (0,0,axisLength)), Arrow3(5bp)); label("$z$", origin + (0,0,axisLength+0.04),fontsize(9pt));
 
 
 // === LOAD & PLOT SURFACE PATCHES ===

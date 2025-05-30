@@ -112,35 +112,11 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 //std::cout<<"n_nodes: "<<n_nodes_<<std::endl;
                 detect_periodicity_();
                 compute_span_aabbs_();
-
-                // initialize the pde basis
-
-                std::array<std::vector<double>,LocalDim> open_uniform_knots;
-                std::array<int,LocalDim> basis_dims;
-                std::array<int,LocalDim> new_degree;
-                for(int i = 0; i < LocalDim; i++){
-                    new_degree[i] = this->degree_[i];
-                }
-                for(int i = 0; i < LocalDim; i++){
-                    open_uniform_knots[i] = pad_knots(param_nodes_[i], new_degree[i]);
-                    basis_dims[i] = open_uniform_knots[i].size() - new_degree[i] - 1;
-                }
-                MdArray<double, full_dynamic_extent_t<LocalDim>> unitary_weights;
-                unitary_weights.resize(basis_dims);
-                unitary_weights.set_constant(1.0);
-
-                std::array<bool, LocalDim> dummy_periodic = {0,1};
-                
-
-                basis_pde_ = NurbsBasis<LocalDim>(open_uniform_knots, unitary_weights, new_degree, periodic_dims_); //basis_;
-                //std::cout<<"Basis PDE: "<<std::endl;
-                //
             }
 
     // === Getters === //
 
     const NurbsBasis<LocalDim>& basis() const { return basis_; }
-    const NurbsBasis<LocalDim>& basis_pde() const { return basis_pde_; }
     const MdArray<double, full_dynamic_extent_t<LocalDim+1>>& control_points() const { return control_points_; }
     const std::array<std::vector<double>,LocalDim>& knots() const { return knots_; } // this contains also the repetitions (if any)
     const std::array<std::vector<double>,LocalDim>& param_nodes() const { return param_nodes_; } // (only unique knots)
@@ -162,7 +138,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     std::vector<int> cells_markers() const { return cells_markers_; }
 
     // periodic
-    bool is_periodic() const { return periodic_dims_; }
+    std::array<bool,LocalDim> is_periodic() const { return periodic_dims_; }
     bool is_periodic(int dir) const { return periodic_dims_[dir]; }
     // === Core Evaluation Functions === //
     
@@ -388,7 +364,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * @param density Number of midpoint splits per span (per direction)
      * @param add_knot_list Additional user-defined knots to insert
      */
-    void refine_knots(const std::array<int, LocalDim>& density = std::array<int, LocalDim>{{1}}, std::array<std::vector<double>, LocalDim> add_knot_list = {}){
+    void refine_knots(const std::array<int, LocalDim>& density = std::array<int, LocalDim>{{1}}, 
+        std::array<std::vector<double>, LocalDim> add_knot_list = {}){
 
         std::array<std::vector<double>,LocalDim> refinement_knots {};
 
@@ -1183,7 +1160,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     MdArray<double,full_dynamic_extent_t<LocalDim>> weights_;   ///< NURBS weights in each direction
     MdArray<double,full_dynamic_extent_t<LocalDim+1>> control_points_; ///< Control points in each direction
     NurbsBasis<LocalDim> basis_;                                ///< NURBS basis functions
-    NurbsBasis<LocalDim> basis_pde_;                            ///< NURBS basis functions for PDE
     
     Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>  cells_ {};  ///< Connectivity: cells x node IDs
     std::array<bool, LocalDim> periodic_dims_ = {false};        ///< Periodicity flags for each dimension
@@ -1535,18 +1511,18 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         fdapde_assert(R > 0 && r > 0 && R - r > 0 && R + r > 0);
 
         std::array<std::vector<double>, 1> start_knots = {
-            std::vector<double>{0,0,0,1,1,1}
+            std::vector<double>{0,0,1,1}
         };
-        std::array<int,1> start_degree = {2}; // Degree 2 (quadratic)
-        int num_ctrl_points = 3;
+        std::array<int,1> start_degree = {1}; // Degree 2 (quadratic) 2
+        int num_ctrl_points = 2;
         
         std::vector<double> wj = {
-            1.0, 1.0, 1.0
+            1.0, 1.0
         };
         
         std::vector<std::vector<double>> Pj = {
             { r, 0, 0 },
-            {(r + R) / 2.0, 0, 0},
+            //{(r + R) / 2.0, 0, 0},
             { R, 0, 0 }
         };
 

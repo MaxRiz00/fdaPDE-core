@@ -14,6 +14,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
     using MeshType = IsoMesh<2, N>;
     static constexpr int local_dim = MeshType::local_dim;
     static constexpr int embed_dim = MeshType::embed_dim;
+    using BasisType = NurbsBasis<local_dim>;
 
     public:
     int flatten(const std::array<int, local_dim>& multi_idx) const {
@@ -48,7 +49,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
         CellType(int cell_id, const DofHandler* dof_handler):
             Base(cell_id, dof_handler->mesh()), dof_handler_(dof_handler) { } 
             std::vector<int> dofs() const {
-                //return dof_handler_->active_dofs(Base::id());
+                //return dof_handler_->active_dofs_(Base::id());
                 return dof_handler_->get_dofs(Base::id());
             }
             /*
@@ -74,24 +75,21 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
     // constructor
     DofHandler() = default;
-    DofHandler(const MeshType& mesh) : mesh_(std::addressof(mesh)), dof_constraints_(*this) {
-        basis_pde_ = mesh_->basis_pde();
-        order_ = basis_pde_.degree();
+    DofHandler(const MeshType& mesh,const BasisType& basis) : mesh_(std::addressof(mesh)), dof_constraints_(*this), basis_pde_(basis) {
+        degree_ = basis_pde_.degree();
         n_dofs_per_cell_ = 1;
-        for(int i = 0; i < local_dim; i++) n_dofs_per_cell_ *= order_[i] + 1;
+        for(int i = 0; i < local_dim; i++) n_dofs_per_cell_ *= degree_[i] + 1;
         int n_cells = mesh_->n_cells();
         n_dofs_ = (basis_pde_).size();
-        //const auto& dims = mesh_->n_control_points();
         for (int d = 0; d < local_dim; ++d) {
-            dims_[d] = basis_pde_[0].spline_basis()[d]->n_knots() - order_[d] - 1;
-            //std::cout << "Dimension " << d << ": " << dims_[d] << std::endl;
+            dims_[d] = basis_pde_[0].spline_basis()[d]->n_knots() - degree_[d] - 1;
         }
         
 
         dofs_.resize(n_cells, n_dofs_per_cell_);
 
         for (int cell_id = 0; cell_id < n_cells; ++cell_id) {
-            auto local_dof_multi_indices = active_dofs(cell_id);  // list of [i,j]
+            auto local_dof_multi_indices = active_dofs_(cell_id);  // list of [i,j]
             for (int k = 0; k < local_dof_multi_indices.size(); ++k) {
                 dofs_(cell_id, k) = local_dof_multi_indices[k];  // flatten [i,j] → scalar
             }
@@ -106,16 +104,14 @@ template<int N> class DofHandler<2, N, iso_tag> {
             for(int d = 0; d < local_dim; d++) {
                 if((multi_index[d] == 0 || multi_index[d] == dims_[d] - 1) && (!mesh_->is_periodic(d))) {
                     boundary_dofs_.set(id);
-                    break;
+                    //break;
                 }
                 if((multi_index[d] == 1 || multi_index[d] == dims_[d] - 2) && (!mesh_->is_periodic(d))) {
-                    //std::cout << "Warning: DOF " << id << " is on the boundary but not on the first or last knot." << std::endl;
                     adj_boundary_dofs_.set(id);
-                    break;
+                    //break;
                 }
             }
         }
-        //std::cout << "Boundary dofs: " << boundary_dofs_.count() << std::endl;
 
         // for the moment unmarked dofs
         dofs_markers_ = std::vector<int>(n_dofs_, Unmarked);
@@ -137,7 +133,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
 
     }
-
+    DofHandler(const MeshType& mesh) : DofHandler(mesh, mesh.basis()) { }
     
 
      template <typename SystemMatrix, typename SystemRhs>
@@ -186,19 +182,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
             full_sol[i] = reduced_sol[reduced_indices_.at(mapped)];
         }
         return full_sol;
-    }
-
-    
-    
-    void get_boundary_dofs_for_dimension(int dim, bool min_side, std::vector<int>& dofs) const {
-        for (int i = 0; i < n_dofs_; ++i) {
-            if(boundary_dofs_[i]) {
-                auto multi_index = unflatten(i);
-                if ((min_side && multi_index[dim] == 0) || (!min_side && multi_index[dim] == dims_[dim] - 1)) {
-                    dofs.push_back(i);
-                }
-            }
-        }
     }
 
 
@@ -255,7 +238,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
     
         // Corner collapse (both directions periodic)
         if (mesh_->is_periodic(0) && mesh_->is_periodic(1)) {
-            int p0 = order_[0], p1 = order_[1];
+            int p0 = degree_[0], p1 = degree_[1];
             int n0 = dims_[0], n1 = dims_[1];
     
             for (int i = 0; i < p0; ++i) {
@@ -275,9 +258,9 @@ template<int N> class DofHandler<2, N, iso_tag> {
     
             for (int i = 0; i < n_dofs_; ++i) {
                 auto multi = unflatten(i);
-                if (multi[d] < order_[d]) {
+                if (multi[d] < degree_[d]) {
                     auto mapped = multi;
-                    mapped[d] += n - order_[d];
+                    mapped[d] += n - degree_[d];
                     int target = flatten(mapped);
                     if (target != i)
                         assign_slave(i, target);
@@ -292,8 +275,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
                 root = dof_map_[root];
             }
             dof_map_[i] = root;
-        }
-    
+        }   
         // Step 3: Count unique
         std::unordered_set<int> unique;
         for (int i = 0; i < n_dofs_; ++i)
@@ -324,8 +306,15 @@ template<int N> class DofHandler<2, N, iso_tag> {
         }
         return result;
     }
-
+    std::vector<int> dof_map() const { return dof_map_; }
     std::array<int, local_dim> dims() const { return dims_; }
+    std::vector<int> get_dofs(int id) const{
+        std::vector<int> dofs;
+        for (int i = 0; i < n_dofs_per_cell_; ++i) {
+            dofs.push_back(dofs_(id, i));
+        }
+        return dofs;
+    }
 
     // iterate over geometric cells coupled with dofs, possibly filtered by marker
     class cell_iterator :  public internals::filtering_iterator<cell_iterator, CellType> {
@@ -423,11 +412,16 @@ template<int N> class DofHandler<2, N, iso_tag> {
     }
 
 
-    // In any given knot span [u_i, u_{i+1}) at most p+1 basis functions are non zero, namely N_{i-p,p}, ..., N_{i,p}
+
+
+
+    private:
+
+        // In any given knot span [u_i, u_{i+1}) at most p+1 basis functions are non zero, namely N_{i-p,p}, ..., N_{i,p}
     // (property P2.2, pag 55, Piegl, L., & Tiller, W. (2012). The NURBS book. Springer Science & Business Media.)
     // Evaluation of the non zero basis functions in the a given knot span
     // voglio gli ID, non i punti std::vector<int>
-    std::vector<int> active_dofs(int id) const { // id is the cell id
+    std::vector<int> active_dofs_(int id) const { // id is the cell id
         std::vector<int> dofs;
         auto multi_index = mesh_->cell_multi_index(id);
         std::array<std::vector<double>,local_dim> param_nodes = mesh_->param_nodes();
@@ -443,7 +437,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
         for(int i = 0; i < local_dim; i++) {
             auto basis = spline_basis[i];
             int span = basis->find_span(u(i));
-            int p = order_[i];
+            int p = degree_[i];
             for(int j = 0; j <= p; j++) {
                 span_indices[i].push_back(span - p + j); 
             }
@@ -500,21 +494,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
         return dofs;
     }
 
-    std::vector<int> dof_map() const {
-        return dof_map_;
-    }
-
-    std::vector<int> get_dofs(int id) const{
-        std::vector<int> dofs;
-        for (int i = 0; i < n_dofs_per_cell_; ++i) {
-            dofs.push_back(dofs_(id, i));
-        }
-        return dofs;
-    }
-
-
-    private:
-
     // Enforce periodic constraints by reducing the system to the set of unique DOFs (for periodic BCs)
     void enforce_periodic_constraints_(Eigen::SparseMatrix<double>* A = nullptr,
         Eigen::VectorXd* b = nullptr) {
@@ -556,22 +535,27 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
 
     private:
-    std::vector<int> dof_map_;  // dof_map_[original_dof] = reduced_dof
-    std::unordered_map<int, int> reduced_indices_; 
-    int n_mapped_dofs_ = 0; // number of unique dofs after periodicity
-    
-    
-    NurbsBasis<local_dim> basis_pde_;
-    std::array<int,local_dim> dims_; // number of control points in each direction
-    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_; // dofs active on cell: each row = global DOFs on one cell ...
+    // Mesh and basis context
+    const MeshType* mesh_;
+    BasisType basis_pde_;
+    std::array<int,local_dim> dims_; // number of basis functions in each direction
+    std::array<int,local_dim> degree_;
+    int n_dofs_per_cell_ = 0, n_dofs_ = 0;
+
+    // DOF layout
+    Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_; // [cell_id][local_dof]
     BinaryVector<Dynamic> boundary_dofs_; // boundary dofs
     BinaryVector<Dynamic> adj_boundary_dofs_; // nonvanishing first der boundary dofs
-    int n_dofs_per_cell_ = 0, n_dofs_ = 0;
-    std::vector<int> dofs_markers_; // dofs markers
-    const MeshType* mesh_;
-    std::array<int,local_dim> order_;
 
-    DofConstraints<DofHandler> dof_constraints_;
+
+    // DOF mapping and reduction (for periodicity)
+    std::vector<int> dof_map_;  // dof_map_[original_dof] = reduced_dof
+    std::unordered_map<int, int> reduced_indices_; // reduced_indices_[original_dof] = compressed index
+    int n_mapped_dofs_ = 0; // number of unique dofs after periodicity
+
+    // Constraints
+    std::vector<int> dofs_markers_; // dofs markers
+    DofConstraints<DofHandler> dof_constraints_; // strong constraints on DOFs
 
 };
 

@@ -42,8 +42,8 @@ namespace fdapde {
             //               { knots[i] } -> std::convertible_to<std::vector<double>>;
             //               { knots.size() } -> std::convertible_to<std::size_t>;
             //          })
-            NurbsBasis(std::array<std::vector<double>,M>& knots,MdArray<double, 
-                full_dynamic_extent_t<M>>& weights, std::array<int,M> degree,
+            NurbsBasis(const std::array<std::vector<double>,M>& knots,MdArray<double, 
+                full_dynamic_extent_t<M>> weights, std::array<int,M> degree,
                 std::array<bool, M> periodicity = {}) : degree_(degree), periodicity_(periodicity) {
                 // define basis system
                 for(int i=0;i<M;i++){

@@ -1,0 +1,25 @@
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdftex 2025.1.9)  16 MAY 2025 21:50
+entering extended mode
+ restricted \write18 enabled.
+ file:line:error style messages enabled.
+ %&-line parsing enabled.
+**loglog_plot.asy
+(./loglog_plot.asy
+./loglog_plot.asy:7: Missing $ inserted.
+<inserted text> 
+                $
+<to be read again> 
+                   _
+l.7   "timings_
+               nref_ring.csv",
+? 
+./loglog_plot.asy:7: Emergency stop.
+<inserted text> 
+                $
+<to be read again> 
+                   _
+l.7   "timings_
+               nref_ring.csv",
+End of file on the terminal!
+
+./loglog_plot.asy:7:  ==> Fatal error occurred, no output PDF file produced!
