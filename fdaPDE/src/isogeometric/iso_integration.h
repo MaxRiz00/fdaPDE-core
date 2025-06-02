@@ -272,13 +272,61 @@ template <> struct iso_quadrature_gauss_legendre<3, 27> : public iso_quadrature_
     };
 };
 
+template <int M, typename T>
+    requires(requires(T t, int i, int j) {
+        { t(i, j) } -> std::same_as<double&>;
+        { t.resize(i, j) } -> std::same_as<void>;
+    })
+void get_iso_quadrature(int degree, T& quad_nodes, T& quad_weights) {
+
+    // Compute number of 1D Gauss points needed per dimension to integrate polynomials of given degree
+    int points_per_dim = (degree + 1) / 2 + (degree + 1) % 2;
+
+    // Helper: copy nodes and weights from predefined rule
+    auto copy_ = []<typename QuadRule>(const QuadRule& q, T& quad_nodes_, T& quad_weights_) {
+        quad_nodes_.resize(q.order, q.local_dim);
+        quad_weights_.resize(q.order, 1);
+        for (int i = 0; i < q.order; ++i) {
+            for (int j = 0; j < q.local_dim; ++j) {
+                quad_nodes_(i, j) = q.nodes(i, j);
+            }
+            quad_weights_(i, 0) = q.weights[i];
+        }
+    };
+
+    // 1D
+    if constexpr (M == 1) {
+        if (points_per_dim <= 1) copy_(iso_quadrature_gauss_legendre<1, 1>{}, quad_nodes, quad_weights);
+        else if (points_per_dim == 2) copy_(iso_quadrature_gauss_legendre<1, 2>{}, quad_nodes, quad_weights);
+        else copy_(iso_quadrature_gauss_legendre<1, 3>{}, quad_nodes, quad_weights);  // safe fallback
+    }
+
+    // 2D
+    else if constexpr (M == 2) {
+        if (points_per_dim <= 1) copy_(iso_quadrature_gauss_legendre<2, 1>{}, quad_nodes, quad_weights);         // 1x1
+        else if (points_per_dim == 2) copy_(iso_quadrature_gauss_legendre<2, 4>{}, quad_nodes, quad_weights);    // 2x2
+        else if (points_per_dim == 3) copy_(iso_quadrature_gauss_legendre<2, 9>{}, quad_nodes, quad_weights);    // 3x3
+        else copy_(iso_quadrature_gauss_legendre<2, 16>{}, quad_nodes, quad_weights);                            // 4x4
+    }
+
+    // 3D
+    else if constexpr (M == 3) {
+        if (points_per_dim <= 1) copy_(iso_quadrature_gauss_legendre<3, 1>{}, quad_nodes, quad_weights);         // 1x1x1
+        else if (points_per_dim == 2) copy_(iso_quadrature_gauss_legendre<3, 8>{}, quad_nodes, quad_weights);    // 2x2x2
+        else copy_(iso_quadrature_gauss_legendre<3, 27>{}, quad_nodes, quad_weights);                            // 3x3x3
+    }
+    
+}
+
 
 }// namespace internals
 
+
+
 // 1D formulas ( da chiedere se usare quella di spline, altrimenti ci sono conflitti)
-//[[maybe_unusued]] static struct QGL1DP1_ : internals::iso_quadrature_gauss_legendre<1, 1> { } QGL1DP1;
-//[[maybe_unusued]] static struct QGL1DP2_ : internals::iso_quadrature_gauss_legendre<1, 2> { } QGL1DP2;
-//[[maybe_unusued]] static struct QGL1DP3_ : internals::iso_quadrature_gauss_legendre<1, 3> { } QGL1DP3;
+[[maybe_unused]] static struct QGL1DP1_ : internals::iso_quadrature_gauss_legendre<1, 1> { } QGL1DP1;
+[[maybe_unused]] static struct QGL1DP2_ : internals::iso_quadrature_gauss_legendre<1, 2> { } QGL1DP2;
+[[maybe_unused]] static struct QGL1DP3_ : internals::iso_quadrature_gauss_legendre<1, 3> { } QGL1DP3;
 // 2D formulas
 [[maybe_unused]] static struct QGL2DP1_ : internals::iso_quadrature_gauss_legendre<2, 1> { } QGL2DP1;
 [[maybe_unused]] static struct QGL2DP4_ : internals::iso_quadrature_gauss_legendre<2, 4> { } QGL2DP4;

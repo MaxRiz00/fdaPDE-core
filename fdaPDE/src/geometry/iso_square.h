@@ -38,11 +38,48 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
         private:
         int edge_id_;
         const MeshType* mesh_;
+        double const_coord_ = 0.0; // constant coordinate along the edge
+        bool x_axis_ = false; // true if edge is aligned with x-axis, false if aligned with y-axis
         public:
         EdgeType() = default;
         EdgeType(int edge_id, const MeshType* mesh): edge_id_(edge_id), mesh_(mesh){
-           this->left_coords_(0) =  mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
-           this->right_coords_(0) = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
+
+        auto node1 = mesh_->edges()(edge_id,0);
+        auto node2 = mesh_->edges()(edge_id,1);
+
+        auto nodes = mesh_->parametric_nodes();
+
+        auto coord1 = nodes.row(node1);
+        auto coord2 = nodes.row(node2);
+
+        //std::cout << "Edge ID: " << edge_id_ << std::endl;
+        //std::cout << "Node 1: " << node1 << ", Node 2: " << node2 << std::endl;
+        //std::cout << "Coordinates of Node 1: " << coord1.transpose() << std::endl;
+        //std::cout << "Coordinates of Node 2: " << coord2.transpose() << std::endl;
+
+        // look for the constant coordinate
+        if (coord1(0) == coord2(0)) {
+            this->left_coords_(0) = coord1(1) < coord2(1) ? coord1(1) : coord2(1);
+            this->right_coords_(0) = coord1(1) > coord2(1) ? coord1(1) : coord2(1);
+            const_coord_ = coord1(0);  // x-coordinate is constant
+            x_axis_ = false;  // edge is aligned with y-axis
+        } else if (coord1(1) == coord2(1)) {
+            this->left_coords_(0) = coord1(0) < coord2(0) ? coord1(0) : coord2(0);
+            this->right_coords_(0) = coord1(0) > coord2(0) ? coord1(0) : coord2(0);
+            const_coord_ = coord1(1);  // y-coordinate is constant
+            x_axis_ = true;  // edge is aligned with x-axis
+        } else {
+            throw std::runtime_error("Edge does not align with axes.");
+        }
+
+
+        //std::cout << "Edge ID: " << edge_id_ << std::endl; 
+        //std::cout << "Left coords: " << coord1.transpose() << " Right coords: " << coord2.transpose() << std::endl;
+
+        //auto edge1 = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
+        //auto edge2 = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
+        //   this->left_coords_(0) =  mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
+        //   this->right_coords_(0) = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
         }
         bool on_boundary() const { return mesh_->is_edge_on_boundary(edge_id_);}
         Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->edges().row(edge_id_); }
@@ -50,6 +87,23 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
         Eigen::Matrix<int, Dynamic, 1> adjacent_cells() const { return mesh_->edge_to_cells().row(edge_id_); }
         int marker() const {   // mesh edge's marker
             return mesh_->edges_markers().size() > edge_id_ ? mesh_->edges_markers()[edge_id_] : Unmarked;
+        }
+
+        double const_coord() const { return const_coord_; }
+        bool x_axis() const { return x_axis_; }
+
+
+
+        Eigen::Matrix<double, MeshType::local_dim,1> param_point(Eigen::Matrix<double, MeshType::local_dim - 1,1> val) const {
+            Eigen::Matrix<double, MeshType::local_dim,1> p_param;
+            if(x_axis_) {
+                p_param(0) = val(0);  // x-coordinate is constant
+                p_param(1) = const_coord_;           // y-coordinate varies
+            } else {
+                p_param(0) = const_coord_;           // x-coordinate varies
+                p_param(1) = val(0);  // y-coordinate is constant
+            }
+            return p_param;
         }
 
         /**
@@ -81,6 +135,92 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
             return res;
         }
         
+        Eigen::Matrix<double, MeshType::embed_dim, 1> parametrization(const Eigen::Matrix<double, MeshType::local_dim - 1 ,1>& p, bool param = false) const {
+            auto nodes = node_ids(); // Expected to be Eigen::Matrix<int, 2, 1>
+            Eigen::Matrix<double, Eigen::Dynamic, MeshType::local_dim> parametric_nodes = mesh_->parametric_nodes();
+            Eigen::Matrix<double, 1, MeshType::local_dim> vertex1 = parametric_nodes.row(nodes(0));
+            Eigen::Matrix<double, 1, MeshType::local_dim> vertex2 = parametric_nodes.row(nodes(1));
+
+            // find the coordinate that remains constant
+            double const_val;
+            int const_index = -1;  // index of the constant coordinate
+            if(vertex1(0) == vertex2(0)) {
+                const_val = vertex1(0);  // x-coordinate is constant
+                const_index = 0;
+            } else if(vertex1(1) == vertex2(1)) {
+                const_val = vertex1(1);  // y-coordinate is constant
+                const_index = 1;
+            } else {
+                throw std::runtime_error("Edge does not align with axes.");
+            }
+
+            Eigen::Matrix<double, MeshType::local_dim, 1> point;
+
+            if(const_index == 0) {
+                point(0) = const_val;  // x-coordinate is constant
+                point(1) = p(0);       // y-coordinate varies
+            } else {
+                point(0) = p(0);       // x-coordinate varies
+                point(1) = const_val;  // y-coordinate is constant
+            }
+            if (param)
+                return mesh_->eval_param(point);
+            else
+                return mesh_->eval_param(point);
+                //return mesh_->eval_param(this->affine_map(point));
+    }
+
+        double metric_determinant(const Eigen::Matrix<double, MeshType::local_dim - 1,1>& p, bool param=false) const {
+                        auto nodes = node_ids(); // Expected to be Eigen::Matrix<int, 2, 1>
+            Eigen::Matrix<double, Eigen::Dynamic, MeshType::local_dim> parametric_nodes = mesh_->parametric_nodes();
+            Eigen::Matrix<double, 1, MeshType::local_dim> vertex1 = parametric_nodes.row(nodes(0));
+            Eigen::Matrix<double, 1, MeshType::local_dim> vertex2 = parametric_nodes.row(nodes(1));
+
+            // find the coordinate that remains constant
+            double const_val;
+            int const_index = -1;  // index of the constant coordinate
+            if(vertex1(0) == vertex2(0)) {
+                const_val = vertex1(0);  // x-coordinate is constant
+                const_index = 0;
+            } else if(vertex1(1) == vertex2(1)) {
+                const_val = vertex1(1);  // y-coordinate is constant
+                const_index = 1;
+            } else {
+                throw std::runtime_error("Edge does not align with axes.");
+            }
+
+            Eigen::Matrix<double, MeshType::local_dim, 1> point;
+
+            if(const_index == 0) {
+                point(0) = const_val;  // x-coordinate is constant
+                point(1) = p(0);       // y-coordinate varies
+            } else {
+                point(0) = p(0);       // x-coordinate varies
+                point(1) = const_val;  // y-coordinate is constant
+            }
+
+            Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim> F;
+
+            if(param)
+                F =  mesh_->eval_param_derivatives(point,false).first_derivative;
+            else
+                F =  mesh_->eval_param_derivatives(point,false).first_derivative;
+                //F = mesh_->eval_param_derivatives(this->affine_map(point),false).first_derivative;
+
+            // remove the constant coordinate from the jacobian, i.e. the const_index column
+            Eigen::Matrix<double, MeshType::embed_dim, MeshType::local_dim - 1> F_reduced;
+            //std::cout<<"Entro qua"<<std::endl;
+            if(const_index == 0) {
+                F_reduced = F.block(0, 1, MeshType::embed_dim, MeshType::local_dim - 1);
+            } else {
+                F_reduced = F.block(0, 0, MeshType::embed_dim, MeshType::local_dim - 1);
+            }
+            // compute the metric tensor as Fᵀ·F
+            Eigen::Matrix<double, MeshType::local_dim - 1, MeshType::local_dim - 1> metric_tensor = F_reduced.transpose() * F_reduced;
+            // return the square root of the determinant    
+            return std::sqrt(metric_tensor.determinant()); 
+        }
+
     };
 
     // === Public Member Functions === //

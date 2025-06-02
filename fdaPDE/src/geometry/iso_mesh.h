@@ -213,7 +213,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      */
     MeshParamDerivatives eval_param_derivatives(const Eigen::Matrix<double, LocalDim, 1>& u, bool compute_second = false) const {
         for (int i = 0; i < LocalDim; i++)
-            fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
+            fdapde_assert(u(i) >= knots_[i].front() -1e-9 && u(i) <= knots_[i].back() +1e-9);
     
         std::vector<std::vector<double>> basis_eval(LocalDim);
         std::vector<std::vector<double>> basis_deriv_eval(LocalDim);
@@ -1639,10 +1639,10 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         boundary_edge_iterator(int index, const MeshType* mesh, int marker) :
             edge_iterator(
                 index, mesh, 
-                marker == BoundaryAll ? 
-                mesh->boundary_edges : 
-                mesh->boundary_edges_ & 
-                 make_binary_vector(mesh->edges_markers_.begin(), mesh->edges_markers_.end(),marker),
+                //marker == BoundaryAll //? 
+                mesh->boundary_edges_, //: 
+                //mesh->boundary_edges_ & 
+                // make_binary_vector(mesh->edges_markers_.begin(), mesh->edges_markers_.end(),marker),
                 marker) { }
     };
     boundary_edge_iterator boundary_edges_begin() const {return boundary_edge_iterator(0, this);}

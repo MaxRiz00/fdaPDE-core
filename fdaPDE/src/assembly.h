@@ -222,21 +222,28 @@ class std_integration_loop<IsoMesh<LocalDim, EmbedDim>, Xpr_, Options_, Quadratu
         if constexpr (Quadrature::order == 0) {
             fdapde_static_assert(false, THIS_METHOD_REQUIRES_A_QUADRATURE_RULE);
         } else {
-            fdapde_static_assert(IsoMesh_::local_dim == Quadrature::local_dim, INVALID_QUADRATURE_RULE);
+            //fdapde_static_assert(IsoMesh_::local_dim == Quadrature::local_dim, INVALID_QUADRATURE_RULE);
             constexpr int n_quadrature_nodes = Quadrature::order;
-            Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, IsoMesh_::local_dim, Eigen::RowMajor>>
-              ref_quad_nodes(quadrature_.nodes.data());
+            constexpr int ciao = (Options == CellMajor) ? IsoMesh_::local_dim : IsoMesh_::local_dim - 1;
+            using RefQuadMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+            Eigen::Map<const RefQuadMatrix> ref_quad_nodes(quadrature_.nodes.data(), n_quadrature_nodes, ciao);
             for(iterator it = begin_; it != end_ ; ++it) {
               double partial = 0;
               for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
                 // Compute the physical coordinates of the quadrature node
-                auto x = it->parametrization(ref_quad_nodes.row(q_k).transpose());
+                auto p = it->affine_map(ref_quad_nodes.row(q_k).transpose());
+
+                auto x = it->parametrization(p,true);
+                //std::cout << "Point: " << p.transpose() << std::endl;
+                //std::cout << "eval param value: " << x.transpose() << std::endl;
                 // Compute the metric determinant at the quadrature node
-                double det_metric = it->metric_determinant(ref_quad_nodes.row(q_k).transpose());
+                double det_metric = it->metric_determinant(p,true);
+                //std::cout << "det_metric: " << det_metric << std::endl;
                 // Compute the value of the scalar field at the physical coordinates
                 partial += xpr_(x) * quadrature_.weights[q_k] * det_metric;
               }
               integral_ += (partial * it->parametric_measure()); 
+              //std::cout<<"parametric measure: " << it->parametric_measure() << std::endl;
             }
         }
         return integral_;
@@ -298,7 +305,7 @@ template <typename Triangulation, int Options, typename... Quadrature> class int
 // main entry points for operator discretization
 template <typename Triangulation, typename... Quadrature>
 auto integral(const Triangulation& triangulation, Quadrature... quadrature) {
-              //std::cout<<"integral: cell begin id: "<<triangulation.cells_begin()->id()<<std::endl;;
+    //std::cout<< "Integrating over triangulation ..." << std::endl;
     return internals::integrator_dispatch<Triangulation, CellMajor, Quadrature...>(
       triangulation.cells_begin(), triangulation.cells_end(), quadrature...);
 }
@@ -311,11 +318,13 @@ auto integral(
 template <typename Triangulation, typename... Quadrature>
 auto integral(
   const BoundaryIterator<Triangulation>& begin, const BoundaryIterator<Triangulation>& end, Quadrature... quadrature) {
+          //std::cout<< "Integrating over triangulation boundary..." << std::endl;
     return internals::integrator_dispatch<Triangulation, FaceMajor, Quadrature...>(begin, end, quadrature...);
 }
 template <typename Triangulation, typename... Quadrature>
 auto integral(
   const std::pair<BoundaryIterator<Triangulation>, BoundaryIterator<Triangulation>>& range, Quadrature... quadrature) {
+    //std::cout<< "Integrating over triangulation boundary..." << std::endl;
     return internals::integrator_dispatch<Triangulation, FaceMajor, Quadrature...>(
       range.first, range.second, quadrature...);
 }

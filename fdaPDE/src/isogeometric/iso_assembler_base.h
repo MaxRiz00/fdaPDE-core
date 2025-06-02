@@ -89,8 +89,14 @@ struct iso_assembler_base{
             return std::get<0>(std::tuple<Quadrature_...>());   // user-defined quadrature
         }
     }());
-    using geo_iterator = typename IsoMesh::cell_iterator;
-    using dof_iterator = typename DofHandlerType::cell_iterator;
+    //using geo_iterator = typename IsoMesh::cell_iterator;
+    
+    using geo_iterator = std::conditional_t<Options == CellMajor , 
+        typename IsoMesh::cell_iterator, typename IsoMesh::boundary_iterator>; //typename IsoMesh::cell_iterator;
+    //using dof_iterator = typename DofHandlerType::cell_iterator;
+    
+    using dof_iterator = std::conditional_t<Options == CellMajor ,
+        typename DofHandlerType::cell_iterator,typename DofHandlerType::boundary_edge_iterator>;  //typename DofHandlerType::cell_iterator;
     using discretization_category = typename TestSpace::discretization_category;
     fdapde_static_assert(
         std::is_same_v<discretization_category FDAPDE_COMMA iso_tag>, THIS_CLASS_IS_FOR_ISO_DISCRETIZATION_ONLY);
@@ -106,35 +112,58 @@ struct iso_assembler_base{
         test_space_ (std::addressof(internals::test_space(form_))),
         begin_(begin),
         end_(end) { 
+            //std::cout << "Iso assembler base constructor called." << std::endl;
+            //std::cout<<"CellMajor: " << (Options == CellMajor) << std::endl;
             fdapde_assert(dof_handler_->n_dofs() > 0);
             // copy quadrature rule
             Eigen::Matrix<double, Dynamic, Dynamic> quad_nodes__;
             if constexpr (sizeof...(quadrature) == 1) {
                 auto quad_rule = std::get<0>(std::make_tuple(quadrature...));
-                fdapde_assert(local_dim == quad_rule.local_dim);
+                //fdapde_assert(local_dim == quad_rule.local_dim);
+                
+                constexpr int int_local_dim = (Options == CellMajor) ? local_dim : local_dim - 1;
+
                 quad_nodes__.resize(quad_rule.order, quad_rule.local_dim);
                 quad_weights_.resize(quad_rule.order, 1);
                 for (int i = 0; i < quad_rule.order; ++i) {
                     quad_weights_(i, 0) = quad_rule.weights[i];
-                    for (int j = 0; j < local_dim; ++j) { quad_nodes__(i, j) = quad_rule.nodes(i, j); }
+                    for (int j = 0; j < int_local_dim; ++j) { quad_nodes__(i, j) = quad_rule.nodes(i, j); }
             }
             } else {
-                //std::cout << "Using default quadrature rule..." << std::endl; // da capire come fare
-                //internals::get_sp_quadrature(test_space_->order(), quad_nodes__, quad_weights_);
+                //std::cout << "Using default quadrature rule for iso assembler." << std::endl;
+                auto degrees = test_space_->degree();
+                int max_degree = *(std::max_element(degrees.begin(), degrees.end()));
+                if constexpr(Options == CellMajor){
+                    //std::cout << "Using cell quadrature rule for iso assembler." << std::endl;
+                    internals::get_iso_quadrature<local_dim>(max_degree, quad_nodes__, quad_weights_);
+                } else {
+                    //std::cout << "Using boundary quadrature rule for iso assembler." << std::endl;
+                    internals::get_iso_quadrature<local_dim-1>(max_degree, quad_nodes__, quad_weights_);
+                }
             }
+            //std::cout << "Quadrature rule order: " << quad_nodes__.rows() << std::endl;
             // build grid of quadrature nodes on reference domain
             n_quadrature_nodes_ = quad_nodes__.rows();
-            int n_cells = end_.index() - begin_.index(), n_src_points = quad_nodes__.rows();
-
-            quad_nodes_.resize(n_cells * n_src_points, local_dim); // global quad nodes
+            int n_cells = (Options == CellMajor) ? dof_handler_->mesh()->n_cells() : dof_handler_->mesh()->n_boundary_edges() ;
+            int n_src_points = quad_nodes__.rows();
+            //std::cout << "Number of cells: " << n_cells  << ", Number of quadrature nodes: " << n_src_points << std::endl;
+            constexpr int int_local_dim = (Options == CellMajor) ? local_dim : local_dim - 1;
+            quad_nodes_.resize(n_cells * n_src_points, int_local_dim); // global quad nodes
             int i  = 0;
+            int count = 0;
             for(auto it = begin_; it != end_; ++it){
                 for(int q_k = 0; q_k < n_quadrature_nodes_; ++q_k){
                     quad_nodes_.row(i) = it->affine_map(quad_nodes__.row(q_k).transpose());
                     i++;
                 }
+                if(! (Options == CellMajor)) {
+                    boundary_ids[it->id()] = count;
+                }
+                count++;
                 
             }
+            //std::cout << "Total number of cells: " << count << std::endl;
+            //std::cout << "Total number of quadrature nodes: " << quad_nodes_.rows() << std::endl;
             return;
 
         }
@@ -153,11 +182,27 @@ struct iso_assembler_base{
 
             using BasisType = std::decay_t<BasisType__>;
             int n_basis =active_dofs.size(); // attenzione 1d
+            //std::cout << "n quadrature nodes: " << n_quadrature_nodes_ << std::endl;
+            //std::cout << "evaluating ID: " << cell->id() << ", n_basis: " << n_basis << std::endl;
+
+            //std::cout<< "QUADNODES: " << std::endl;
+            //std::cout <<quad_nodes_<<std::endl;
 
             for(int i=0; i < n_basis; ++i){
                 // evaluation of \psi_i at q_j, j = 1, ..., n_quadrature_nodes
                 for(int j=0; j < n_quadrature_nodes_; ++j){
-                    dst(i, j) = basis[active_dofs[i]](quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());                
+
+                    if constexpr (Options == CellMajor) {
+                        dst(i, j) = basis[active_dofs[i]](quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose());}
+                    else {
+                        int id = boundary_ids.at(cell->id());
+                        //std::cout<<"EDGE Index: "<<cell->id()<<std::endl;
+                        //std::cout << "Point: "<<cell->param_point(quad_nodes_.row(id * n_quadrature_nodes_ + j)) << std::endl;
+                        dst(i, j) = basis[active_dofs[i]](cell->param_point(quad_nodes_.row(id * n_quadrature_nodes_ + j).transpose()));
+                        //std::cout << "Value: " << dst(i, j) << std::endl;
+                    }
+
+                                    
                 }
             }
             return;
@@ -216,7 +261,14 @@ struct iso_assembler_base{
                 //std::cout<<"Evaluating metric determinant at quad nodes: " << quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose() << std::endl;
                 //std::cout<<"Value: " << cell->metric_determinant(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose(),true) << std::endl;
                 //std::cout<<"Param grad: " <<cell->parametrization_gradient(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose(), true) << std::endl;
-                dst(j) = cell->metric_determinant(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose(),true);
+                if constexpr(Options == CellMajor) {
+                    dst(j) = cell->metric_determinant(quad_nodes_.row(cell->id() * n_quadrature_nodes_ + j).transpose(),true);
+                } else {
+                    //std::cout<<"Boundary ID: " << boundary_ids.at(cell->id()) << std::endl;
+                    int id = boundary_ids.at(cell->id());
+                    //std::cout<<"Index: " << id * n_quadrature_nodes_ + j << std::endl;
+                    dst(j) = cell->metric_determinant(quad_nodes_.row(id * n_quadrature_nodes_ + j).transpose());
+                }
             }
         }
 
@@ -264,6 +316,7 @@ struct iso_assembler_base{
                       phys_quad_nodes.row(local_cell_id * n_quadrature_nodes_ + q_k) =
                         it->parametrization(quad_nodes_.row(local_cell_id * n_quadrature_nodes_ + q_k).transpose(), true);
                   }
+                  //std::cout <<"quadrature node: " << phys_quad_nodes.row(local_cell_id * n_quadrature_nodes_).transpose() << std::endl;
                   local_cell_id++;
               }
               
@@ -290,6 +343,7 @@ struct iso_assembler_base{
     // quadrature
     Eigen::Matrix<double, Dynamic, Dynamic> quad_nodes_, quad_weights_;
     int n_quadrature_nodes_;
+    std::map<int,int> boundary_ids;
 
 
 

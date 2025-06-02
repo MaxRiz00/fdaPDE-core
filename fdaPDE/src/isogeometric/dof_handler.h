@@ -10,6 +10,8 @@ template <int LocalDim, int EmbedDim, typename DiscretizationCategory> class Dof
 
 template<int N> class DofHandler<2, N, iso_tag> {
 
+    
+
     public:
     using MeshType = IsoMesh<2, N>;
     static constexpr int local_dim = MeshType::local_dim;
@@ -362,9 +364,96 @@ template<int N> class DofHandler<2, N, iso_tag> {
         return cell_iterator(mesh_->n_cells(), this, marker);
     }
 
+    template <typename EdgeType>
+    class DofEdgeWrapper : public EdgeType {
+        const DofHandler* dof_handler_;
+
+    public:
+        DofEdgeWrapper() : EdgeType(), dof_handler_(nullptr) {}
+        DofEdgeWrapper(const EdgeType& edge, const DofHandler* dof_handler)
+            : EdgeType(edge), dof_handler_(dof_handler) {}
+
+        std::vector<int> dofs() const {
+            auto cell_id = dof_handler_->mesh()->edge_to_cells()(this->id(), 0);
+            //std::cout << "DofEdgeWrapper: edge_id = " << this->id() << std::endl;
+            //std::cout << "DofEdgeWrapper: cell_id = " << cell_id << std::endl;
+            // print the dofds
+            //std::cout << "DofEdgeWrapper: dofs = ";
+            for (int dof : dof_handler_->get_dofs(cell_id)) {
+                //std::cout << dof << " ";
+            }
+            //std::cout << std::endl;
+            return dof_handler_->get_dofs(cell_id);
+        }
+
+        const DofEdgeWrapper* operator->() const { return this; }
+        const DofEdgeWrapper& operator*() const { return *this; }
+    };
+
+using EdgeType = typename CellType::EdgeType;
+using DofEdge = DofEdgeWrapper<EdgeType>;
+
+class edge_iterator : public internals::filtering_iterator<edge_iterator, DofEdge> {
+protected:
+    using Base = internals::filtering_iterator<edge_iterator, DofEdge>;
+    using Base::index_;
+    friend Base;
+
+    const DofHandler* dof_handler_;
+
+    edge_iterator& operator()(int i) {
+        Base::val_ = DofEdge(EdgeType(i, dof_handler_->mesh()), dof_handler_);
+        return *this;
+    }
+
+public:
+    edge_iterator(int index, const DofHandler* dof_handler, const BinaryVector<Dynamic>& filter)
+        : Base(index, 0, dof_handler->mesh()->n_edges(), filter), dof_handler_(dof_handler) {
+        for (; index_ < Base::end_ && !Base::filter_[index_]; ++index_);
+        if (index_ != Base::end_) { operator()(index_); }
+    }
+
+    edge_iterator(int index, const DofHandler* dof_handler)
+        : edge_iterator(index, dof_handler, BinaryVector<Dynamic>::Ones(dof_handler->mesh()->n_edges())) {}
+
+    const DofEdge& operator*() const { return Base::val_; }
+    const DofEdge* operator->() const { return &this->operator*(); }
+};
+    edge_iterator edges_begin() const { return edge_iterator(0, this); }
+    edge_iterator edges_end() const { return edge_iterator(mesh_->n_edges(), this); }
+
+
+    
+    struct boundary_edge_iterator : public edge_iterator {
+       private:
+        int marker_;
+       public:
+        boundary_edge_iterator(int index, const DofHandler* dof_handler) :
+            edge_iterator(index, dof_handler, dof_handler->mesh()->boundary_edges()), marker_(BoundaryAll) { }
+        boundary_edge_iterator(
+          int index, const DofHandler* dof_handler, int marker) :   // filter boundary edges by marker
+            edge_iterator(
+              index, dof_handler,
+              //marker == BoundaryAll ? 
+              dof_handler->mesh()->boundary_edges())//, //:
+                                      //dof_handler->mesh()->boundary_edges() &
+                                        //make_binary_vector(
+                                        //  dof_handler->mesh()->edges_markers().begin(),
+                                        //  dof_handler->mesh()->edges_markers().end(), 
+                                        //marker)) 
+                                        { }
+        int marker() const { return marker_; }
+    };
+    boundary_edge_iterator boundary_edges_begin() const { return boundary_edge_iterator(0, this); }
+    boundary_edge_iterator boundary_edges_end() const {
+        return boundary_edge_iterator(mesh_->n_edges(), this);
+    }
+    using boundary_iterator = boundary_edge_iterator;
+
+
 
     class BoundaryDofType {
-        int id_;
+        int id_; // id of the dof in the global dof vector
         const DofHandler* dof_handler_;
        public:
         BoundaryDofType() = default;
@@ -372,9 +461,9 @@ template<int N> class DofHandler<2, N, iso_tag> {
         }
         int id() const { return id_; }
         int marker() const { return dof_handler_->dofs_markers_[id_]; }
-        Eigen::Matrix<double, local_dim, 1> coord() const {
-            return dof_handler_->dofs_coords_[id_];
-        }
+        //Eigen::Matrix<double, local_dim, 1> coord() const {
+        //    return dof_handler_->dofs_coords_[id_];
+        //}
     };
 
     class boundary_dofs_iterator : public internals::filtering_iterator<boundary_dofs_iterator, BoundaryDofType> {
@@ -431,8 +520,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
         auto spline_basis = nurb.spline_basis();
 
         std::vector<std::vector<int>> span_indices(local_dim);
-        //std::cout << "Cell ID: " << id << std::endl;
-        //std::cout << "u: " << u.transpose() << std::endl;
 
         for(int i = 0; i < local_dim; i++) {
             auto basis = spline_basis[i];
@@ -442,19 +529,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
                 span_indices[i].push_back(span - p + j); 
             }
         }
-        /*
-        // Print the span indices
-        std::cout << "Span indices: ";
-        for (int i = 0; i < local_dim; ++i) {
-            std::cout << "[";
-            for (const auto& index : span_indices[i]) {
-                std::cout << index << " ";
-            }
-            std::cout << "] ";
-        }
-        std::cout << std::endl;
-        */
-
         // Carry-on logic: Cartesian product of all local spans
         std::vector<int> idx(local_dim, 0);
         while (true) {
@@ -462,13 +536,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
             for (int d = 0; d < local_dim; ++d) {
                 dof_index[d] = span_indices[d][idx[d]];
             }
-            /*
-            std::cout << "Inserting dof_index: ";
-            for (int d = 0; d < local_dim; ++d) {
-                std::cout << dof_index[d] << " ";
-            }
-            std::cout<<"as dof: "<<flatten(dof_index) << std::endl;
-            */
             
             dofs.push_back(flatten(dof_index));
 
@@ -482,14 +549,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
             }
             if (d < 0) break;
         }
-        /*
-        // print the active dofs
-        std::cout << "Active dofs: ";
-        for (int i = 0; i < dofs.size(); i++) {
-            std::cout << dofs[i] << " ";
-        }
-        std::cout << std::endl;
-        */
 
         return dofs;
     }

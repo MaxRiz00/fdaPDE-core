@@ -53,6 +53,7 @@ class iso_linear_form_assembly_loop :
         using iterator = typename Base::dof_iterator;
         iterator begin(Base::begin_.index(), dof_handler_, Base::begin_.marker());
         iterator end  (Base::end_.index(),   dof_handler_, Base::end_.marker()  );
+        //std::cout << "Begin index: " << Base::begin_.index() << ", End index: " << Base::end_.index() << std::endl;
 
         // prepare assembly loop
         std::vector<int> active_dofs;
@@ -82,15 +83,35 @@ class iso_linear_form_assembly_loop :
         for (iterator it = begin; it != end; ++it) {
             iso_packet.cell_measure = it->parametric_measure();
             active_dofs = it->dofs();
-            //std::cout << std::endl;
+            /*
+            if constexpr(Options_ != CellMajor) {
+                std::cout << "Edge ID: " << it->id() << ", Cell measure: " << iso_packet.cell_measure << std::endl;
+                std::cout<<"Left coords: " << it->left_coords().transpose() 
+                         << ", Right coords: " << it->right_coords().transpose() << std::endl;
+                std::cout<< "const_coord: " << it->const_coord() 
+                         << ", x_axis: " << it->x_axis() << std::endl;
+            }
+            */
+            //std::cout<<"ID: " << it->id() << ", Cell measure: " << iso_packet.cell_measure << std::endl;
+            //std::cout << "Active dofs: ";
+            for (const auto& dof : active_dofs) {
+              //  std::cout << dof << " ";
+            }
             Base::eval_param_shape_values(Base::test_space_->basis(), active_dofs, it, shape_values);
-            //if constexpr(embed_dim == 2){
-            //    for(int q_k = 0; q_k < Base::n_quadrature_nodes_; ++q_k) {
-            //        metric_dets(q_k) = 1;
-            //    }
-            //}
-            //else
+
+            // print shape values
+            for(int i = 0; i < n; ++i) {
+                for(int j = 0; j < q; ++j) {
+                    //std::cout << shape_values(i, j) << " ";
+                }
+                //std::cout << std::endl;
+            }
+            //std::cout << "Shape values computed." << std::endl;
+
+
+
             Base::eval_metric_determinant(it, metric_dets); // metric det(F^T F)
+            //std::cout << "Cell measure: " << iso_packet.cell_measure << std::endl;
 
             
                 
@@ -102,8 +123,11 @@ class iso_linear_form_assembly_loop :
                     if constexpr (Form::XprBits & int(iso_assembler_flags::compute_physical_quad_nodes)) {
                         iso_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
                     }
-                    //std::cout<<"Quad node: "<<q_k<<std::endl;
-                    value += Base::quad_weights_(q_k, 0) * form_(iso_packet) * metric_dets(q_k) ;
+                    //std::cout<<"Quad node: "<<std::endl;
+                    //std::cout <<Base::quad_weights_(q_k, 0) << " * " << form_(iso_packet) << " * "
+                    //          << metric_dets(q_k) << std::endl;
+                    double form_val = form_(iso_packet);  // force evaluation
+                    value += Base::quad_weights_(q_k, 0) * form_val * metric_dets(q_k) ;
                 }
                 assembled_vec[active_dofs[i]] += value * iso_packet.cell_measure; // ????? forse il determinante metrico
             }
