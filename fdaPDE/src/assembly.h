@@ -35,9 +35,6 @@ TrialFunction(FunctionSpace_ function_space)
 
 namespace internals {
 
-// forward declaration of isomesh
-//template <int LocalDim, int EmbedDim> class IsoMesh;
-
 // set of internal utilities to write weak form assembly loops
 
 // detect trial space from bilinear form
@@ -232,18 +229,11 @@ class std_integration_loop<IsoMesh<LocalDim, EmbedDim>, Xpr_, Options_, Quadratu
               for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
                 // Compute the physical coordinates of the quadrature node
                 auto p = it->affine_map(ref_quad_nodes.row(q_k).transpose());
-
                 auto x = it->parametrization(p,true);
-                //std::cout << "Point: " << p.transpose() << std::endl;
-                //std::cout << "eval param value: " << x.transpose() << std::endl;
-                // Compute the metric determinant at the quadrature node
                 double det_metric = it->metric_determinant(p,true);
-                //std::cout << "det_metric: " << det_metric << std::endl;
-                // Compute the value of the scalar field at the physical coordinates
                 partial += xpr_(x) * quadrature_.weights[q_k] * det_metric;
               }
               integral_ += (partial * it->parametric_measure()); 
-              //std::cout<<"parametric measure: " << it->parametric_measure() << std::endl;
             }
         }
         return integral_;
@@ -305,7 +295,6 @@ template <typename Triangulation, int Options, typename... Quadrature> class int
 // main entry points for operator discretization
 template <typename Triangulation, typename... Quadrature>
 auto integral(const Triangulation& triangulation, Quadrature... quadrature) {
-    //std::cout<< "Integrating over triangulation ..." << std::endl;
     return internals::integrator_dispatch<Triangulation, CellMajor, Quadrature...>(
       triangulation.cells_begin(), triangulation.cells_end(), quadrature...);
 }
@@ -318,13 +307,11 @@ auto integral(
 template <typename Triangulation, typename... Quadrature>
 auto integral(
   const BoundaryIterator<Triangulation>& begin, const BoundaryIterator<Triangulation>& end, Quadrature... quadrature) {
-          //std::cout<< "Integrating over triangulation boundary..." << std::endl;
     return internals::integrator_dispatch<Triangulation, FaceMajor, Quadrature...>(begin, end, quadrature...);
 }
 template <typename Triangulation, typename... Quadrature>
 auto integral(
   const std::pair<BoundaryIterator<Triangulation>, BoundaryIterator<Triangulation>>& range, Quadrature... quadrature) {
-    //std::cout<< "Integrating over triangulation boundary..." << std::endl;
     return internals::integrator_dispatch<Triangulation, FaceMajor, Quadrature...>(
       range.first, range.second, quadrature...);
 }

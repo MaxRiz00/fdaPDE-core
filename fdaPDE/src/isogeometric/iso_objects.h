@@ -157,7 +157,6 @@ struct iso_scalar_trial_function_impl : public ScalarFieldBase<IsoSpace_::embed_
         MixedPartialDerivative_() noexcept = default;
         MixedPartialDerivative_(const Derived_& xpr) noexcept : xpr_(xpr), i_(0), j_(0) { }
         MixedPartialDerivative_(const Derived_& xpr, int i, int j) noexcept : xpr_(xpr), i_(i), j_(j) {
-            //std::cout << "MixedPartialDerivative_() i,j = " << i_ << " " << j_ << std::endl;
          }
 
         // assembly evaluation
@@ -258,7 +257,6 @@ struct PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 2> :
     PartialDerivative() = default;
     PartialDerivative(const TrialFunction<IsoSpace_, iso_tag>& f, int i, int j) :
         TrialFunction<IsoSpace_, iso_tag>::MixedPartialDerivative(f, i, j) {
-            //std::cout << "PartialDerivative<TrialFunction<IsoSpace_, iso_tag>, 2>" << std::endl;
          }
 };
 
@@ -356,12 +354,10 @@ template <typename IsoSpace_> class IsoFunction : public ScalarFieldBase<IsoSpac
                     for (int kk = 0; kk < embed_dim; ++kk) {
                         for (int beta = 0; beta < local_dim; ++beta) {
                             for (int gamma = 0; gamma < local_dim; ++gamma) {
-                                //std::cout<<"alpha: "<<alpha<<", beta: "<<beta<<", gamma: "<<gamma<<std::endl;
                                 d2xi -= dxi_dx(alpha, kk) * param_hess(kk, beta, gamma) * dxi_dx(beta, ii) * dxi_dx(gamma, jj); 
                             }
                         }
                     }
-                    //std::cout<<"d2xi: "<<trial_grad(alpha)<<std::endl;
                     phys_hess_(ii, jj) += grad(alpha) * d2xi;
                 }
             }
@@ -453,7 +449,6 @@ struct IsoMap :
         } else {
             for (int i = 0, n = nodes.rows(); i < n; ++i) {
                 auto tmp = xpr_(nodes.row(i));
-                //std::cout << "tmp: " << tmp << std::endl;
                 if constexpr (Cols == 1) {
                     for (int j = 0; j < tmp.size(); ++j) { map_(i, j) = tmp[j]; }
                 } else {   // tmp is a matrix
@@ -479,8 +474,6 @@ struct IsoMap :
     }
     constexpr auto eval(int i, const InputType& iso_packet) const {
         fdapde_static_assert(Rows != 1 && Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTOR_FIELDS);
-        //std::cout << "eval(int i) Rows != 1 && Cols == 1" << std::endl;
-        //std::cout<<map_(iso_packet.quad_node_id, i)<<std::endl;
         return map_(iso_packet.quad_node_id, i);
     }
     constexpr auto eval(int i, int j, const InputType& iso_packet) const {

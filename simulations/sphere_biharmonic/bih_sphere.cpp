@@ -27,14 +27,10 @@ int main() {
     auto ddf_exact = bih_sphere::make_hessian_u_exact();
 
     for (const auto& r : ref) {
-        std::cout << "\n=== Refinement level: " << r << " ===\n";
 
         auto mesh = IsoMesh<2, 3>::sphere();
         if (r > 0) mesh.refine_knots({r, r});
         double h_max = mesh.h_max();
-
-        std::cout << "Number of cells: " << mesh.n_cells() << "\n";
-        std::cout << "h_max: " << h_max << "\n";
 
         // Set a periodic Spline basis
 
@@ -91,15 +87,14 @@ int main() {
 
         ScalarField<M> err_physical(
             [&](const Vec& p) {
-                double t1, t2;
-                auto u = mesh.invert_point(p, t1, t2, 5);
-                return solution(u) - f_exact(p);
+                auto u = mesh.invert_point(p, 5);
+                auto err = solution(u) - f_exact(p);
+                return err * err;
             });
 
         ScalarField<M> err_H1physical(
             [&](const Vec& p) {
-                double t1, t2;
-                auto u = mesh.invert_point(p, t1, t2, 5);
+                auto u = mesh.invert_point(p, 5);
                 Eigen::Vector3d grad_exact;
                 for (int i = 0; i < M; ++i)
                     grad_exact(i) = df_exact(p)(i,0);
@@ -109,8 +104,7 @@ int main() {
 
         ScalarField<M> err_H2physical(
             [&](const Vec& p) {
-                double t1, t2;
-                auto u = mesh.invert_point(p, t1, t2, 5);
+                auto u = mesh.invert_point(p, 5);
                 Eigen::Matrix3d hess_exact;
                 for (int i = 0; i < M; ++i)
                     for (int j = 0; j < M; ++j)
@@ -125,9 +119,6 @@ int main() {
         auto errorH1 = std::sqrt(errorL2 * errorL2 + integral(mesh, QGL2DP9)(err_H1physical));
         auto errorH2 = std::sqrt(integral(mesh, QGL2DP9)(err_H2physical) + errorH1 * errorH1) ;
 
-        std::cout << "L2 error: " << errorL2 << "\n";
-        std::cout << "H1 error: " << errorH1 << "\n";
-        std::cout << "H2 error: " << errorH2 << "\n";
         file << h_max << "," << errorL2 << "," << errorH1 << "," << errorH2 << "\n";
 
         // Export mesh and solution
@@ -135,6 +126,17 @@ int main() {
         helpers::export_mesh(mesh, level_path);
         std::string solution_path = save_path + "ref" + std::to_string(r) + "/solution/";
         helpers::export_results(mesh, solution, solution_path, 10);
+
+        std::cout << "\n===========================================\n";
+        std::cout << "Refinement level: " << r << "\n";
+        std::cout << "Number of cells : " << mesh.n_cells() << "\n";
+        std::cout << "h_max           : " << h_max << "\n";
+        std::cout << "L2 error        : " << errorL2 << "\n";
+        std::cout << "H1 error        : " << errorH1 << "\n";
+        std::cout << "H2 error        : " << errorH2 << "\n";
+        std::cout << "Mesh exported to: " << level_path << "\n";
+        std::cout << "PDE results to  : " << solution_path << "\n";
+        std::cout << "===========================================\n";
     }
 
     return 0;

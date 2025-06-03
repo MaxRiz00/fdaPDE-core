@@ -176,9 +176,8 @@ TEST(IsoMeshTest, InvertPoint) {
     for (int j = 0; j < input.cols(); ++j) {
         Eigen::Vector3d p;
         p << input.coeff(1, j), input.coeff(2, j), input.coeff(3, j);
-        double t1 = 0, t2 = 0;
 
-        auto u = mesh.invert_point(p, t1, t2);
+        auto u = mesh.invert_point(p);
 
         EXPECT_TRUE(isotesting::almost_equal(u(0), output.coeff(1, j)));
         EXPECT_TRUE(isotesting::almost_equal(u(1), output.coeff(2, j)));

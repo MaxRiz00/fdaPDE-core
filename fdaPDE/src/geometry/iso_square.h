@@ -20,17 +20,9 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
     IsoSquare(int id, const MeshType* mesh) : 
         id_(id), mesh_(mesh), boundary_(false)  {
         boundary_ = mesh_->is_cell_on_boundary(id_);
-        //std::tie(this->left_coords_, this->right_coords_) = mesh_->compute_lr_vertices(id_);
         this->left_coords_ = mesh_->compute_lr_vertices(id_).first;
         this->right_coords_ = mesh_->compute_lr_vertices(id_).second;
 
-        // print left_coords_ << this->left_coords_ << std::endl;
-        // print right_coords_ << this->right_coords_ << std::endl;
-        // print total number of cells
-        //std::cout<<"Total number of cells: " << mesh_->n_cells() << std::endl;
-        //std::cout<<"Element ID: " << id_ << std::endl;
-        //std::cout << "Left coords: " << this->left_coords_ << std::endl;
-        //std::cout << "Right coords: " << this->right_coords_ << std::endl;
     }
 
     // === Edge Type === //
@@ -42,45 +34,31 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
         bool x_axis_ = false; // true if edge is aligned with x-axis, false if aligned with y-axis
         public:
         EdgeType() = default;
-        EdgeType(int edge_id, const MeshType* mesh): edge_id_(edge_id), mesh_(mesh){
+        EdgeType(int edge_id, const MeshType* mesh) : edge_id_(edge_id), mesh_(mesh) {
+            auto node1 = mesh_->edges()(edge_id, 0);
+            auto node2 = mesh_->edges()(edge_id, 1);
 
-        auto node1 = mesh_->edges()(edge_id,0);
-        auto node2 = mesh_->edges()(edge_id,1);
+            auto nodes = mesh_->parametric_nodes();
+            auto coord1 = nodes.row(node1);
+            auto coord2 = nodes.row(node2);
 
-        auto nodes = mesh_->parametric_nodes();
-
-        auto coord1 = nodes.row(node1);
-        auto coord2 = nodes.row(node2);
-
-        //std::cout << "Edge ID: " << edge_id_ << std::endl;
-        //std::cout << "Node 1: " << node1 << ", Node 2: " << node2 << std::endl;
-        //std::cout << "Coordinates of Node 1: " << coord1.transpose() << std::endl;
-        //std::cout << "Coordinates of Node 2: " << coord2.transpose() << std::endl;
-
-        // look for the constant coordinate
-        if (coord1(0) == coord2(0)) {
-            this->left_coords_(0) = coord1(1) < coord2(1) ? coord1(1) : coord2(1);
-            this->right_coords_(0) = coord1(1) > coord2(1) ? coord1(1) : coord2(1);
-            const_coord_ = coord1(0);  // x-coordinate is constant
-            x_axis_ = false;  // edge is aligned with y-axis
-        } else if (coord1(1) == coord2(1)) {
-            this->left_coords_(0) = coord1(0) < coord2(0) ? coord1(0) : coord2(0);
-            this->right_coords_(0) = coord1(0) > coord2(0) ? coord1(0) : coord2(0);
-            const_coord_ = coord1(1);  // y-coordinate is constant
-            x_axis_ = true;  // edge is aligned with x-axis
-        } else {
-            throw std::runtime_error("Edge does not align with axes.");
+            if (coord1(0) == coord2(0)) {
+                // Edge is vertical (aligned with y-axis)
+                this->left_coords_(0) = std::min(coord1(1), coord2(1));
+                this->right_coords_(0) = std::max(coord1(1), coord2(1));
+                const_coord_ = coord1(0);  // x is constant
+                x_axis_ = false;
+            } else if (coord1(1) == coord2(1)) {
+                // Edge is horizontal (aligned with x-axis)
+                this->left_coords_(0) = std::min(coord1(0), coord2(0));
+                this->right_coords_(0) = std::max(coord1(0), coord2(0));
+                const_coord_ = coord1(1);  // y is constant
+                x_axis_ = true;
+            } else {
+                throw std::runtime_error("Edge does not align with axes.");
+            }
         }
 
-
-        //std::cout << "Edge ID: " << edge_id_ << std::endl; 
-        //std::cout << "Left coords: " << coord1.transpose() << " Right coords: " << coord2.transpose() << std::endl;
-
-        //auto edge1 = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
-        //auto edge2 = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
-        //   this->left_coords_(0) =  mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 0);
-        //   this->right_coords_(0) = mesh_->parametric_nodes()(mesh_->edges()(edge_id,0), 1);
-        }
         bool on_boundary() const { return mesh_->is_edge_on_boundary(edge_id_);}
         Eigen::Matrix<int, Dynamic, 1> node_ids() const { return mesh_->edges().row(edge_id_); }
         int id() const { return edge_id_; }
@@ -92,6 +70,16 @@ template <typename MeshType> class IsoSquare: public IsoCell<MeshType::local_dim
         double const_coord() const { return const_coord_; }
         bool x_axis() const { return x_axis_; }
 
+        std::array<double, 2> node(int i) const {
+            fdapde_assert(i == 0 || i == 1);  // only two nodes per edge
+
+            double coord = (i == 0) ? this->left_coords_(0) : this->right_coords_(0);
+            if (x_axis_) {
+                return {coord, const_coord_};  // horizontal edge
+            } else {
+                return {const_coord_, coord};  // vertical edge
+            }
+        }
 
 
         Eigen::Matrix<double, MeshType::local_dim,1> param_point(Eigen::Matrix<double, MeshType::local_dim - 1,1> val) const {

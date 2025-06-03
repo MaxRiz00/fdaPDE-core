@@ -612,18 +612,47 @@ class FeFunction :
     }
     VectorFeFunctionComponent operator()(int i, [[maybe_unused]] int j) const { return operator[](i); }
     // norms of fe functions
-    double l2_squared_norm() {
-        internals::fe_mass_assembly_loop<typename FeSpace::FeType> assembler(fe_space_->dof_handler());
+    double l2_squared_norm() const {
+        internals::fe_mass_assembly_loop<FeSpace> assembler(*fe_space_);
         return coeff_.dot(assembler.assemble() * coeff_);
     }
-    double l2_norm() { return std::sqrt(l2_squared_norm()); }
+    double l2_norm() const { return std::sqrt(l2_squared_norm()); }
     double h1_squared_norm() const {   // Sobolev H^1 norm of finite element function
         TrialFunction u(*fe_space_);
         TestFunction  v(*fe_space_);
-        auto a = integrate(fe_space_->triangulation())(inner(grad(u), grad(v)) + u * v);
+        auto a = integral(fe_space_->triangulation())(dot(grad(u), grad(v)) + u * v);
         return coeff_.dot(a.assemble() * coeff_);
     }
     double h1_norm() const { return std::sqrt(h1_squared_norm()); }
+    // specialized integration routine for fe functions on cell range
+    template <typename Triangulation>
+    double integrate_on(CellIterator<Triangulation> begin, CellIterator<Triangulation> end) const {
+        fdapde_static_assert(FeSpace::n_components == 1, THIS_METHOD_IS_FOR_SCALAR_FINITE_ELEMENT_FUNCTIONS_ONLY);
+        using FeType = typename FeSpace::FeType;
+        using Quadrature = typename FeType::template cell_quadrature_t<FeSpace::local_dim>;
+        using Iterator = CellIterator<Triangulation>;
+        constexpr int n_quadrature_nodes = Quadrature::order;
+
+        Quadrature quadrature {};
+        Eigen::Map<const Eigen::Matrix<double, n_quadrature_nodes, Triangulation::local_dim, Eigen::RowMajor>>
+          ref_quad_nodes(quadrature.nodes.data());
+        double integral = 0;
+        for (Iterator it = begin; it != end; ++it) {
+            double partial = 0;
+            typename DofHandlerType::CellType cell = fe_space_->dof_handler().cell(it->id());
+            Eigen::Matrix<int, Dynamic, 1> active_dofs = cell.dofs();
+	    // integral approximation on cell (skip point location)
+            for (int i = 0, n = fe_space_->n_shape_functions(); i < n; ++i) {
+                for (int q_k = 0; q_k < n_quadrature_nodes; ++q_k) {
+                    partial +=
+                      (coeff_[active_dofs[i]] * fe_space_->eval_shape_value(i, ref_quad_nodes.row(q_k).transpose())) *
+                      quadrature.weights[q_k];
+                }
+            }
+            integral += partial * it->measure();
+        }
+        return integral;
+    }
 
     // getters
     const Eigen::Matrix<double, Dynamic, 1>& coeff() const { return coeff_; }
@@ -724,7 +753,7 @@ struct FeMap :
     Derived xpr_;
     mutable Eigen::Matrix<Scalar, Dynamic, Dynamic> map_;
 };
-
+  
 // FeMap specialization for FeFunction types
 template <typename FeSpace>
 class FeMap<FeFunction<FeSpace>> : public ScalarFieldBase<FeSpace::embed_dim, FeMap<FeFunction<FeSpace>>> {
@@ -767,30 +796,61 @@ class FeMap<FeFunction<FeSpace>> : public ScalarFieldBase<FeSpace::embed_dim, Fe
     const Derived* xpr_;
     mutable Eigen::Matrix<Scalar, Dynamic, Dynamic> map_;
 };
-
-template <typename Triangulation_>
-struct CellDiameterDescriptor :
-    ScalarFieldBase<Triangulation_::embed_dim, CellDiameterDescriptor<Triangulation_>> {
-    using Base = ScalarFieldBase<Triangulation_::embed_dim, CellDiameterDescriptor<Triangulation_>>;
-    using Triangulation = std::decay_t<Triangulation_>;
-    using InputType = internals::fe_assembler_packet<Triangulation::embed_dim>;
+  
+// wraps an already evaluated field at (quadrature) nodes into a fe_assembler_packet callable object
+template <int StaticInputSize_, int Rows_, int Cols_, typename DataT>
+    requires(
+      StaticInputSize_ > 0 && Rows_ > 0 && Cols_ > 0 &&
+      ((Rows_ == 1 && Cols_ == 1 && internals::is_vector_like_v<DataT>) || internals::is_matrix_like_v<DataT>))
+class FeCoeff :
+    public std::conditional_t<
+      Rows_ == 1 && Cols_ == 1, ScalarFieldBase<StaticInputSize_, FeCoeff<StaticInputSize_, Rows_, Cols_, DataT>>,
+      MatrixFieldBase<StaticInputSize_, FeCoeff<StaticInputSize_, Rows_, Cols_, DataT>>> {
+   private:
+    using Derived = FeMap<DataT>;
+    static constexpr bool is_scalar = (Rows_ == 1 && Cols_ == 1);
+   public:
+    using InputType = internals::fe_assembler_packet<StaticInputSize_>;
     using Scalar = double;
-    static constexpr int StaticInputSize = Triangulation::embed_dim;
+    static constexpr int StaticInputSize = StaticInputSize_;
+    using Base = std::conditional_t<
+      Rows_ == 1 && Cols_ == 1, ScalarFieldBase<StaticInputSize_, FeCoeff<StaticInputSize_, Rows_, Cols_, DataT>>,
+      MatrixFieldBase<StaticInputSize_, FeCoeff<StaticInputSize_, Rows_, Cols_, DataT>>>;
     static constexpr int NestAsRef = 0;
-    static constexpr int XprBits = 0 | int(fe_assembler_flags::compute_cell_id);
+    static constexpr int XprBits = int(fe_assembler_flags::compute_physical_quad_nodes);
+    static constexpr int ReadOnly = 1;
+    static constexpr int Rows = Rows_;
+    static constexpr int Cols = Cols_;
 
-    constexpr CellDiameterDescriptor() noexcept : triangulation_(nullptr) { }
-    constexpr CellDiameterDescriptor(const Triangulation_& triangulation) noexcept :
-        triangulation_(std::addressof(triangulation)) {
-        fdapde_assert(triangulation_->n_nodes() != 0 && triangulation_->n_cells() != 0);
+    constexpr FeCoeff() = default;
+    template <typename DataT_>
+        requires(std::is_convertible_v<DataT_, DataT>)
+    constexpr FeCoeff(const DataT_& data) : data_(data) { }
+    // fe assembler evaluation
+    constexpr auto operator()(const InputType& fe_packet) const {
+        if constexpr (is_scalar) {
+            return data_[fe_packet.quad_node_id];
+        } else {
+            Eigen::Matrix<Scalar, Rows, Cols> tmp;
+            for (int i = 0; i < Rows; ++i) {
+                for (int j = 0; j < Cols; ++j) { tmp(i, j) = data_(fe_packet.quad_node_id, i * Cols + j); }
+            }
+            return tmp;
+        }
     }
-    // fe assembly evaluation
-    constexpr Scalar operator()(const InputType& fe_packet) const {
-        return std::sqrt(triangulation_->cell(fe_packet.cell_id).measure() * 2);
+    constexpr auto eval(int i, const InputType& fe_packet) const {
+        fdapde_static_assert(Rows != 1 && Cols == 1, THIS_METHOD_IS_FOR_VECTOR_FIELDS_ONLY);
+        return data_(fe_packet.quad_node_id, i);
+    }
+    constexpr auto eval(int i, int j, const InputType& fe_packet) const {
+        return data_(fe_packet.quad_node_id, i * Cols + j);
     }
     constexpr int input_size() const { return StaticInputSize; }
+    constexpr int rows() const { return Rows; }
+    constexpr int cols() const { return Cols; }
+    const DataT& data() const { return data_; }
    private:
-    const Triangulation* triangulation_;
+    DataT data_;
 };
 
 }   // namespace fdapde

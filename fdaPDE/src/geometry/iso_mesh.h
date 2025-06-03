@@ -73,7 +73,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     void initialize(std::array<std::vector<double>, LocalDim> & knots,
             MdArray<double, full_dynamic_extent_t<LocalDim>> & weights,
             MdArray<double, full_dynamic_extent_t<LocalDim + 1>> & control_points,
-            std::array<int, LocalDim> degree,
+            std::array<int, LocalDim>& degree,
             int flags = 0) {
                 // Assign to internal data members
                 flags_          = flags;
@@ -84,8 +84,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 // Pad and store the knots
                 for(int i = 0; i < LocalDim; i++){
                     int n = knots[i].size();
-                    knots_[i].resize(n + 2 * degree[i]);
-                    knots_[i] = pad_knots(knots[i], degree[i]);
+                    knots_[i].resize(n);
+                    std::copy(knots[i].begin(), knots[i].end(), knots_[i].begin());
                 }
 
                 // Compute the basis
@@ -108,8 +108,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     n_nodes_ *= unique_knots.size();
                 }
 
-                //std::cout<<"n_cells: "<<n_cells_<<std::endl;
-                //std::cout<<"n_nodes: "<<n_nodes_<<std::endl;
                 detect_periodicity_();
                 compute_span_aabbs_();
             }
@@ -151,11 +149,11 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * @return Physical coordinate in embedding space
      */
     Eigen::Matrix<double, EmbedDim, 1> eval_param(const Eigen::Matrix<double, LocalDim,1>& u) const {
-        //for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() && u(i) <= knots_[i].back());
-        std::vector<std::vector<double>> basis_eval(LocalDim);
+        for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() - 1e-9 && u(i) <= knots_[i].back() + 1e-9);
+        std::array<std::vector<double>,LocalDim> basis_eval;
         std::array<int,LocalDim> spans= {0};
         auto degree = this->basis_.degree();
-        auto nurb = this->basis_[0];
+        auto& nurb = this->basis_[0];
         double total_weight = 0.0;
         
         for(int i = 0; i < LocalDim; i++){
@@ -163,7 +161,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             basis_eval[i] = basis->evaluate_basis(u(i), false); // evaluate basis functions, padding = false
             spans[i] = basis->find_span(u(i)); // find the span of the knot vector
         }
-
         Eigen::Matrix<double, EmbedDim, 1> Sw = Eigen::Matrix<double, EmbedDim, 1>::Zero();
 
         std::vector<int> index(LocalDim,0);
@@ -196,6 +193,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 break;
             }
         }
+            
         return Sw/total_weight;
     }
 
@@ -212,12 +210,13 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * 
      */
     MeshParamDerivatives eval_param_derivatives(const Eigen::Matrix<double, LocalDim, 1>& u, bool compute_second = false) const {
+        
         for (int i = 0; i < LocalDim; i++)
             fdapde_assert(u(i) >= knots_[i].front() -1e-9 && u(i) <= knots_[i].back() +1e-9);
     
-        std::vector<std::vector<double>> basis_eval(LocalDim);
-        std::vector<std::vector<double>> basis_deriv_eval(LocalDim);
-        std::vector<std::vector<double>> basis_second_deriv_eval(LocalDim);
+        std::array<std::vector<double>,LocalDim> basis_eval;
+        std::array<std::vector<double>,LocalDim> basis_deriv_eval;
+        std::array<std::vector<double>,LocalDim> basis_second_deriv_eval;
         std::array<int, LocalDim> spans = {0};
         auto degree = this->basis_.degree();
         auto nurb = this->basis_[0];
@@ -242,7 +241,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         std::optional<MdArray<double, MdExtents<EmbedDim, LocalDim, LocalDim>>> d2Sw;
         if (compute_second) {
             d2Sw.emplace();
-            d2Sw->set_constant(0.0);
+            for (auto& val : *d2Sw) val = 0.0;
             d2W.setZero();
         }
     
@@ -348,8 +347,10 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 }
             }
         }
+            
     
         return {dS, compute_second ? std::move(d2Sw) : std::nullopt};
+        
     } 
 
     // === Utilities === // 
@@ -433,7 +434,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 continue;
             } 
             
-            //std::cout << "Refining along dimension k = " << k << std::endl;
             updated_knots[k].resize(knots_[k].size() + refinement_knots[k].size());
 
             std::array<int, LocalDim+1> temp_cp_dims;
@@ -534,7 +534,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * @param max_iters Max Newton iterations
      * @return Parametric coordinate `u` such that F(u) ≈ p
      */
-    Eigen::Matrix<double, local_dim,1> invert_point(const Eigen::Matrix<double, embed_dim, 1>& p, double& t1, double& t2,
+    Eigen::Matrix<double, local_dim,1> invert_point(const Eigen::Matrix<double, embed_dim, 1>& p,
         int n = 2, double tol1=1e-8, double tol2=1e-8, int max_iters = 1000 ) const {
         
         const double eps = 1e-8; // to relax the AABB condition
@@ -549,9 +549,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             cp_slices[i] = Cp.template slice<local_dim>(i);
         std::array<int, local_dim> index = this->degree_;
         std::vector<std::array<int, local_dim>> valid_spans;
-
-        // tic
-        auto start = std::chrono::high_resolution_clock::now();
 
         // loop over each span and check if the point ins in the AABB box of the span
         bool done = false;
@@ -577,19 +574,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             }
 
         } while (!done);
-
-        /*
-        // print the valid spans
-        for(int i = 0; i < valid_spans.size(); i++){
-            std::cout<<"Span "<<i<<": ";
-            for(int j = 0; j < local_dim; j++){
-                std::cout<<valid_spans[i][j]<<" ";
-            }
-            std::cout<<std::endl;
-        }
-        std::cout<<"Number of valid spans: "<<valid_spans.size()<<std::endl;
-        
-        */
 
         // initialize u and u_old using a grid search over the valid spans
         double min_dist = std::numeric_limits<double>::max();
@@ -625,24 +609,15 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 }
             }
         }
-        // toc
-        auto end = std::chrono::high_resolution_clock::now();
-        t1 = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         int counter = 0;
         u_old = u;
-        //std::cout<<"Initial guess: "<<u.transpose()<<std::endl;
         bool conv1 = false;
         bool conv2 = false;
-
-        // tic
-        start = std::chrono::high_resolution_clock::now();
 
         while(counter < max_iters && !conv1 && !conv2){
             
             auto S = this->eval_param(u_old);
-            //std::cout<<"S: "<<S.transpose()<<std::endl;
-            //std::cout<<"u_old: "<<u_old.transpose()<<std::endl;
             Eigen::Matrix<double, embed_dim, 1> r = S - p;
 
             if(r.norm() < tol1) conv1 = true;
@@ -673,7 +648,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
             u = u_old + delta;
 
-            // enforce parametric bounds (TO ADD CLOSED MANIFLODS)
+            // enforce parametric bounds 
             for (int k = 0; k < local_dim; k++) {
                 if(periodic_dims_[k]){
                     while(u(k) < this->param_nodes_[k].front() || u(k) > this->param_nodes_[k].back()){
@@ -687,7 +662,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     u(k) = std::clamp(u(k), this->param_nodes_[k].front(), this->param_nodes_[k].back());
                     }
             }
-            //std::cout<<"u: "<<u.transpose()<<std::endl;
 
             if (delta.norm() < tol2)
                 conv2 = true;
@@ -696,22 +670,9 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
             ++counter;
         }
-        /*
-        if(counter > 10 && counter < max_iters){
-            std::cout<<"Converged in "<<counter<<" iterations."<<std::endl;
-            std::cout<<"P: "<<p.transpose()<<std::endl;
-        } else if(counter > max_iters){
-            std::cout<<"Did not converge: try to increase the number of iterations."<<std::endl;
-        }
-            */
-
-        // toc
-        end = std::chrono::high_resolution_clock::now();
-        t2 = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
         if(counter == max_iters){
             std::cout<<"Max iterations reached: try to increase the numbers of evaluations."<<std::endl;
-
         }
 
         return u;
@@ -864,20 +825,11 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                 }
             }
         }
-        // degree the neighbors rows in increasing degree, but put the -1 at the end (ONLY FOR TESTS)
-        /*
-        for(int i = 0; i < n_cells_; ++i){
-            std::vector<int> row(neighbors.row(i).data(), neighbors.row(i).data() + neighbors.cols());
-            std::sort(row.begin(), row.end(), [](int a, int b) { return a == -1 ? false : b == -1 ? true : a < b; });
-            std::copy(row.begin(), row.end(), neighbors.row(i).data());
-        }
-        */
-        
 
         return neighbors;
     }
     
-    // cells having this node as vertex
+    // cells having this node as vertex, to implement if needed
     /*
     std::vector<int> node_patch(int id){
         std::vector<int> patch;
@@ -1093,11 +1045,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             if(periodic) periodic_dims_[k] = true;
         }
 
-        // print periodic dims
-        for(int i = 0; i < LocalDim; i++){
-            //std::cout<<"Periodic dim "<<i<<": "<<periodic_dims_[i]<<std::endl;
-        }
-
     }
 
     /**
@@ -1107,7 +1054,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * Stores the result in `span_aabbs_`, mapping multi-indices (e.g., {i, j}) to (P_min, P_max)
      */
     void compute_span_aabbs_() {
-        span_aabbs_.clear();
+        //span_aabbs_.clear();
+        //std::cout<<"Computing AABBs for spans..."<<std::endl;
         auto Cp = this->control_points_;
         std::array<decltype(Cp.template slice<LocalDim>(0)), EmbedDim> cp_slices;
         for (int i = 0; i < EmbedDim; ++i)
@@ -1115,6 +1063,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     
         std::array<int, LocalDim> index = this->degree_;
         bool done = false;
+        //std::cout<<"Computing AABBs for each span..."<<std::endl;
         do {
             std::array<int, LocalDim> new_index;
             for (int i = 0; i < LocalDim; ++i)
@@ -1140,6 +1089,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
                     } else break;
                 }
             } while (!span_done);
+            //std::cout<<"Span AABB for index {";
     
             span_aabbs_[index] = std::make_pair(P_min, P_max);
     
@@ -1399,10 +1349,6 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         int num_ctrl_points = start_knots[0].size() - start_degree[0] - 1;
         std::vector<double> wj = { 1, 1 / 2.0, 1 / 2.0, 1 };
 
-        //std::vector<std::vector<double>> Pj = {
-        //    {r, 0, 0},  {r, r, 0},  {-r, r, 0}, {-r,0, 0}
-        //};
-
         std::vector<std::vector<double>> Pj = {
             {0, 0, r},  {0, r, r},  {0, r, -r}, {0, 0, -r}
         };
@@ -1432,7 +1378,6 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         // Create the IsoMesh object
 
         IsoMesh<2, N> mesh(sphere.knots, sphere.weights, sphere.control_points, sphere.degree);
-        //mesh.refine_knots({3,3});
         return mesh;
 
     }
@@ -1498,31 +1443,30 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         // Create the IsoMesh object
 
         IsoMesh<2, N> mesh(torus.knots, torus.weights, torus.control_points, torus.degree);
-        //mesh.refine_knots({3,3});
         return mesh;
 
         
     }
 
-    // quarter of a ring
+    // quarter of a ring, degree (1,2)
 
     static IsoMesh<2,N> quarter_ring(double R = 2. , double r = 1.) {
         //fdapde_static_assert(N == 3, THIS_METHOD_IS_ONLY_FOR_3D_MANIFOLDS);
         fdapde_assert(R > 0 && r > 0 && R - r > 0 && R + r > 0);
 
         std::array<std::vector<double>, 1> start_knots = {
-            std::vector<double>{0,0,1,1}
+            std::vector<double>{0,0,0,1,1,1}
         };
-        std::array<int,1> start_degree = {1}; // Degree 2 (quadratic) 2
-        int num_ctrl_points = 2;
+        std::array<int,1> start_degree = {2}; // Degree 1 
+        int num_ctrl_points = 3;
         
         std::vector<double> wj = {
-            1.0, 1.0
+            1.0, 1.0, 1.0
         };
         
         std::vector<std::vector<double>> Pj = {
             { r, 0, 0 },
-            //{(r + R) / 2.0, 0, 0},
+            {(r + R) / 2.0, 0, 0},
             { R, 0, 0 }
         };
 
@@ -1567,7 +1511,6 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         }
 
         IsoMesh<2, N> mesh(quarter_ring.knots, quarter_ring.weights, new_cp, quarter_ring.degree);
-        //mesh.refine_knots({0,1});
         return mesh;
 
         
@@ -1639,11 +1582,13 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         boundary_edge_iterator(int index, const MeshType* mesh, int marker) :
             edge_iterator(
                 index, mesh, 
-                //marker == BoundaryAll //? 
-                mesh->boundary_edges_, //: 
-                //mesh->boundary_edges_ & 
-                // make_binary_vector(mesh->edges_markers_.begin(), mesh->edges_markers_.end(),marker),
-                marker) { }
+                marker == BoundaryAll ? 
+                mesh->boundary_edges_ : 
+                mesh->boundary_edges_ & 
+                 make_binary_vector(mesh->edges_markers_.begin(), mesh->edges_markers_.end(),marker),
+                marker) { 
+                    
+                }
     };
     boundary_edge_iterator boundary_edges_begin() const {return boundary_edge_iterator(0, this);}
     boundary_edge_iterator boundary_edges_end() const {return boundary_edge_iterator(n_edges_, this);}
@@ -1669,16 +1614,20 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
             fdapde_assert(marker >= 0);
             edges_markers_.resize(n_edges_);
             for(boundary_edge_iterator it = boundary_edges_begin(); it!=boundary_edges_end();++it){
-                edges_markers_[it->id()] = lambda(*it) ? marker : Unmarked;
+                if (lambda(*it)) {
+                    edges_markers_[it->id()] = marker;
+                }
             }
     }
     template <int Rows, typename XprType> 
     void mark_boundary(const BinMtxBase<Rows,1,XprType>& mask){
         fdapde_assert(mask.rows() == n_edges_);
-        edges_markers_.resize(n_edges_);
-        for(boundary_edge_iterator it = boundary_edges_begin(); it!=boundary_edges_end();++it){
-                edges_markers_[it->id()] = mask[it->id()] ? 1 : 0;
-            }
+        edges_markers_.resize(n_edges_, 0);
+        for (boundary_edge_iterator it = boundary_edges_begin(); it != boundary_edges_end(); ++it) {
+            if(mask[it->id()]){
+                edges_markers_[it->id()] = 1;
+            }  
+        }
     }
     template <typename Iterator> void mark_boundary(Iterator first, Iterator last){
         fdapde_static_assert(std::is_convertible_v<typename Iterator::value_type FDAPDE_COMMA int>, INVALID_ITERATOR_RANGE);
@@ -1924,7 +1873,6 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
      */
     void refine_knots(const std::array<int, 3>& density = std::array<int, 3>{{1, 1, 1}}, std::array<std::vector<double>, 3> add_knot_list = {}) {
         Base::refine_knots(density, add_knot_list);
-        //std::cout<<"Refined knots"<<std::endl;
         compute_cells_();
     }
 

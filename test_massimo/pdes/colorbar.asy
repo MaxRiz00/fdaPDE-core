@@ -207,7 +207,7 @@ while (!eof(surfFile)) {
     scalarGrid[cid_index][i][j] = s;
 
     if (s < minScalar) minScalar = 0; //s
-    if (s > maxScalar) maxScalar = 6.06; //s
+    if (s > maxScalar) maxScalar = 2; //s
   }
 }
 

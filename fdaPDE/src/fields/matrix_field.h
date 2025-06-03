@@ -43,7 +43,9 @@ class MatrixFieldProduct : public MatrixFieldBase<Lhs::StaticInputSize, MatrixFi
     using RhsDerived = Rhs;
     template <typename T1, typename T2> using Meta = MatrixFieldProduct<T1, T2>;
     using Base = MatrixFieldBase<Lhs::StaticInputSize, MatrixFieldProduct<Lhs, Rhs>>;
-    using InputType = typename Lhs::InputType;
+    using LhsInputType = typename LhsDerived::InputType;
+    using RhsInputType = typename RhsDerived::InputType;
+    using InputType = internals::prefer_most_derived_t<LhsInputType, RhsInputType>;
     using Scalar = decltype(std::declval<typename Lhs::Scalar>() * std::declval<typename Rhs::Scalar>());
     static constexpr int StaticInputSize = Lhs::StaticInputSize;
     static constexpr int Rows = Lhs::Rows;
@@ -127,9 +129,9 @@ class MatrixFieldProduct : public MatrixFieldBase<Lhs::StaticInputSize, MatrixFi
         fdapde_static_assert(Rhs::Cols == 1 || Lhs::Rows == 1, INVALID_MATRIX_VECTOR_PRODUCT_DIMENSIONS);
         Scalar res = 0;
         if constexpr (Rhs::Cols == 1) {
-            for (int k = 0; k < lhs_.cols(); ++k) { res += lhs_.eval(i, k, p) * rhs_.eval(i, p); }
+            for (int k = 0; k < lhs_.cols(); ++k) { res += lhs_.eval(i, k, p) * rhs_.eval(k, p); }
         } else {
-            for (int k = 0; k < lhs_.cols(); ++k) { res += lhs_.eval(i, p) * rhs_.eval(k, i, p); }
+            for (int k = 0; k < rhs_.rows(); ++k) { res += lhs_.eval(k, p) * rhs_.eval(k, i, p); }
         }
 	return res;
     }
@@ -142,7 +144,6 @@ class MatrixFieldProduct : public MatrixFieldBase<Lhs::StaticInputSize, MatrixFi
 template <typename Lhs, typename Rhs>
 constexpr MatrixFieldProduct<Lhs, Rhs> operator*(
   const MatrixFieldBase<Lhs::StaticInputSize, Lhs>& lhs, const MatrixFieldBase<Rhs::StaticInputSize, Rhs>& rhs) {
-                    std::cout << "MatrixFieldCoeffWiseOp: " << std::endl;
     return MatrixFieldProduct<Lhs, Rhs> {lhs.derived(), rhs.derived()};
 }
 
@@ -271,7 +272,9 @@ class MatrixFieldBinOp : public MatrixFieldBase<Lhs::StaticInputSize, MatrixFiel
     using RhsDerived = Rhs;
     template <typename T1, typename T2> using Meta = MatrixFieldBinOp<T1, T2, BinaryOperation>;
     using Base = MatrixFieldBase<Lhs::StaticInputSize, MatrixFieldBinOp<Lhs, Rhs, BinaryOperation>>;
-    using InputType = typename Lhs::InputType;
+    using LhsInputType = typename LhsDerived::InputType;
+    using RhsInputType = typename RhsDerived::InputType;
+    using InputType = internals::prefer_most_derived_t<LhsInputType, RhsInputType>;
     using Scalar = decltype(std::declval<BinaryOperation>().operator()(
       std::declval<typename Lhs::Scalar>(), std::declval<typename Rhs::Scalar>()));
     static constexpr int StaticInputSize = Lhs::StaticInputSize;
@@ -467,7 +470,6 @@ template <int Size, typename Lhs, typename Rhs>
 constexpr MatrixFieldCoeffWiseOp<Lhs, Rhs, std::multiplies<>>
 operator*(const MatrixFieldBase<Size, Lhs>& lhs, const Rhs& rhs)
     requires(std::is_arithmetic_v<Rhs> || internals::is_scalar_field_v<Rhs>) {
-
     if constexpr (internals::is_scalar_field_v<Rhs>) {
         return MatrixFieldCoeffWiseOp<Lhs, Rhs, std::multiplies<>>(lhs.derived(), rhs.derived(), std::multiplies<>());
     } else {
@@ -478,7 +480,6 @@ template <int Size, typename Lhs, typename Rhs>
 constexpr MatrixFieldCoeffWiseOp<Lhs, Rhs, std::multiplies<>>
 operator*(const Lhs& lhs, const MatrixFieldBase<Size, Rhs>& rhs)
     requires(std::is_arithmetic_v<Lhs> || internals::is_scalar_field_v<Lhs>) {
-
     if constexpr (internals::is_scalar_field_v<Lhs>) {
         return MatrixFieldCoeffWiseOp<Lhs, Rhs, std::multiplies<>>(lhs.derived(), rhs.derived(), std::multiplies<>());
     } else {
@@ -1027,8 +1028,8 @@ class matrix_eigen_product_impl :
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, const Lhs&, internals::ref_select_t<const Lhs>> lhs_;
-    std::conditional_t<internals::is_eigen_dense_xpr_v<Rhs>, const Rhs&, internals::ref_select_t<const Rhs>> rhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, const Lhs, internals::ref_select_t<const Lhs>> lhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Rhs>, const Rhs, internals::ref_select_t<const Rhs>> rhs_;
 };
 
 template <
@@ -1101,8 +1102,8 @@ class matrix_eigen_binary_op_impl :
     // evaluation at point
     constexpr auto operator()(const InputType& p) const { return Base::call_(p); }
    protected:
-    std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, const Lhs&, internals::ref_select_t<const Lhs>> lhs_;
-    std::conditional_t<internals::is_eigen_dense_xpr_v<Rhs>, const Rhs&, internals::ref_select_t<const Rhs>> rhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Lhs>, const Lhs, internals::ref_select_t<const Lhs>> lhs_;
+    std::conditional_t<internals::is_eigen_dense_xpr_v<Rhs>, const Rhs, internals::ref_select_t<const Rhs>> rhs_;
     BinaryOperation op_;
 };
 

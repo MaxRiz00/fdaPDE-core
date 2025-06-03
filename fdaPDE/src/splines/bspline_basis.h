@@ -75,6 +75,8 @@ class BSplineBasis {
     int n_basis_ = 0;
 
    public:
+    //BSplineBasis(const BSplineBasis&) = delete;
+    //BSplineBasis& operator=(const BSplineBasis&) = delete;
     static constexpr int StaticInputSize = 1;
     static constexpr int Order = Dynamic;
     // constructors

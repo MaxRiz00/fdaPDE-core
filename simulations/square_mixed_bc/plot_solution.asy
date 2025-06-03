@@ -1,5 +1,5 @@
 settings.render = 3; 
-settings.outformat = "png"; // "pdf", "png", "svg", "eps"
+settings.outformat = "pdf"; // "pdf", "png", "svg", "eps"
 
 import three;
 
@@ -86,13 +86,13 @@ triple[] loadTriples(string filename) {
 }
 
 
-triple origin = O;//0.8*(1,-1,-1); // bottom-left corner of the merged surface
+triple origin = O - 0.008*(1,1,0);//0.8*(1,-1,-1); // bottom-left corner of the merged surface
 
-real axisLength = .2; // adjust as needed
+real axisLength = .15; // adjust as needed
 
-draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x$", origin + (axisLength+0.04,0,0),fontsize(11pt));
-draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$y$", origin + (0,axisLength+0.04,0),fontsize(11pt));
-draw(origin -- (origin + (0,0,axisLength)), Arrow3(5bp)); label("$z$", origin + (-0.04,-0.04,0),fontsize(11pt));
+draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x$", origin + (axisLength,-0.02,0),fontsize(11pt));
+draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$y$", origin + (-0.02,axisLength,0),fontsize(11pt));
+draw(origin -- (origin + (0,0,axisLength)), Arrow3(5bp)); label("$z$", origin + (-0.02,-0.02,0),fontsize(11pt));
 
 
 // === LOAD & PLOT SURFACE PATCHES ===

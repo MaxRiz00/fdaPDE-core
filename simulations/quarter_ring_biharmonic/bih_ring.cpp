@@ -54,16 +54,15 @@ int main() {
 
         ScalarField<M> err_physical(
             [&](const Vec& p) {
-                double t1, t2;
-                auto u = mesh.invert_point(p, t1, t2, 2);
-                return solution(u) - f_exact(p);
+                auto u = mesh.invert_point(p, 2);
+                auto err = solution(u) - f_exact(p);
+                return err * err;
             });
 
 
         ScalarField<M> err_H1physical(
             [&](const Vec& p) {
-                double t1, t2;
-                auto u = mesh.invert_point(p, t1, t2, 2);
+                auto u = mesh.invert_point(p, 2);
                 Eigen::Vector2d grad_exact;
                 grad_exact(0) = df_exact(p)(0,0);
                 grad_exact(1) = df_exact(p)(1,0);
@@ -75,8 +74,7 @@ int main() {
 
         ScalarField<M> err_H2physical(
             [&](const Vec& p) {
-                double t1, t2;
-                auto u = mesh.invert_point(p, t1, t2, 2);
+                auto u = mesh.invert_point(p, 2);
                 Eigen::Matrix2d hess_exact;
                 hess_exact(0,0) = ddf_exact(p)(0,0);
                 hess_exact(0,1) = ddf_exact(p)(0,1);
@@ -89,9 +87,9 @@ int main() {
 
 
 
-        auto errorL2 = std::sqrt(integral(mesh, QGL2DP9)(err_physical * err_physical));
-        auto errorH1 = errorL2*errorL2 + std::sqrt(integral(mesh, QGL2DP9)( err_H1physical));
-        auto errorH2 = errorH1*errorH1 + std::sqrt(integral(mesh, QGL2DP9)(err_H2physical));
+        auto errorL2 = std::sqrt(integral(mesh, QGL2DP9)(err_physical));
+        auto errorH1 = std::sqrt(errorL2*errorL2 + integral(mesh, QGL2DP9)( err_H1physical ));
+        auto errorH2 =  std::sqrt(errorH1*errorH1 + integral(mesh, QGL2DP9)(err_H2physical));
 
         file << h_max << "," << errorL2 << "," << errorH1 <<","<<errorH2<< "\n";
 
@@ -106,7 +104,6 @@ int main() {
         std::cout << "h_max           : " << h_max << "\n";
         std::cout << "L2 error        : " << errorL2 << "\n";
         std::cout << "H1 error        : " << errorH1 << "\n";
-        std::cout << "H2 error        : " << errorH2 << "\n";
         std::cout << "Mesh exported to: " << level_path << "\n";
         std::cout << "PDE results to  : " << solution_path << "\n";
         std::cout << "===========================================\n";

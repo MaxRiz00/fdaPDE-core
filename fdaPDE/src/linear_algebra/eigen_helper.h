@@ -21,30 +21,6 @@
 
 namespace fdapde {
 namespace internals {
-
-// Eigen type detection traits
-template <typename XprType> struct is_eigen_dense_xpr {
-  static constexpr bool value = std::is_base_of<Eigen::MatrixBase<XprType>, XprType>::value;
-};
-template <typename XprType> constexpr bool is_eigen_dense_xpr_v = is_eigen_dense_xpr<XprType>::value;
-template <typename XprType> class is_eigen_dense_vector {
-   private:
-    static constexpr bool check_() {
-        if constexpr (is_eigen_dense_xpr_v<XprType>) {
-            if constexpr (XprType::ColsAtCompileTime == 1) { return true; }
-            return false;
-        }
-        return false;
-    }
-   public:
-    static constexpr bool value = check_();
-};
-template <typename XprType> constexpr bool is_eigen_dense_vector_v = is_eigen_dense_vector<XprType>::value;
-
-template <typename XprType> struct is_eigen_sparse_xpr {
-    static constexpr bool value = std::is_base_of_v<Eigen::SparseMatrixBase<XprType>, XprType>;
-};
-template <typename XprType> constexpr bool is_eigen_sparse_xpr_v = is_eigen_sparse_xpr<XprType>::value;
   
 template <int Rows, typename Scalar = double> struct static_dynamic_eigen_vector_selector {
     using type = std::conditional_t<Rows == Dynamic, Eigen::Matrix<Scalar, Dynamic, 1>, Eigen::Matrix<Scalar, Rows, 1>>;
@@ -67,35 +43,42 @@ template <typename SolverType_> class eigen_sparse_solver_movable_wrap {
    private:
     using SolverType = std::decay_t<SolverType_>;
     std::shared_ptr<SolverType> solver_;   // wrap solver in movable wrapper
+    bool computed_ = false;
    public:
     using Scalar = typename SolverType::Scalar;
     using MatrixType = typename SolverType::MatrixType;
-  
-    eigen_sparse_solver_movable_wrap() : solver_(std::make_shared<SolverType>()) { }
-    explicit eigen_sparse_solver_movable_wrap(const SolverType_& solver) :
+
+    eigen_sparse_solver_movable_wrap() noexcept : solver_(std::make_shared<SolverType>()) { }
+    explicit eigen_sparse_solver_movable_wrap(const SolverType_& solver) noexcept :
         solver_(std::make_shared<SolverType>(solver)) { }
     eigen_sparse_solver_movable_wrap& operator=(const SolverType_& solver) {
         solver_ = std::make_shared<SolverType>(solver);
         return *this;
     }
-    void compute(const MatrixType& matrix) { solver_->compute(matrix); }
+    void compute(const MatrixType& matrix) {
+        solver_->compute(matrix);
+        if (solver_->info() == Eigen::Success) { computed_ = true; }
+    }
     void analyzePattern(const MatrixType& matrix) { solver_->analyzePattern(matrix); }
     void factorize(const MatrixType& matrix) { solver_->factorize(matrix); }
     template <typename XprType>   // solve method, dense  rhs operand
     const Eigen::Solve<SolverType, XprType> solve(const Eigen::MatrixBase<XprType>& b) const {
+        fdapde_assert(bool(solver_) == true);
         return solver_->solve(b);
     }
     template <typename XprType>   // solve method, sparse rhs operand
     const Eigen::Solve<SolverType, XprType> solve(const Eigen::SparseMatrixBase<XprType>& b) const {
+        fdapde_assert(bool(solver_) == true);
         return solver_->solve(b);
     }
     // observers
     const SolverType& operator->() const { return *solver_; }
     SolverType& operator->() { return *solver_; }
     Eigen::ComputationInfo info() const { return solver_->info(); }
-    operator bool() const { return solver_->info() == Eigen::Success; }
+    operator bool() const { return computed_; }
+    bool has_value() const { return computed_; }
 };
-
+  
 // ordering relation for eigen vectors
 struct eigen_vector_compare {
   template <typename Scalar, int Rows>

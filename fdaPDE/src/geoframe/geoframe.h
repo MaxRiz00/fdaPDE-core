@@ -21,376 +21,139 @@
 
 namespace fdapde {
 namespace internals {
-enum ltype { point = 0, areal = 1 };
-
+  
 inline void throw_geoframe_error(const std::string& msg) { throw std::runtime_error("GeoFrame: " + msg); }
 #define geoframe_assert(condition, msg)                                                                                \
     if (!(condition)) { internals::throw_geoframe_error(msg); }
 
 }   // namespace internals
-  
-template <typename Triangulation_, int Order_ = 2> struct GeoFrame {
-    fdapde_static_assert(Order_ > 1, GEOFRAME_MUST_HAVE_ORDER_TWO_OR_HIGHER);
-   private:
-    using This = GeoFrame<Triangulation_, Order_>;
-    using point_layer_t = internals::point_layer<This>;
-    using areal_layer_t = internals::areal_layer<This>;
-    using layers_t = std::tuple<point_layer_t, areal_layer_t>;
-    template <typename... Ts> using LayerMap_ = std::tuple<std::unordered_map<std::string, Ts>...>;
-    template <typename T, typename U> auto& fetch_(U& u) {
-        return std::get<internals::index_of<T, layers_t>::index>(u);
-    }
-    template <typename T, typename U> const auto& fetch_(const U& u) const {
-        return std::get<internals::index_of<T, layers_t>::index>(u);
-    }
-    template <typename Layer_>
-        requires(requires(Layer_ l) { typename Layer_::layer_category; })
-    struct is_supported_layer {
-        using Layer = std::decay_t<Layer_>;
-        static constexpr bool value = std::is_same_v<typename Layer::layer_category, layer_t::point_t> ||
-                                      std::is_same_v<typename Layer::layer_category, layer_t::areal_t>;
-    };
-    template <typename Layer_> static constexpr bool is_supported_layer_v = is_supported_layer<Layer_>::value;
-    // moves std::tuple<Ts...> to T<Ts...>
-    template <template <typename...> typename T, typename U> struct strip_tuple_into;
-    template <template <typename...> typename T, typename... Us>
-    struct strip_tuple_into<T, std::tuple<Us...>> : std::type_identity<T<Us...>> { };
+
+template <typename... Triangulation_> struct GeoFrame {
+    fdapde_static_assert(sizeof...(Triangulation_) > 0, AT_LEAST_ONE_TRIANGULATION_REQUIRED);
    public:
-    static constexpr int local_dim = Triangulation_::local_dim;
-    static constexpr int embed_dim = Triangulation_::embed_dim;
-    static constexpr int Order = Order_;
-    using LayerMap  = typename strip_tuple_into<LayerMap_, layers_t>::type;
+    using This = GeoFrame<Triangulation_...>;
+    using Triangulation = std::tuple<std::decay_t<Triangulation_>...>;
+    static constexpr int Order = sizeof...(Triangulation_);
+
+    struct layer_t {
+        using Triangulation = std::tuple<std::decay_t<Triangulation_>...>;
+        using storage_t = internals::scalar_data_layer;
+        static constexpr int Order = sizeof...(Triangulation_);
+
+        layer_t() noexcept : geo_data_(), data_(), category_(), name_() { }
+        template <typename CategoryType, typename LayerType>
+        layer_t(const std::string& name, const CategoryType& category, const LayerType& geo_data) :
+            geo_data_(std::make_shared<LayerType>(geo_data)),
+            data_(std::addressof(reinterpret_cast<LayerType*>(geo_data_.get())->data())),
+            name_(name),
+            n_rows_(geo_data.rows()) {
+            geoframe_assert(category.size() == Order, "bad layer construction, no matching order.");
+            std::copy(category.begin(), category.end(), category_.begin());
+	    // store pointers to spatial indexes
+            internals::for_each_index_in_pack<Order>([&, this]<int Ns>() {
+                geo_index_[Ns] = reinterpret_cast<void*>(
+                  std::addressof(reinterpret_cast<LayerType*>(geo_data_.get())->template geometry<Ns>()));
+            });
+        }
+        // observers
+        const std::string& name() const { return name_; }
+        const storage_t& data() const { return *data_; }
+        storage_t& data() { return *data_; }
+        void* geo_data() { return geo_data_.get(); }
+        const void* geo_data() const { return geo_data_.get(); }
+        const std::array<ltype, Order>& category() const { return category_; }
+        bool contains(const std::string& colname) const { return data_->contains(colname); }
+        int rows() const { return n_rows_; }
+        int cols() const { return data_->cols(); }
+        int size() const { return data_->size(); }
+      
+        void* geo_index(int n) const { return geo_index_.at(n); }
+        // accessors
+        template <typename T> decltype(auto) col(size_t col) { return data_->template col<T>(col); }
+        template <typename T> decltype(auto) col(size_t col) const { return data_->template col<T>(col); }
+        template <typename T> decltype(auto) col(const std::string& colname) { return data_->template col<T>(colname); }
+        template <typename T> decltype(auto) col(const std::string& colname) const {
+            return data_->template col<T>(colname);
+        }
+       private:
+        std::shared_ptr<void> geo_data_;       // type erased geometric layer
+        std::array<void*, Order> geo_index_;   // pointers to (type-erased) geometric indexes
+        storage_t* data_;
+        std::array<ltype, Order> category_;
+        std::string name_;
+        int n_rows_ = 0;
+    };
+   private:
+    template <typename T> constexpr auto ltype_from_layer_tag() const {
+        using T_ = std::decay_t<T>;
+        if constexpr (std::is_same_v<T_, point_layer_tag>) return ltype::point;
+        if constexpr (std::is_same_v<T_, areal_layer_tag>) return ltype::areal;
+    }
+   public:
+    static constexpr std::array<int, Order> local_dim {Triangulation_::local_dim...};
+    static constexpr std::array<int, Order> embed_dim {Triangulation_::embed_dim...};
     using index_t = int;
     using size_t  = std::size_t;
-    using Triangulation = Triangulation_;
 
     // constructors
-    GeoFrame() noexcept : triangulation_(nullptr), layers_(), n_layers_(0) { }
-    explicit GeoFrame(Triangulation_& triangulation) noexcept :
-        triangulation_(std::addressof(triangulation)), layers_(), n_layers_(0) { }
-
+    GeoFrame() noexcept : triangulation_(), layers_(), n_layers_(0) { }
+    explicit GeoFrame(Triangulation_&... triangulation) noexcept :
+        triangulation_(std::make_tuple(std::addressof(triangulation)...)), layers_(), n_layers_(0) { }
     // modifiers
-    // multipoint layer with geometrical locations at mesh nodes
-    void push(const std::string& name, layer_t::point_t) {
-        geoframe_assert(!name.empty() && !has_layer(name), "empty or duplicated name.");
-        using layer_t = internals::point_layer<This>;
-        fetch_<layer_t>(layers_).insert({name, layer_t(name, this)});
-        idx_to_layer_name_[n_layers_] = name;
-        n_layers_++;
-        return;
-    }
-    template <typename ColnamesContainer>
-    void push(const ColnamesContainer& layers, layer_t::point_t) {
-        for (const auto& name : layers) { push(name, layer_t::point); }
-    }
-    // multipoint layer with specified locations
-    template <typename T>
-        requires(std::is_convertible_v<T, std::string>)
-    void push(const std::initializer_list<T>& layers, layer_t::point_t) {
-        for (auto it = layers.begin(); it != layers.end(); ++it) { push(*it, layer_t::point); }
-    }
-    template <typename CoordsType>
-        requires(internals::is_eigen_dense_xpr_v<CoordsType> || std::contiguous_iterator<typename CoordsType::iterator>)
-    void push(const std::string& name, layer_t::point_t, const CoordsType& coords) {
-        geoframe_assert(!name.empty() && !has_layer(name), "empty or duplicated name.");
-	using layer_t = internals::point_layer<This>;
-        if constexpr (internals::is_eigen_dense_xpr_v<CoordsType>) {
-            geoframe_assert(
-              coords.cols() == embed_dim && coords.rows() > 0, "empty or wrongly sized coordinate matrix.");
-            using Scalar__ = typename CoordsType::Scalar;
-            using MatrixType = Eigen::Matrix<Scalar__, Dynamic, Dynamic>;
-            std::shared_ptr<MatrixType> coords_ptr = std::make_shared<MatrixType>(coords);
-            fetch_<layer_t>(layers_).insert({name, layer_t(name, this, coords_ptr)});
-        } else {
-            geoframe_assert(
-              coords.size() > 0 && coords.size() % embed_dim == 0, "empty or wrongly sized coordinate matrix.");
-            using Scalar__ = typename CoordsType::value_type;
-            using MatrixType = Eigen::Matrix<Scalar__, Dynamic, Dynamic>;
-            int n_rows = coords.size() / embed_dim;
-            int n_cols = embed_dim;
-            std::shared_ptr<MatrixType> coords_ptr =
-              std::make_shared<MatrixType>(Eigen::Map<const MatrixType>(coords.data(), n_rows, n_cols));
-            fetch_<layer_t>(layers_).insert({name, layer_t(name, this, coords_ptr)});
-        }
-        idx_to_layer_name_[n_layers_] = name;
-        n_layers_++;
-        return;
-    }
-    // packed multipoint layers sharing the same locations
-    template <typename T, typename CoordsType>
+    template <typename... GeoInfo, typename GeoData>
         requires(
-          (internals::is_eigen_dense_xpr_v<CoordsType> || std::contiguous_iterator<typename CoordsType::iterator>) &&
-          std::is_convertible_v<T, std::string>)
-    void push(const std::initializer_list<T>& layers, layer_t::point_t, const CoordsType& coords) {
-        using layer_t = internals::point_layer<This>;
-        // layers share the same locations, allocate here once
-        using Scalar__ = decltype([]() {
-            if constexpr (internals::is_eigen_dense_xpr_v<CoordsType>) return typename CoordsType::Scalar();
-            else return typename CoordsType::value_type();
-        }());
-	using MatrixType = Eigen::Matrix<Scalar__, Dynamic, Dynamic>;
-        std::shared_ptr<MatrixType> coords_ptr;
-        if constexpr (internals::is_eigen_dense_xpr_v<CoordsType>) {
-            coords_ptr = std::make_shared<MatrixType>(coords);
-        } else {
-            int n_rows = coords.size() / embed_dim;
-            int n_cols = embed_dim;
-            coords_ptr = std::make_shared<MatrixType>(Eigen::Map<const MatrixType>(coords.data(), n_rows, n_cols));
-        }
-        for (auto it = layers.begin(); it != layers.end(); ++it) {
-            std::string name(*it);
-            geoframe_assert(!name.empty() && !has_layer(name), "empty or duplicated name.");
-            fetch_<layer_t>(layers_).insert({name, layer_t(name, this, coords_ptr)});
-            idx_to_layer_name_[n_layers_] = name;
-            n_layers_++;
-        }
-    }
-
-    // areal layer
-    void push(
-      const std::string& name, layer_t::areal_t, const std::vector<MultiPolygon<local_dim, embed_dim>>& regions) {
-        geoframe_assert(!name.empty() && !has_layer(name), "empty or duplicated name.");
-        using layer_t = internals::areal_layer<This>;
-        using areal_t = std::vector<MultiPolygon<local_dim, embed_dim>>;
-        std::shared_ptr<areal_t> regions_ptr = std::make_shared<areal_t>(regions);
-        fetch_<layer_t>(layers_).insert({name, layer_t(name, this, regions_ptr)});
-        idx_to_layer_name_[n_layers_] = name;
-	n_layers_++;
-        return;
-    }
-    // packed areal layers sharing the same regions
-    template <typename T>
-        requires(std::is_convertible_v<T, std::string>)
-    void push(
-      const std::initializer_list<T>& layers, layer_t::areal_t,
-      const std::vector<MultiPolygon<local_dim, embed_dim>>& regions) {
-        using layer_t = internals::areal_layer<This>;
-	using areal_t = std::vector<MultiPolygon<local_dim, embed_dim>>;
-        // allocate shared memory
-        std::shared_ptr<areal_t> regions_ptr = std::make_shared<areal_t>(regions);
-        for (auto it = layers.begin(); it != layers.end(); ++it) {
-            std::string name(*it);
-            geoframe_assert(!it->empty() && !has_layer(name), "empty or duplicated name.");
-            fetch_<layer_t>(layers_).insert({name, layer_t(name, this, regions_ptr)});
-            idx_to_layer_name_[n_layers_] = name;
-	    n_layers_++;
-        }
-        return;
-    }
-    // construct layer from a subset of another layer
-    template <typename T>
-        requires(std::is_convertible_v<T, std::string> || std::is_convertible_v<T, index_t>)
-    void push(
-      const std::string& name, layer_t::areal_t,
-      const internals::plain_row_filter<internals::areal_layer<This>>& filter, const std::vector<T>& cols) {
-        std::vector<MultiPolygon<local_dim, embed_dim>> regions;
-        regions.reserve(filter.rows());
-	for (int i = 0, n = filter.rows(); i < n; ++i) { regions.emplace_back(filter(i).geometry()); }
-        push(name, layer_t::areal, regions);
-        if constexpr (std::is_same_v<T, std::string>) {
-            get_as(layer_t::areal, name).data() = typename internals::areal_layer<This>::storage_t(filter, cols);
-        }
-        if constexpr (std::is_convertible_v<T, index_t>) {
-            auto field_descriptors = filter.field_descriptors();
-            std::vector<std::string> cols_;
-            for (index_t i : cols) { cols_.push_back(field_descriptors[i].colname); }
-            get_as(layer_t::areal, name).data() = typename internals::areal_layer<This>::storage_t(filter, cols_);
-        }
-    }
-    template <typename T>
-        requires(std::is_convertible_v<T, std::string> || std::is_convertible_v<T, index_t>)
-    void push(
-      const std::string& name, layer_t::areal_t,
-      const internals::plain_row_filter<internals::areal_layer<This>>& filter, const std::initializer_list<T>& cols) {
-        std::vector<std::string> cols_;
-        if constexpr (std::is_convertible_v<T, std::string>) { cols_.insert(cols_.begin(), cols.begin(), cols.end()); }
-        if constexpr (std::is_convertible_v<T, index_t>) {
-            auto field_descriptors = filter.field_descriptors();
-            for (index_t i : cols) { cols_.push_back(field_descriptors[i].colname); }
-        }
-        push(name, layer_t::areal_t {}, filter, cols_);
-    }
-    void push(
-      const std::string& name, layer_t::areal_t,
-      const internals::plain_row_filter<internals::areal_layer<This>>& filter) {
-        push(name, layer_t::areal_t {}, filter, filter.colnames());
-    }
-
-    // directly push an externally created layer
-    template <typename Layer>
-        requires(is_supported_layer_v<std::decay_t<Layer>>)
-    void push(const std::string& name, Layer&& layer) {
-        using layer_t = std::decay_t<Layer>;
-        fetch_<layer_t>(layers_).insert({name, layer});
-        idx_to_layer_name_[n_layers_] = name;
-	n_layers_++;
-        return;
-    }
-    void erase(const std::string& layer_name) {
-        // search for layer_name (if no layer found does nothing)
-        if (!has_layer(layer_name)) return;
-        std::apply(
-          [&](auto&&... layer) {
-              (std::erase_if(
-                 layer,
-                 [&](const auto& item) {
-                     auto const& [k, v] = item;
-                     return k == layer_name;
-                 }),
-               ...);
-          },
-          layers_);
-	// update idx - layer_name mapping
-	int i = 0;
-        for (; i < n_layers_; ++i) {
-            if (idx_to_layer_name_.at(i) == layer_name) {
-                idx_to_layer_name_.erase(i);
-                break;
-            }
-        }
-        for (; i < n_layers_ - 1; ++i) { idx_to_layer_name_[i] = idx_to_layer_name_.at(i + 1); }
-	idx_to_layer_name_.erase(n_layers_ - 1);
-	n_layers_--;
-        return;
-    }
-  
-    // file import
-    // TODO: supply some of the columns as coordinates
-    template <typename Scalar>
-    void load_csv(const std::string& name, layer_t::point_t, const std::string& file_name) {
-        geoframe_assert(std::filesystem::exists(file_name), "file " + file_name + " not found.");
-        auto csv = read_csv<Scalar>(file_name);
-        geoframe_assert(csv.rows() == triangulation_->n_nodes(), "wrong csv size.");
-        push(name, layer_t::point);
-        // move data in memory buffer
-        std::vector<std::pair<std::string, std::vector<Scalar>>> data;
-        for (const std::string& n : csv.colnames()) { data.emplace_back(n, std::vector<Scalar> {}); }
-        int i = 0, n_col = csv.colnames().size();
-        for (const Scalar& s : csv.data()) {
-            data[i].second.push_back(s);
-            i = (i + 1) % n_col;
-        }
-        get_as(layer_t::point, name).set_data(data);
-        get_as(layer_t::point, name).data().set_colnames(csv.colnames());
-	idx_to_layer_name_[n_layers_] = name;
-	n_layers_++;
-        return;
-    }
-    template <typename Scalar, typename CoordsType>
-        requires(internals::is_eigen_dense_xpr_v<CoordsType> || std::contiguous_iterator<typename CoordsType::iterator>)
-    void load_csv(const std::string& name, layer_t::point_t, const std::string& file_name, const CoordsType& coords) {
-        geoframe_assert(std::filesystem::exists(file_name), "file " + file_name + " not found.");
-        auto csv = read_csv<Scalar>(file_name);
-        if constexpr (internals::is_eigen_dense_xpr_v<CoordsType>) {
-            geoframe_assert(csv.rows() == coords.rows(), "wrong csv size.");
-        } else {
-            geoframe_assert(csv.rows() == (coords.size() / embed_dim), "wrong csv size.");
-        }
-        push(name, layer_t::point, coords);
-        // move data in memory buffer
-        std::vector<std::pair<std::string, std::vector<Scalar>>> data;
-        for (const std::string& n : csv.colnames()) { data.emplace_back(n, std::vector<Scalar> {}); }
-        int i = 0, n_col = csv.colnames().size();
-        for (const Scalar& s : csv.data()) {
-            data[i].second.push_back(s);
-            i = (i + 1) % n_col;
-        }
-        get_as(layer_t::point, name).set_data(data);
-        get_as(layer_t::point, name).data().set_colnames(csv.colnames());
-        idx_to_layer_name_[n_layers_] = name;
+          sizeof...(GeoInfo) == Order &&
+          (internals::is_any_same_v<
+             GeoInfo, std::tuple<internals::polygon_layer_descriptor, internals::point_layer_descriptor>> &&
+           ...))
+    auto& insert_scalar_layer(const std::string& name, GeoData&& data) {
+        fdapde_static_assert(sizeof...(GeoInfo) == Order, BAD_LAYER_CONSTRUCTION__NO_MATCHING_ORDER);
+	fdapde_assert(!name.empty() && !has_layer(name));
+        using geo_layer_t = GeoLayer<Triangulation, std::tuple<GeoInfo...>>;
+        layers_.emplace_back(
+          name,                                                                // layer name
+          internals::apply_index_pack<sizeof...(GeoInfo)>([&]<int... Ns>() {   // layer category
+              return std::array<ltype, sizeof...(GeoInfo)> {ltype_from_layer_tag<typename GeoInfo::layer_tag>()...};
+          }),
+          internals::apply_index_pack<sizeof...(GeoInfo)>(   // data
+            [&, this]<int... Ns>() { return geo_layer_t(triangulation_, data); }));
+        layer_name_to_idx_[name] = n_layers_;
         n_layers_++;
-        return;
+        return geo_cast<GeoInfo...>(operator[](name));
     }
-  
-    void load_shp(const std::string& name, const std::string& file_name) {
-        std::string file_name_ = std::filesystem::current_path().string() + "/" + file_name;
-        geoframe_assert(std::filesystem::exists(file_name_), "file " + file_name_ + " not found.");
-        ShapeFile shp(file_name_);
-        // dispatch to processing logic
-        switch (shp.shape_type()) {
-        case shp_reader::Polygon: {
-            // load polygon as areal layer
-            std::vector<MultiPolygon<local_dim, embed_dim>> regions;
-            regions.reserve(shp.n_records());
-            for (int i = 0, n = shp.n_records(); i < n; ++i) { regions.emplace_back(shp.polygon(i).nodes()); }
-            push(name, layer_t::areal, regions);
-	    break;
-        }
-        }
-        std::vector<std::pair<std::string, std::vector<int        >>> int_data;
-        std::vector<std::pair<std::string, std::vector<double     >>> dbl_data;
-        std::vector<std::pair<std::string, std::vector<std::string>>> str_data;
-        // TODO: std::vector<std::pair<std::string, std::vector<bool       >>> bin_data;
-        for (const auto& [name, field_type] : shp.field_descriptors()) {
-            if (field_type == 'N') { dbl_data.emplace_back(name, shp.get<double>(name)); }
-            if (field_type == 'C') { str_data.emplace_back(name, shp.get<std::string>(name)); }
-        }
-        get_as(layer_t::areal, name).set_data(int_data, dbl_data, str_data/*, bin_data*/);
-	idx_to_layer_name_[n_layers_] = name;
-	n_layers_++;
-	
-        // TODO: we should reorder the fields in the same order they come from the shp
-    }
-    // layer access
-    template <typename Tag> auto& get_as(Tag, const std::string& name) {
-        return get_as_<layer_type_from_tag<Tag>>(name);
-    }
-    template <typename Tag> auto& get_as(Tag t, int idx) { return get_as(t, idx_to_layer_name_.at(idx)); }
-    template <typename Tag> const auto& get_as(Tag, const std::string& name) const {
-        return get_as_<layer_type_from_tag<Tag>>(name);
-    }
-    template <typename Tag> const auto& get_as(Tag t, int idx) const { return get_as(t, idx_to_layer_name_.at(idx)); }
     // observers
-    bool has_layer(const std::string& name) const {
-        // search for layer_name in each layer type
-        bool found_ = false;
-        std::apply([&](auto&&... layer) { ([&]() { found_ |= layer.contains(name); }(), ...); }, layers_);
-        return found_;
-    }
-    bool contains(const std::string& column) const {   // true if column is in geoframe
-        bool found_ = false;
-        std::apply(
-          [&](auto&&... layer) {
-              (
-                [&]() {
-		  for (const auto& [name, data] : layer) { found_ |= data.contains(column); }
-                }(),
-                ...);
-          },
-          layers_);
-        return found_;
-    }
-    std::optional<internals::ltype> layer_category(const std::string& name) const {
-        geoframe_assert(has_layer(name), std::string("key " + name + " not found."));
-        if (fetch_<point_layer_t>(layers_).contains(name)) return internals::ltype::point;
-        if (fetch_<areal_layer_t>(layers_).contains(name)) return internals::ltype::areal;
-	return std::nullopt;
-    }
-    std::optional<internals::ltype> layer_category(int idx) const { return layer_category(idx_to_layer_name_.at(idx)); }
     int n_layers() const { return n_layers_; }
-    // indexed access
-    const internals::plain_data_layer<Order>& operator[](int idx) const {
-        geoframe_assert(idx < n_layers_, "out of bound access.");
-        auto get_plain_data_ =
-          [&, this]<typename LayerType>([[maybe_unused]] LayerType l, const std::string& layer_name) -> const void* {
-            if (fetch_<LayerType>(layers_).contains(layer_name)) {
-                return std::addressof(fetch_<LayerType>(layers_).at(layer_name).data());
-            }
-            return nullptr;
-        };
-        std::string name = idx_to_layer_name_.at(idx);
-        const void* layer_ptr;
-	// as idx < n_layers_, it is guaranteed that one of the branches will be taken
-        if (fetch_<point_layer_t>(layers_).contains(name)) layer_ptr = get_plain_data_(point_layer_t {}, name);
-        if (fetch_<areal_layer_t>(layers_).contains(name)) layer_ptr = get_plain_data_(areal_layer_t {}, name);
-        return *reinterpret_cast<const internals::plain_data_layer<Order>*>(layer_ptr);
+    const std::array<ltype, Order>& category(int layer_id) const { return layers_[layer_id].category(); }
+    bool has_layer(const std::string& name) const {
+        for (const layer_t& layer : layers_) {
+            if (layer.name() == name) { return true; }
+        }
+        return false;
     }
+    bool contains(const std::string& column) const {   // true if column is in at least one layer
+        for (int i = 0; i < n_layers_; ++i) {
+            if (operator[](i).contains(column)) { return true; }
+        }
+        return false;
+    }
+    std::vector<std::string> layer_names() const {
+        std::vector<std::string> names;
+        for (const auto& [name, id] : layer_name_to_idx_) { names.push_back(name); }
+        return names;
+    }
+    template <int N> decltype(auto) triangulation() const { return *std::get<N>(triangulation_); }
+    // indexed access
+    const layer_t& operator[](int idx) const { return layers_[idx]; }
+    layer_t& operator[](int idx) { return layers_[idx]; }
+    const layer_t& operator[](const std::string& colname) const { return layers_.at(layer_name_to_idx_.at(colname)); }
+    layer_t& operator[](const std::string& colname) { return layers_.at(layer_name_to_idx_.at(colname)); }
+  
     // iterator
     class iterator {
         const GeoFrame* gf_;
         int index_;
        public:
-        using value_type = internals::plain_data_layer<Order>;
+        using value_type = internals::scalar_data_layer;
         using pointer = std::add_pointer_t<value_type>;
         using reference = std::add_lvalue_reference_t<value_type>;
         using size_type = std::size_t;
@@ -404,84 +167,39 @@ template <typename Triangulation_, int Order_ = 2> struct GeoFrame {
             index_++;
             return *this;
         }
-        internals::ltype category() const { return *(gf_->layer_category(index_)); }
+        const std::array<ltype, Order>& category() const { return get().category(); }
         const reference data() const { return operator*(); }
-        template <typename Tag> const auto& as(Tag t) const {
-            return gf_->get_as(t, gf_->idx_to_layer_name_.at(index_));
-        }
+        const layer_t& get() const { return gf_->layers_[index_]; }
         friend bool operator!=(const iterator& lhs, const iterator& rhs) { return lhs.index_ != rhs.index_; }
         friend bool operator==(const iterator& lhs, const iterator& rhs) { return lhs.index_ == rhs.index_; }
     };
     iterator begin() const { return iterator(this, 0); }
     iterator end() const { return iterator(this, n_layers_); }
-    // geometry access
-    Triangulation_& triangulation() { return *triangulation_; }
-    const Triangulation_& triangulation() const { return *triangulation_; }
-    int n_cells() const { return triangulation_->n_cells(); }
-    int n_nodes() const { return triangulation_->n_nodes(); }
-    const Eigen::Matrix<double, Dynamic, Dynamic>& nodes() const { return triangulation_->nodes(); }
-    const Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor>& cells() const { return triangulation_->cells(); }
    private:
-    // internal utilities
-    template <typename LayerType> decltype(auto) get_as_(const std::string& name) const {
-        geoframe_assert(fetch_<LayerType>(layers_).contains(name), std::string("key " + name + " not found."));
-        return fetch_<LayerType>(layers_).at(name);
-    }
-    template <typename LayerType> decltype(auto) get_as_(const std::string& name) {
-        geoframe_assert(fetch_<LayerType>(layers_).contains(name), std::string("key " + name + " not found."));
-        return fetch_<LayerType>(layers_).at(name);
-    }
-    template <typename Tag> class layer_type_from_tag_impl {
-        static auto layer_type_from_tag_(Tag t) {
-            if constexpr (std::is_same_v<Tag, layer_t::point_t>) return internals::point_layer<This> {};
-            if constexpr (std::is_same_v<Tag, layer_t::areal_t>) return internals::areal_layer<This> {};
-        }
-       public:
-        using type = decltype(layer_type_from_tag_(std::declval<Tag>()));
-    };
-    template <typename Tag> using layer_type_from_tag = layer_type_from_tag_impl<Tag>::type;
-
     // data members
-    Triangulation_* triangulation_ = nullptr;
-    LayerMap layers_ {};
+    std::tuple<std::add_pointer_t<std::decay_t<Triangulation_>>...> triangulation_;
+    std::vector<layer_t> layers_;
     int n_layers_ = 0;
-    std::unordered_map<int, std::string> idx_to_layer_name_;
+    std::unordered_map<std::string, int> layer_name_to_idx_;
 };
 
-// // regions is a vector with the same number of elements as number of cells
-// template <typename LayerType_, typename SubregionsType_, typename F_>
-//     requires(requires(SubregionsType_ s, int i) {
-//                 { s.operator[](i) } -> std::convertible_to<int>;
-//             }) && (std::is_same_v<typename LayerType_::layer_category, layer_t::point_t>)
-// auto aggregate(const LayerType_& layer, const SubregionsType_& regions, F_&& f) {
-//     geoframe_assert(
-//       regions.size() == layer.triangulation().n_cells(), "Number of rows does not match number of cells.");
-//     if constexpr (internals::is_eigen_dense_xpr_v<SubregionsType_>) {
-//         geoframe_assert(regions.rows() > 0 && regions.cols() == 1, "Not a vector.");
-//     }
-//     using layer_t = internals::areal_layer<typename LayerType_::GeoFrame>;
-//     using geoframe_t = typename LayerType_::GeoFrame;
-//     layer_t res {};
-//     // compute number of regions
-//     std::decay_t<SubregionsType_> regions_ = regions;
-//     std::sort(regions_.begin(), regions_.end());
-//     int n_regions = 1;
-//     for (int i = 1, n = regions_.size(); i < n; ++i) {
-//         if (regions_[i] != regions_[i - 1]) { n_regions++; }
-//     }
-//     res.resize(n_regions, layer.cols());
-//     res.set_colnames(layer.colnames());
-//     DVector<int> coords_to_cell = layer.triangulation().locate(layer.coordinates());
-//     // aggregate data
-//     std::vector<std::vector<int>> bucket_list;
-//     bucket_list.resize(n_regions);
-//     for (std::size_t i = 0, n = layer.rows(); i < n; ++i) { bucket_list[regions[coords_to_cell[i]]].push_back(i); }
-//     // apply functor to aggregated data
-//     for (int i = 0; i < n_regions; ++i) { res.row(i) = f(layer(bucket_list[i])); }
-//     return res;
-// }
+// casts a GeoFrame layer to an instance of GeoLayer<GeoInfo...>
+template <typename... GeoInfo, typename DataLayer> decltype(auto) geo_cast(DataLayer&& data_layer) {
+    using DataLayer_ = std::remove_reference_t<DataLayer>;
+    using GeoLayer_ = GeoLayer<typename std::decay_t<DataLayer>::Triangulation, std::tuple<GeoInfo...>>;
+    return *reinterpret_cast<std::conditional_t<std::is_const_v<DataLayer_>, std::add_const_t<GeoLayer_>, GeoLayer_>*>(
+      data_layer.geo_data());
+}
+// retrieve and casts a GeoFrame layer index
+template <int N, typename GeoInfo, typename DataLayer> decltype(auto) geo_index_cast(DataLayer&& data_layer) {
+    fdapde_static_assert(N < std::decay_t<DataLayer>::Order, OUT_OF_BOUND_ACCESS);
+    using DataLayer_ = std::remove_reference_t<DataLayer>;
+    using IndexT = internals::layer_type_from_layer_tag<
+      GeoInfo, std::tuple_element_t<N, typename std::decay_t<DataLayer>::Triangulation>>;
+    return *reinterpret_cast<std::conditional_t<std::is_const_v<DataLayer_>, std::add_const_t<IndexT>, IndexT>*>(
+      data_layer.geo_index(N));
+}
 
-  
 }   // namespace fdapde
 
 #endif // __FDAPDE_GEOFRAME_H__

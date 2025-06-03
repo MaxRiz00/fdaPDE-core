@@ -264,8 +264,8 @@ struct MatrixKroneckerProduct :
     constexpr MatrixKroneckerProduct(const Lhs& lhs, const Rhs& rhs) : lhs_(lhs), rhs_(rhs) { }
     constexpr Scalar operator()(int i, int j) const {
         // compute offsets in operand matrices
-        int col_lhs = i / Rhs::Cols, row_lhs = i / Rhs::Rows;
-        int col_rhs = i % Rhs::Cols, row_rhs = i % Rhs::Rows;
+        int col_lhs = j / Rhs::Cols, row_lhs = i / Rhs::Rows;
+        int col_rhs = j % Rhs::Cols, row_rhs = i % Rhs::Rows;
         return lhs_(row_lhs, col_lhs) * rhs_(row_rhs, col_rhs);
     }
     constexpr int rows() const { return lhs_.rows() * rhs_.rows(); }
@@ -394,7 +394,7 @@ class Matrix : public MatrixBase<Rows_, Cols_, Matrix<Scalar_, Rows_, Cols_, Nes
 	data_ = {x, y, z};
     }
   
-#ifdef __FDAPDE_HAS_EIGEN
+#ifdef __FDAPDE_HAS_EIGEN__
     // conversion from Eigen matrix
     template <typename Scalar__, int Rows__, int Cols__>
     explicit Matrix(const Eigen::Matrix<Scalar__, Rows__, Cols__>& other) {
@@ -455,7 +455,7 @@ class Matrix : public MatrixBase<Rows_, Cols_, Matrix<Scalar_, Rows_, Cols_, Nes
         return *this;
     }
 
-#ifdef __FDAPDE_HAS_EIGEN
+#ifdef __FDAPDE_HAS_EIGEN__
     // assignment from Eigen matrix
     template <typename Derived>
     Matrix<Scalar_, Rows_, Cols_, NestAsRefBit_>& operator=(const Eigen::MatrixBase<Derived>& rhs) {
@@ -621,6 +621,16 @@ template <int Rows, int Cols, typename Derived> struct MatrixBase {
         }
 	return;
     }
+#ifdef __FDAPDE_HAS_EIGEN__
+    // conversion to Eigen matrix
+    auto as_eigen_matrix() const {
+        Eigen::Matrix<typename Derived::Scalar, Rows, Cols> m;
+        for (int i = 0; i < Rows; ++i) {
+            for (int j = 0; j < Cols; ++j) { m(i, j) = derived().operator()(i, j); }
+        }
+        return m;
+    }
+#endif
    protected:
     // trait to detect if Xpr is a compile-time vector
     template <typename Xpr> struct is_vector {

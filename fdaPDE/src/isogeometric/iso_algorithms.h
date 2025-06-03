@@ -3,6 +3,8 @@
 #include "header_check.h"
 
 namespace fdapde {
+    // Simple data structure to hold the NURBS mesh data
+    // This structure is used to pass the NURBS mesh data to the algorithms
     template <int LocalDim> 
     struct IsoMeshData {
         std::array<std::vector<double>, LocalDim> knots;

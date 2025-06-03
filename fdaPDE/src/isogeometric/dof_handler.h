@@ -54,15 +54,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
                 //return dof_handler_->active_dofs_(Base::id());
                 return dof_handler_->get_dofs(Base::id());
             }
-            /*
-            std::vector<int> dofs_markers() const {
-                std::vector<int> dofs_ = dofs();
-                std::vector<int> dofs_markers_(dofs_.size());
-                for (int i = 0, n = dofs_.size(); i < n; ++i) { dofs_markers_[i] = dof_handler_->dof_marker(dofs_[i]); }
-            return dofs_markers_;
-            }
-            */
-           // da aggiustare
+            // markers to identify cells to be added :)
             BinaryVector<Dynamic> boundary_dofs() const {
                 std::vector<int> dofs_ = dofs();
                 BinaryVector<Dynamic> boundary(dofs_.size());
@@ -106,19 +98,48 @@ template<int N> class DofHandler<2, N, iso_tag> {
             for(int d = 0; d < local_dim; d++) {
                 if((multi_index[d] == 0 || multi_index[d] == dims_[d] - 1) && (!mesh_->is_periodic(d))) {
                     boundary_dofs_.set(id);
-                    //break;
                 }
                 if((multi_index[d] == 1 || multi_index[d] == dims_[d] - 2) && (!mesh_->is_periodic(d))) {
                     adj_boundary_dofs_.set(id);
-                    //break;
                 }
             }
         }
 
         // for the moment unmarked dofs
         dofs_markers_ = std::vector<int>(n_dofs_, Unmarked);
+        // Mark boundary dofs
+        for (typename MeshType::boundary_edge_iterator it = mesh_->boundary_edges_begin();
+                 it != mesh_->boundary_edges_end(); ++it) {
+                int marker = it->marker();
 
-        //dofs_markers_ = mesh.nodes_markers();
+                for(int i = 0; i<1; i++){
+                    int cell_id = mesh_->edge_to_cells()(it->id(), i);
+                    if (cell_id < 0 ) continue; // skip if no cell is associated
+
+                    auto dofs = get_dofs(cell_id);
+
+                    bool x_aligned = it->x_axis();
+                    int dir;
+                    if (x_aligned) dir = 0; // x-axis aligned edge
+                        else dir = 1; // y-axis aligned edge
+
+                    for(int j = 0; j<dofs.size(); j++) {
+                        auto dof_multi = unflatten(dofs[j]);
+                        // check if the dof is on the edge
+                        for(int d = 0; d < local_dim; d++) {
+                            if((dof_multi[d] == 0 || dof_multi[d] == dims_[d] - 1) && (!mesh_->is_periodic(d))) {
+                                if (d != dir) {
+                                    if(marker > dofs_markers_[dofs[j]]) {
+                                    dofs_markers_[dofs[j]] = marker; // mark dof on the edge;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                }
+        }
+
         dof_map_.resize(n_dofs_);
         for (int i = 0; i < n_dofs_; ++i) {
             dof_map_[i] = i;
@@ -375,14 +396,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
 
         std::vector<int> dofs() const {
             auto cell_id = dof_handler_->mesh()->edge_to_cells()(this->id(), 0);
-            //std::cout << "DofEdgeWrapper: edge_id = " << this->id() << std::endl;
-            //std::cout << "DofEdgeWrapper: cell_id = " << cell_id << std::endl;
-            // print the dofds
-            //std::cout << "DofEdgeWrapper: dofs = ";
-            for (int dof : dof_handler_->get_dofs(cell_id)) {
-                //std::cout << dof << " ";
-            }
-            //std::cout << std::endl;
             return dof_handler_->get_dofs(cell_id);
         }
 
@@ -434,13 +447,13 @@ public:
           int index, const DofHandler* dof_handler, int marker) :   // filter boundary edges by marker
             edge_iterator(
               index, dof_handler,
-              //marker == BoundaryAll ? 
-              dof_handler->mesh()->boundary_edges())//, //:
-                                      //dof_handler->mesh()->boundary_edges() &
-                                        //make_binary_vector(
-                                        //  dof_handler->mesh()->edges_markers().begin(),
-                                        //  dof_handler->mesh()->edges_markers().end(), 
-                                        //marker)) 
+              marker == BoundaryAll ? 
+              dof_handler->mesh()->boundary_edges() :
+                                      dof_handler->mesh()->boundary_edges() &
+                                        make_binary_vector(
+                                          dof_handler->mesh()->edges_markers().begin(),
+                                          dof_handler->mesh()->edges_markers().end(), 
+                                        marker))
                                         { }
         int marker() const { return marker_; }
     };
@@ -461,9 +474,6 @@ public:
         }
         int id() const { return id_; }
         int marker() const { return dof_handler_->dofs_markers_[id_]; }
-        //Eigen::Matrix<double, local_dim, 1> coord() const {
-        //    return dof_handler_->dofs_coords_[id_];
-        //}
     };
 
     class boundary_dofs_iterator : public internals::filtering_iterator<boundary_dofs_iterator, BoundaryDofType> {
@@ -488,7 +498,10 @@ public:
         boundary_dofs_iterator(int index, const DofHandler* dof_handler, int marker) :
             boundary_dofs_iterator(
               index, dof_handler,
-              dof_handler->boundary_dofs_,
+                marker == BoundaryAll ? dof_handler->boundary_dofs_ :
+                            dof_handler->boundary_dofs_ &
+                            make_binary_vector(
+                                dof_handler->dofs_markers_.begin(), dof_handler->dofs_markers_.end(), marker),
               marker) { 
               }
         int marker() const { return marker_; }

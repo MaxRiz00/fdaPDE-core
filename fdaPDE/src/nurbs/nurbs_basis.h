@@ -69,11 +69,15 @@ namespace fdapde {
                     //std::cout<<"Ecco la periodicity: "<<periodicity_[k]<<std::endl;
                     M_spline_basis[k] = std::make_shared<BSplineBasis>(knots_[k], degree_[k], periodicity_[k]);
                 }
+
+                //std::cout<<"Basis size: "<<basis_size<<std::endl;
                     
                 
                 for(int i=0;i<basis_size;++i){
+                    //std::cout<<"Basis index1: "<<i<<std::endl;
                     basis_.emplace_back(M_spline_basis, weights, index);
-                    //basis_.emplace_back(knots, weights, index, degree);
+                    //std::cout<<"Basis index2: "<<i<<std::endl;
+                    //basis_.emplace_back(knots_, weights, index, degree);
                     // Update the index with carry-over logic
                     //std::size_t j = M - 1;
                     std::size_t j = 0;
@@ -84,8 +88,11 @@ namespace fdapde {
                         index[j] = 0;
                         ++j;
                         ++index[j];
+                    }
+                //std::cout<<"Basis index: "<<std::endl;
                 }
-            }
+                //std::cout<<"Finito: "<<basis_.size()<<std::endl;
+
                     
             }
             

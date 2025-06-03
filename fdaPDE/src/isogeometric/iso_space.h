@@ -81,19 +81,16 @@ template <typename IsoMesh_> class IsoSpace {
     template <typename InputType>
         requires(std::is_invocable_v<ShapeFunctionType, InputType>)
     constexpr auto eval_shape_value(int i, const InputType& p) const {
-        //std::cout << "eval_shape_value: " << basis_[i](p) << std::endl;
         return basis_[i](p);
     }
 
     template <typename InputType>
-        //requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().gradient()), InputType>)
     constexpr auto eval_shape_grad(int i, const InputType& p) const {
-        //std::cout << "eval_shape_grad: " << basis_[i].gradient(p) << std::endl;
+
         return basis_[i].gradient(p); // da aggiustare
     }
 
     template <typename InputType>
-        //requires(std::is_invocable_v<decltype(std::declval<ShapeFunctionType>().gradient()), InputType>)
     constexpr auto eval_shape_hess(int i, const InputType& p) const {
         return basis_[i].hessian(p); // da aggiustare
     }
@@ -104,7 +101,6 @@ template <typename IsoMesh_> class IsoSpace {
     const IsoMesh* mesh_;
     DofHandlerType dof_handler_;
     BasisType basis_;
-    //std::vector<ShapeFunctionType> ok_basis_;
     std::array<int, local_dim> degree_;
 
 

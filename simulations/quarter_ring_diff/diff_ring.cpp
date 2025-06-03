@@ -1,4 +1,3 @@
-
 #include "isogeometric.h"
 #include "exact_solution.h"
 #include "../helpers.h"
@@ -26,14 +25,10 @@ int main() {
     auto df_exact = diff_ring::make_grad_u_exact();
 
     for (const auto& r : ref) {
-        std::cout << "\n=== Refinement level: " << r << " ===\n";
 
         auto mesh = IsoMesh<2, 2>::quarter_ring();
         mesh.refine_knots({r, r});
         double h_max = mesh.h_max();
-
-        std::cout << "Number of cells: " << mesh.n_cells() << "\n";
-        std::cout << "h_max: " << h_max << "\n";
 
         std::string level_path = save_path + "ref" + std::to_string(r) + "/mesh/";
         helpers::export_mesh(mesh, level_path);
@@ -60,33 +55,42 @@ int main() {
         solution = uh_full;
 
         ScalarField<M> err_physical(
-            [&](const Vec& p) {
-                double t1, t2;
-                auto u = mesh.invert_point(p, t1, t2, 2);
-                return solution(u) - f_exact(p);
-            });
+        [&](const Vec& p) {
+            auto u = mesh.invert_point(p, 2);
+            auto err = solution(u) - f_exact(p);
+            return err * err;
+        });
 
-        VectorField<M, M, Fun> df_appx;
-        df_appx(0, 0) = [&](const Vec& p) {
-            double t1, t2;
-            auto u = mesh.invert_point(p, t1, t2, 2);
-            return solution.phys_grad(u)(0);
-        };
-        df_appx(1, 0) = [&](const Vec& p) {
-            double t1, t2;
-            auto u = mesh.invert_point(p, t1, t2, 2);
-            return solution.phys_grad(u)(1);
-        };
 
-        auto errorL2 = std::sqrt(integral(mesh, QGL2DP9)(err_physical * err_physical));
-        auto errorH1 = std::sqrt(integral(mesh, QGL2DP9)(err_physical * err_physical + dot(df_appx - df_exact, df_appx - df_exact)));
+        ScalarField<M> err_H1physical(
+        [&](const Vec& p) {
+            auto u = mesh.invert_point(p, 2);
+            Eigen::Vector2d grad_exact;
+            grad_exact(0) = df_exact(p)(0,0);
+            grad_exact(1) = df_exact(p)(1,0);
 
-        std::cout << "L2 error: " << errorL2 << "\n";
-        std::cout << "H1 error: " << errorH1 << "\n";
-        file << h_max << "," << errorL2 << "," << errorH1 << "\n";
+            auto err = solution.phys_grad(u) - grad_exact;
+            return err.squaredNorm();
+        });
+
+        auto errorL2 = std::sqrt(integral(mesh, QGL2DP9)(err_physical));
+        auto errorH1 = std::sqrt(errorL2*errorL2 + integral(mesh, QGL2DP9)( err_H1physical ));
+
+        std::cout << "\n===========================================\n";
+        std::cout << "Refinement level: " << r << "\n";
+        std::cout << "Number of cells : " << mesh.n_cells() << "\n";
+        std::cout << "h_max           : " << h_max << "\n";
+        std::cout << "L2 error        : " << errorL2 << "\n";
+        std::cout << "H1 error        : " << errorH1 << "\n";
+        std::cout << "Mesh exported to: " << level_path << "\n";
 
         std::string solution_path = save_path + "ref" + std::to_string(r) + "/solution/";
         helpers::export_results(mesh, solution, solution_path, 10);
+
+        std::cout << "PDE results to  : " << solution_path << "\n";
+        std::cout << "===========================================\n";
+
+        file << h_max << "," << errorL2 << "," << errorH1 << "\n";
     }
 
     return 0;

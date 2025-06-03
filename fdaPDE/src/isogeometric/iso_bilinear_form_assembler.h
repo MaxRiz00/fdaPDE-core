@@ -136,7 +136,7 @@ class iso_bilinear_form_assembly_loop :
         
 
         for(iterator it = begin; it!= end; ++it) {
-            std::cout << "Assembling cell: " << it->id() << std::endl;
+            //std::cout << "Assembling cell: " << it->id() << std::endl;
 
             test_active_dofs = it->dofs();
 
@@ -187,7 +187,8 @@ class iso_bilinear_form_assembly_loop :
 
             }
 
-            //Base::eval_metric_determinant(it, metric_dets); // metric sqrt det(F^T F)
+            //Base::eval_metric_determinant(it, metric_dets); // metric sqrt det(F^T F) gia fatto sopra
+
 
             // perform integration of weak form for (i,j)-th basis pair
             for(int i = 0; i<n2; ++i){
@@ -293,7 +294,6 @@ class iso_bilinear_form_assembly_loop :
                             iso_packet.quad_node_id = local_cell_id * Base::n_quadrature_nodes_ + q_k;
                         }
                         auto eval_form = form_(iso_packet);
-                        //std::cout << "Evaluating form at quad node " << q_k << ": " << eval_form << std::endl;
                         value += Base::quad_weights_(q_k, 0) * eval_form * metric_dets(q_k);
                     }
 
@@ -306,7 +306,7 @@ class iso_bilinear_form_assembly_loop :
 
             }
             local_cell_id++;
-        }
+        };
 
         return;
 

@@ -53,8 +53,11 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         data_.resize(1 + std::ceil((n_rows_ * n_cols_) / PackSize), 0);
     }
     // vector constructor
-    explicit BinaryMatrix(int n_rows) requires(is_dynamic_sized<This>::value) : BinaryMatrix(n_rows, 1) {
-        fdapde_static_assert(Rows == Dynamic && Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+    explicit BinaryMatrix(int n)
+        requires(is_dynamic_sized<This>::value)
+        : BinaryMatrix(Rows == Dynamic ? n : 1, Cols == Dynamic ? n : 1) {
+        fdapde_static_assert(
+          (Rows == Dynamic && Cols == 1) || (Rows == 1 && Cols == Dynamic), THIS_METHOD_IS_ONLY_FOR_VECTORS);
     }
     // construct from expression
     template <int Rows_, int Cols_, typename Rhs_> BinaryMatrix(const BinMtxBase<Rows_, Cols_, Rhs_>& rhs) {
@@ -75,7 +78,7 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         for (int i = 0; i < rhs.bitpacks(); ++i) { data_[i] = rhs.bitpack(i); }
     }
 
-#ifdef __FDAPDE_HAS_EIGEN
+#ifdef __FDAPDE_HAS_EIGEN__
     // construct from Eigen dense matrix
     template <typename Derived> BinaryMatrix(const Eigen::MatrixBase<Derived>& mtx) : Base(mtx.rows(), mtx.cols()) {
         fdapde_static_assert(
@@ -102,7 +105,8 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         }
     }
     template <typename Iterator> BinaryMatrix(Iterator begin, Iterator end, int n_rows) : BinaryMatrix(n_rows, 1) {
-        fdapde_static_assert(Rows == Dynamic && Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        fdapde_static_assert(
+          (Rows == Dynamic && Cols == 1) || (Rows == 1 && Cols == Dynamic), THIS_METHOD_IS_ONLY_FOR_VECTORS);
         resize(n_rows);   // reserve space
         int i = 0;
         for (Iterator it = begin; it != end || i < n_rows; ++it, ++i) {
@@ -122,7 +126,8 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         return Ones(Rows, Cols);
     }
     static BinaryMatrix<Rows, Cols> Ones(int i) {   // vector-like factory
-        fdapde_static_assert(Rows == Dynamic && Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        fdapde_static_assert(
+          (Rows == Dynamic && Cols == 1) || (Rows == 1 && Cols == Dynamic), THIS_METHOD_IS_ONLY_FOR_VECTORS);
         BinaryMatrix<Rows, 1> result(i);
         for (int k = 0; k < result.bitpacks(); ++k) { result.bitpack(k) = -1; }
         return result;
@@ -159,7 +164,7 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         return (data_[pack_of(i, j)] & BitPackType(1) << ((i * Base::n_cols_ + j) % PackSize)) != 0;
     }
     bool operator[](int i) const {   // vector-like (subscript) access
-        fdapde_static_assert(Cols == 1, THIS_METHOD_IS_ONLY_VECTORS);
+        fdapde_static_assert(Cols == 1 || Rows == 1, THIS_METHOD_IS_ONLY_VECTORS);
         return operator()(i, 0);
     }
     BitPackType bitpack(int i) const { return data_[i]; }
@@ -170,7 +175,7 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         data_[pack_of(i, j)] |= (BitPackType(1) << ((i * Base::n_cols_ + j) % PackSize));
     }
     void set(int i) {
-        fdapde_static_assert(Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        fdapde_static_assert(Cols == 1 || Rows == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
         set(i, 0);
     }
     void set() {   // sets all coeffients in the matrix
@@ -185,7 +190,7 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         data_[pack_of(i, j)] &= ~(BitPackType(1) << ((i * Base::n_cols_ + j) % PackSize));
     }
     void clear(int i) {
-        fdapde_static_assert(Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        fdapde_static_assert(Cols == 1 || Rows == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
         clear(i, 0);
     }
     void clear() {   // clears all coeffients in the matrix
@@ -215,7 +220,7 @@ template <int Rows, int Cols = Rows> class BinaryMatrix : public BinMtxBase<Rows
         return *this;
     }
 
-#ifdef __FDAPDE_HAS_EIGEN
+#ifdef __FDAPDE_HAS_EIGEN__
     // assignment from Eigen dense expression
     template <typename Derived> BinaryMatrix& operator=(const Eigen::MatrixBase<Derived>& mtx) {
         fdapde_static_assert(
@@ -494,17 +499,17 @@ class BinMtxRepeatOp : public BinMtxBase<Rows, Cols, BinMtxRepeatOp<Rows, Cols, 
     int rep_row_, rep_col_;
 };
 
-// reshaped operation
+// reshape operation
 template <int Rows, int Cols, typename XprTypeNested>
-class BinMtxReshapedOp : public BinMtxBase<Rows, Cols, BinMtxReshapedOp<Rows, Cols, XprTypeNested>> {
+class BinMtxReshapeOp : public BinMtxBase<Rows, Cols, BinMtxReshapeOp<Rows, Cols, XprTypeNested>> {
 public:
-    using XprType = BinMtxReshapedOp<Rows, Cols, XprTypeNested>;
+    using XprType = BinMtxReshapeOp<Rows, Cols, XprTypeNested>;
     using Base = BinMtxBase<Rows, Cols, XprType>;
     using BitPackType = typename Base::BitPackType;
     static constexpr int PackSize = Base::PackSize;   // number of bits in a packet
     static constexpr int NestAsRef = 0;   // whether to store this node by reference or by copy in an expression
   
-    BinMtxReshapedOp(const XprTypeNested& xpr, int reshaped_rows, int reshaped_cols) :
+    BinMtxReshapeOp(const XprTypeNested& xpr, int reshaped_rows, int reshaped_cols) :
         Base(reshaped_rows, reshaped_cols), xpr_(xpr), reshaped_rows_(reshaped_rows), reshaped_cols_(reshaped_cols) {
         fdapde_assert(reshaped_rows * reshaped_cols == xpr.rows() * xpr.cols());
     }
@@ -545,7 +550,7 @@ template <int Rows, int Cols, typename XprType> class BinMtxBase {
         return get().operator()(i, j);
     }
     bool operator[](int i) const {
-        fdapde_static_assert(Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        fdapde_static_assert(Cols == 1 || Rows == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
         return get().operator()(i, 0);
     }
     // returns all the indices (in row-major order) having coefficients equal to b
@@ -608,28 +613,74 @@ template <int Rows, int Cols, typename XprType> class BinMtxBase {
     inline bool any() const { return visit_apply_<any_visitor<XprType>, linear_bitpack_visit>(); }
     inline int count() const { return visit_apply_<count_visitor<XprType>, linear_bit_visit>(); }
   
-#ifdef __FDAPDE_HAS_EIGEN
+#ifdef __FDAPDE_HAS_EIGEN__
     // selection on eigen expressions
-    template <typename ExprType>
-    Eigen::Matrix<typename ExprType::Scalar, Dynamic, Dynamic> select(const Eigen::MatrixBase<ExprType>& mtx) const {
+    template <typename ExprType, typename Scalar>
+        requires(internals::is_eigen_dense_xpr_v<ExprType> && std::is_convertible_v<Scalar, typename ExprType::Scalar>)
+    Eigen::Matrix<typename ExprType::Scalar, Dynamic, Dynamic>
+    select(const Eigen::MatrixBase<ExprType>& mtx, Scalar false_val = Scalar(0)) const {
         fdapde_assert(n_rows_ == mtx.rows() && n_cols_ == mtx.cols());
         using Scalar_ = typename ExprType::Scalar;
-	Eigen::Matrix<Scalar_, Dynamic, Dynamic> masked_mtx = mtx;   // assign to dense storage
-        for (int i = 0; i < mtx.rows(); ++i)
-            for (int j = 0; j < mtx.cols(); ++j) {
-                if (!get().operator()(i, j)) masked_mtx(i, j) = 0;
+        Eigen::Matrix<Scalar_, Dynamic, Dynamic> masked_mtx = mtx;   // assign to dense storage
+        for (int i = 0; i < n_rows_; ++i) {
+            for (int j = 0; j < n_cols_; ++j) {
+                if (!get().operator()(i, j)) masked_mtx(i, j) = false_val;
             }
+        }
         return masked_mtx;
     }
-    template <typename ExprType>
-    Eigen::SparseMatrix<typename ExprType::Scalar> select(const Eigen::SparseMatrixBase<ExprType>& mtx) const {
+    // select between true_expr and false_expr based on binary mask
+    template <typename TrueExpr, typename FalseExpr>
+        requires(
+          internals::is_eigen_dense_xpr_v<TrueExpr> && internals::is_eigen_dense_xpr_v<FalseExpr> &&
+          std::is_same_v<typename TrueExpr::Scalar, typename FalseExpr::Scalar>)
+    Eigen::Matrix<typename TrueExpr::Scalar, Dynamic, Dynamic>
+    select(const Eigen::MatrixBase<TrueExpr>& true_expr, const Eigen::MatrixBase<FalseExpr>& false_expr) {
+        fdapde_assert(
+          n_rows_ == true_expr.rows() && n_cols_ == true_expr.cols() && true_expr.rows() == false_expr.rows() &&
+          true_expr.cols() == false_expr.cols());
+        using Scalar_ = typename TrueExpr::Scalar;
+        Eigen::Matrix<Scalar_, Dynamic, Dynamic> masked_mtx = true_expr;
+        Eigen::Matrix<Scalar_, Dynamic, Dynamic> tmp = false_expr;   // evaluate false_expr in temporary
+        for (int i = 0; i < n_rows_; ++i) {
+            for (int j = 0; j < n_cols_; ++j) {
+	      if (!get().operator()(i, j)) masked_mtx(i, j) = tmp(i, j);
+            }
+        }
+        return masked_mtx;
+    }
+
+    template <typename ExprType, typename Scalar>
+        requires(internals::is_eigen_sparse_xpr_v<ExprType> && std::is_convertible_v<Scalar, typename ExprType::Scalar>)
+    Eigen::SparseMatrix<typename ExprType::Scalar>
+    select(const Eigen::SparseMatrixBase<ExprType>& mtx, Scalar false_val = Scalar(0)) const {
         fdapde_assert(n_rows_ == mtx.rows() && n_cols_ == mtx.cols());
         using Scalar_ = typename ExprType::Scalar;
 	Eigen::SparseMatrix<Scalar_> masked_mtx = mtx;   // assign to sparse storage
-        for (int k = 0; k < masked_mtx.outerSize(); ++k)
+        for (int k = 0; k < masked_mtx.outerSize(); ++k) {
             for (typename Eigen::SparseMatrix<Scalar_>::InnerIterator it(masked_mtx, k); it; ++it) {
-                if (!get().operator()(it.row(), it.col())) { it.valueRef() = 0; }
+                if (!get().operator()(it.row(), it.col())) { it.valueRef() = false_val; }
             }
+	}
+        return masked_mtx;
+    }
+    template <typename TrueExpr, typename FalseExpr>
+        requires(
+          internals::is_eigen_sparse_xpr_v<TrueExpr> && internals::is_eigen_sparse_xpr_v<FalseExpr> &&
+          std::is_same_v<typename TrueExpr::Scalar, typename FalseExpr::Scalar>)
+    Eigen::SparseMatrix<typename TrueExpr::Scalar>
+    select(const Eigen::SparseMatrixBase<TrueExpr>& true_expr, const Eigen::SparseMatrixBase<FalseExpr>& false_expr) {
+        fdapde_assert(
+          n_rows_ == true_expr.rows() && n_cols_ == true_expr.cols() && true_expr.rows() == false_expr.rows() &&
+          true_expr.cols() == false_expr.cols());
+        using Scalar_ = typename TrueExpr::Scalar;
+        Eigen::SparseMatrix<Scalar_> masked_mtx = true_expr;
+        Eigen::SparseMatrix<Scalar_> tmp = false_expr;   // evaluate false_expr in temporary
+        for (int k = 0; k < masked_mtx.outerSize(); ++k) {
+            for (typename Eigen::SparseMatrix<Scalar_>::InnerIterator it(masked_mtx, k); it; ++it) {
+                if (!get().operator()(it.row(), it.col())) { it.valueRef() = tmp.coeffRef(it.row(), it.col()); }
+            }
+	}
         return masked_mtx;
     }
 #endif
@@ -639,10 +690,10 @@ template <int Rows, int Cols, typename XprType> class BinMtxBase {
         return BinMtxRepeatOp<Dynamic, Dynamic, XprType>(get(), rep_row, rep_col);
     }
     // reshape a binary matrix to another matrix of different sizes
-    BinMtxReshapedOp<Dynamic, Dynamic, XprType> reshaped(int n_row, int n_col) const {
-        return BinMtxReshapedOp<Dynamic, Dynamic, XprType>(get(), n_row, n_col);
+    BinMtxReshapeOp<Dynamic, Dynamic, XprType> reshape(int n_row, int n_col) const {
+        return BinMtxReshapeOp<Dynamic, Dynamic, XprType>(get(), n_row, n_col);
     }
-    BinMtxReshapedOp<Dynamic, Dynamic, XprType> vector_view() const { return reshaped(get().size(), 1); }
+    BinMtxReshapeOp<Dynamic, Dynamic, XprType> vector_view() const { return reshape(get().size(), 1); }
    private:
     template <typename Visitor, template <typename, typename> typename VisitStrategy> inline auto visit_apply_() const {
         Visitor visitor;
@@ -706,6 +757,100 @@ BinaryVector<Dynamic> make_binary_vector(const Iterator& first, const Iterator& 
     return vec;
 }
 
+template <typename Data>
+    requires(internals::is_vector_like_v<Data> || internals::is_matrix_like_v<Data>)
+auto na_matrix(const Data& data) {
+    using storage_t =
+      std::conditional_t<internals::is_vector_like_v<Data>, BinaryVector<Dynamic>, BinaryMatrix<Dynamic, Dynamic>>;
+    storage_t na_mask;
+    if constexpr (internals::is_vector_like_v<Data>) {
+        na_mask.resize(data.size());
+        for (int i = 0; i < data.size(); ++i) {
+            if (std::isnan(internals::vector_like_access(data, i))) { na_mask.set(i); }
+        }
+    } else {
+        na_mask.resize(data.rows(), data.cols());
+        for (int i = 0; i < data.rows(); ++i) {
+            for (int j = 0; j < data.cols(); ++j) {
+                if (std::isnan(data(i, j))) { na_mask.set(i, j); }
+            }
+        }
+    }
+    return na_mask;
+}
+
+// map a memory region to a BinaryMatrix
+template <int Rows, int Cols, typename XprTypeNested>
+class BinaryMap : public BinMtxBase<Rows, Cols, BinaryMap<Rows, Cols, XprTypeNested>> {
+   public:
+    using XprType = BinaryMap<Rows, Cols, XprTypeNested>;
+    using Base = BinMtxBase<Rows, Cols, XprType>;
+    using BitPackType = std::decay_t<XprTypeNested>;
+    static constexpr int PackSize = sizeof(XprTypeNested) * 8;   // number of bits in a packet
+    static constexpr int NestAsRef = 0;   // whether to store this node by reference or by copy in an expression
+    using Base::n_cols_;
+    using Base::n_rows_;
+
+    BinaryMap(XprTypeNested* data)
+        requires(Rows != Dynamic && Cols != Dynamic)
+      : Base(), data_(data) {
+        fdapde_static_assert(std::is_integral_v<XprTypeNested>, ONLY_INTEGRAL_TYPES_CAN_BE_BINARY_MAPPED);
+    }
+    BinaryMap(XprTypeNested* data, int row) : Base(row), data_(data) {
+        fdapde_static_assert(std::is_integral_v<XprTypeNested>, ONLY_INTEGRAL_TYPES_CAN_BE_BINARY_MAPPED);
+        fdapde_static_assert(Cols == 1 || Rows == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+    }
+    BinaryMap(XprTypeNested* data, int row, int col) : Base(row, col), data_(data) {
+        fdapde_static_assert(std::is_integral_v<XprTypeNested>, ONLY_INTEGRAL_TYPES_CAN_BE_BINARY_MAPPED);
+    }
+    // const access
+    bool operator()(int i, int j) const {
+        return (data_[pack_of(i, j)] & BitPackType(1) << ((i * n_cols_ + j) % PackSize)) != 0;
+    }
+    bool operator[](int i) const {   // vector-like (subscript) access
+        fdapde_static_assert(Cols == 1 || Rows == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        return operator()(i, 0);
+    }
+    BitPackType bitpack(int i) const { return data_[i]; }
+    BitPackType& bitpack(int i) { return data_[i]; }   // non-const access to i-th bitpack
+
+    void set(int i, int j) {   // set (i,j)-th bit
+        fdapde_assert(i < n_rows_ && j < n_cols_);
+        data_[pack_of(i, j)] |= (BitPackType(1) << ((i * n_cols_ + j) % PackSize));
+    }
+    void set(int i) {
+        fdapde_static_assert(Cols == 1 || Rows == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        set(i, 0);
+    }
+    void set() {   // sets all coeffients in the matrix
+        for (int i = 0; i < n_rows_; ++i) {
+            for (int j = 0; j < n_cols_; ++j) {
+                data_[pack_of(i, j)] |= (BitPackType(1) << ((i * n_cols_ + j) % PackSize));
+            }
+        }
+    }  
+    void clear(int i, int j) {   // clear (i,j)-th bit (sets to 0)
+        fdapde_assert(i < n_rows_ && j < n_cols_);
+        data_[pack_of(i, j)] &= ~(BitPackType(1) << ((i * n_cols_ + j) % PackSize));
+    }
+    void clear(int i) {
+        fdapde_static_assert(Cols == 1 || Rows == 1, THIS_METHOD_IS_ONLY_FOR_VECTORS);
+        clear(i, 0);
+    }
+    void clear() {   // clears all coeffients in the matrix
+        for (int i = 0; i < n_rows_; ++i) {
+            for (int j = 0; j < n_cols_; ++j) {
+                data_[pack_of(i, j)] &= ~(BitPackType(1) << ((i * n_cols_ + j) % PackSize));
+            }
+        }
+    }
+   private:
+    XprTypeNested* data_;
+    // recover the byte-pack for the (i,j)-th element
+    inline int pack_of(int i, int j) const { return (i * n_cols_ + j) / PackSize; }
+};
+
+  
 }   // namespace fdapde
 
 #endif   // __FDAPDE_BINARY_H__
