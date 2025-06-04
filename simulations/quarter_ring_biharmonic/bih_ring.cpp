@@ -104,6 +104,7 @@ int main() {
         std::cout << "h_max           : " << h_max << "\n";
         std::cout << "L2 error        : " << errorL2 << "\n";
         std::cout << "H1 error        : " << errorH1 << "\n";
+        std::cout << "H2 error        : " << errorH2 << "\n";
         std::cout << "Mesh exported to: " << level_path << "\n";
         std::cout << "PDE results to  : " << solution_path << "\n";
         std::cout << "===========================================\n";
