@@ -35,7 +35,7 @@ currentlight = light(
 
 
 // === SETTINGS ===
-int num_points_per_curve = 30;
+int num_points_per_curve = 10;
 pen interiorEdgePen = black + 0.5bp;
 pen boundaryEdgePen = interiorEdgePen;//red + 1.6bp;
 pen quadPen = lightblue ;
@@ -186,14 +186,14 @@ for (int i = 0; i < num_edges; ++i) {
   }
 }
   
-
+/*
 
 // === LOAD CONTROL POINTS GRID ===
 
-pen visibleLine = rgb(0.7, 0.0, 0.0) + 0.5bp;
-pen hiddenLine = black + opacity(0.5) + 0.5bp;
-pen visibleDot = red + 5bp;
-pen hiddenDot = rgb(0.7, 0.0, 0.0) + 5bp + opacity(0.6);
+pen visibleLine = black + 0.8bp;
+pen hiddenLine = black + opacity(0.5) + 0.8bp;
+pen visibleDot = black + 5bp;
+pen hiddenDot = black + 5bp + opacity(0.6);
 
 triple[] control_points_flat;
 int num_rows = 0;
@@ -253,7 +253,7 @@ if (control_points_flat.length != num_rows * num_cols) {
   }
 }
 
-
+*/
 
 
 

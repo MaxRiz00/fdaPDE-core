@@ -324,6 +324,186 @@ IsoMeshData<1> knots_refinement(const IsoMeshData<1>& mesh_data, std::vector<dou
     return IsoMeshData<1>(new_knots, new_w, new_cp, new_order);
 }
 
+// ALGORITHM A5.9: Degree elevation for NURBS curves (1D)
+IsoMeshData<1> degree_elevation(const IsoMeshData<1>& mesh_data, int t) {
+    int n = mesh_data.control_points.extent(0) - 1;
+    int p = mesh_data.degree[0];
+    const auto& U = mesh_data.knots[0];
+    const auto& P = mesh_data.control_points;
+    const auto& W = mesh_data.weights;
+    int ph = p + t;
+    int ph2 = ph / 2;
+    int m = n + p + 1;
+
+    int EmbedDim = P.extent(1);
+
+    std::vector<std::vector<double>> bezalfs(ph + 1, std::vector<double>(p + 1, 0.0));
+    bezalfs[0][0] = bezalfs[ph][p] = 1.0;
+
+    for (int i = 1; i <= ph2; i++) {
+        double inv = 1.0 / std::tgamma(ph + 1) * std::tgamma(i + 1) * std::tgamma(ph - i + 1);
+        int mpi = std::min(p, i);
+        for (int j = std::max(0, i - t); j <= mpi; j++) {
+            bezalfs[i][j] = inv * std::tgamma(p + 1) / (std::tgamma(j + 1) * std::tgamma(p - j + 1)) *
+                            std::tgamma(t + 1) / (std::tgamma(i - j + 1) * std::tgamma(t - i + j + 1));
+        }
+    }
+
+    for (int i = ph2 + 1; i < ph; i++) {
+        int mpi = std::min(p, i);
+        for (int j = std::max(0, i - t); j <= mpi; j++) {
+            bezalfs[i][j] = bezalfs[ph - i][p - j];
+        }
+    }
+
+    // Homogeneous coordinates: Eigen::VectorXd of size EmbedDim+1
+    std::vector<Eigen::VectorXd> Qw((n + 1 + t * (n + 1)), Eigen::VectorXd::Zero(EmbedDim + 1));
+    std::vector<double> Uh(m + t * (n + 1), 0.0);
+    std::vector<Eigen::VectorXd> bpts(p + 1, Eigen::VectorXd::Zero(EmbedDim + 1));
+    std::vector<Eigen::VectorXd> ebpts(ph + 1, Eigen::VectorXd::Zero(EmbedDim + 1));
+    std::vector<Eigen::VectorXd> Nextbpts(p + 1, Eigen::VectorXd::Zero(EmbedDim + 1));
+    std::vector<double> alfs(p, 0.0);
+
+    int mh = ph;
+    int r = -1;
+    int b = p + 1;
+    int kind = ph + 1;
+    int a = p;
+    int cind = 1;
+    double ua = U[0];
+    MdArray<double, MdExtents<Dynamic, Dynamic>> new_cp;
+    new_cp.resize(n + 1 + t * (n + 1), EmbedDim);
+
+    // Set the first control point and weight
+    for (int j = 0; j < EmbedDim; ++j)
+        Qw[0](j) = P(0,j) * W(0);
+    Qw[0](EmbedDim) = W(0);
+
+    for (int i = 0; i <= ph; ++i)
+        Uh[i] = ua;
+
+    // Homogeneous representation for bpts
+    for (int i = 0; i <= p; ++i) {
+        for (int j = 0; j < EmbedDim; ++j)
+            bpts[i].coeffRef(j) = P(i, j) * W(i);
+        bpts[i].coeffRef(EmbedDim) = W(i);
+    }
+
+    while (b < m) {
+        int i = b;
+        while (b < m && U[b] == U[b + 1]) b++;
+        int mul = b - i + 1;
+        mh += mul + t;
+        double ub = U[b];
+        int oldr = r;
+        r = p - mul;
+
+        int lbz = (oldr > 0) ? (oldr + 2) / 2 : 1;
+        int rbz = (r > 0) ? ph - (r + 1) / 2 : ph;
+
+        if (r > 0) {
+            double numer = ub - ua;
+            for (int k = p; k > mul; k--)
+                alfs[k - mul - 1] = numer / (U[a + k] - ua);
+            for (int j = 1; j <= r; j++) {
+                int save = r - j;
+                int s = mul + j;
+                for (int k = p; k >= s; k--) {
+                    for (int h = 0; h < EmbedDim + 1; h++) {
+                        bpts[k].coeffRef(h) = alfs[k - s] * bpts[k].coeff(h) + (1.0 - alfs[k - s]) * bpts[k - 1].coeff(h);
+                    }
+                }
+                Nextbpts[save] = bpts[p];
+            }
+        }
+
+        for (int i = lbz; i <= ph; i++) {
+            ebpts[i].setZero();
+            int mpi = std::min(p, i);
+            for (int j = std::max(0, i - t); j <= mpi; j++) {
+                for (int h = 0; h < EmbedDim + 1; h++) {
+                    ebpts[i].coeffRef(h) += bezalfs[i][j] * bpts[j].coeff(h);
+                }
+            }
+        }
+
+        if (oldr > 1) {
+            int first = kind - 2, last = kind;
+            double den = ub - ua;
+            double bet = (ub - Uh[kind - 1]) / den;
+            for (int tr = 1; tr < oldr; tr++) {
+                int i = first, j = last, kj = j - kind + 1;
+
+                while (i < cind) {
+                    if (i < cind) {
+                        double alf = (ub - Uh[i]) / (ua - Uh[i]);
+                        Qw[i] = (1.0 - alf) * Qw[i] + alf * ebpts[kj];
+                    }
+                    if (j >= lbz) {
+                        if (j - tr <= kind - ph + oldr) {
+                            double gam = (ub - Uh[j - tr]) / den;
+                            ebpts[kj] = (1.0 - gam) * ebpts[kj + 1] + gam * ebpts[j];
+                        } else {
+                            ebpts[kj] = (1.0 - bet) * ebpts[kj + 1] + bet * ebpts[j];
+                        }
+                    }
+                    i++;
+                    j--;
+                    kj--;
+                }
+
+                first--;
+                last++;
+            }
+        }
+
+        if (a != p)
+            for (int i = 0; i < ph - oldr; i++) {
+                Uh[kind] = ua;
+                kind++;
+            }
+        for (int j = lbz; j <= rbz; j++) {
+            Qw[cind] = ebpts[j];
+            cind++;
+        }
+
+        if (b < m) {
+            for (int j = 0; j < r; j++) bpts[j] = Nextbpts[j];
+            for (int j = r; j <= p; j++) {
+                for (int h = 0; h < EmbedDim; h++)
+                    bpts[j].coeffRef(h) = P(b - p + j, h) * W(b - p + j);
+                bpts[j].coeffRef(EmbedDim) = W(b - p + j);
+            }
+            a = b;
+            b++;
+            ua = ub;
+        } else {
+            for (int i = 0; i <= ph; i++)
+                Uh[kind + i] = ub;
+        }
+        // nh = mh - ph  - 1 ; // not used
+    }
+
+    Uh.resize(mh + 1);
+
+    std::array<std::vector<double>, 1> new_knots = {Uh};
+    std::array<int, 1> new_order = {ph};
+
+    MdArray<double, MdExtents<Dynamic>> weights(cind);
+    MdArray<double, MdExtents<Dynamic, Dynamic>> cps(cind, EmbedDim);
+
+    // Recover the weights and control points for Qw (homogeneous)
+    for (int i = 0; i < cind; i++) {
+        double w = Qw[i].coeff(EmbedDim);
+        weights(i) = w;
+        for (int j = 0; j < EmbedDim; j++) {
+            cps(i, j) = Qw[i].coeff(j) / w; // normalize the control points
+        }
+    }
+
+    return IsoMeshData<1>(new_knots, weights, cps, new_order);
+}
+
 } // namespace iso_algorithms
 } // namespace fdapde
 

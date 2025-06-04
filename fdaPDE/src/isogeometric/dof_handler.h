@@ -264,11 +264,11 @@ template<int N> class DofHandler<2, N, iso_tag> {
             // Assign
             dof_map_[slave] = master;
         };
-    
         // Corner collapse (both directions periodic)
         if (mesh_->is_periodic(0) && mesh_->is_periodic(1)) {
-            int p0 = degree_[0], p1 = degree_[1];
             int n0 = dims_[0], n1 = dims_[1];
+            int p0 = degree_[0], p1 = degree_[1];
+            //int p0 = 1, p1 = 1;
     
             for (int i = 0; i < p0; ++i) {
                 for (int j = 0; j < p1; ++j) {
@@ -284,19 +284,44 @@ template<int N> class DofHandler<2, N, iso_tag> {
         for (int d = 0; d < local_dim; ++d) {
             if (!mesh_->is_periodic(d)) continue;
             int n = dims_[d];
+            int p = degree_[d];
     
             for (int i = 0; i < n_dofs_; ++i) {
                 auto multi = unflatten(i);
-                if (multi[d] < degree_[d]) {
+                if (multi[d] < p) {
                     auto mapped = multi;
-                    mapped[d] += n - degree_[d];
+                    mapped[d] += n - p;
                     int target = flatten(mapped);
                     if (target != i)
                         assign_slave(i, target);
                 }
             }
         }
-    
+        
+        
+        int n0 = dims_[0]; // number of basis in u (longitudinal)
+        int n1 = dims_[1]; // number of basis in v (latitudinal)
+        
+
+        // South pole (v=0): j = 0
+        for (int i = 1; i < n0; ++i) {
+            int master = flatten({0, 0});         // first control point at south pole
+            int slave  = flatten({i, 0});         // other control points at v=0
+            assign_slave(slave, master);
+        }
+
+        // North pole (v=1): j = n1 - 1
+        for (int i = 1; i < n0; ++i) {
+            int master = flatten({0, n1 - 1});    // first control point at north pole
+            int slave  = flatten({i, n1 - 1});    // other control points at v=1
+            assign_slave(slave, master);
+        }
+         
+        
+            
+        
+
+
         // Step 2: Flatten all dof_map_ so every entry directly points to its root
         for (int i = 0; i < n_dofs_; ++i) {
             int root = i;

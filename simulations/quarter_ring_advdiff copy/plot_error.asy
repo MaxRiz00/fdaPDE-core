@@ -1,9 +1,9 @@
-settings.outformat = "pdf";
-
 import graph;
 
-size(500, 400, IgnoreAspect);
-scale(Log, Log);
+settings.outformat = "pdf";
+
+size(500,400,IgnoreAspect);
+scale(Log,Log);
 
 // Load data
 string path = "./results/L2_error.csv";
@@ -13,44 +13,35 @@ real font = 17pt;
 
 string header = f;
 
-real[] x, y, z, w;
+real[] x, y, z;
 while (!eof(f)) {
   string line = f;
   if (line == "") continue;
   string[] fields = split(line, ",");
-  if (fields.length < 4) continue;
+  if (fields.length < 3) continue;
   x.push((real)fields[0]);
   y.push((real)fields[1]);
   z.push((real)fields[2]); // H1 error
-  w.push((real)fields[3]); // H2 error
 }
 
 // Log-space padding
-// Log-space padding
 real x_factor = 1.5, y_factor = 3;
 real x_min = min(x), x_max = max(x);
-real y_min = min(concat(y, z, w));
-real y_max = max(concat(y, z, w));
+real y_min = min(min(y), min(z)), y_max = max(max(y), max(z));
 xlimits(x_min / x_factor, x_max * x_factor);
 ylimits(y_min / y_factor, y_max * y_factor);
 
 // Plot L2 error
-marker markL2 = marker(scale(1.2mm)*unitcircle, red, Fill);
-pen dataPenL2 = red + 1.8bp;
+marker markL2 = marker(scale(1.4mm)*unitcircle, red, Fill);
+pen dataPenL2 = red + 2bp;
 Label err_label = Label("$L^2$", fontsize(font));
 draw(graph(x, y), dataPenL2, err_label, markL2);
 
 // Plot H1 error
-marker markH1 = marker(scale(1.2mm)*unitcircle, blue, Fill);
-pen dataPenH1 = blue + 1.8bp;
+marker markH1 = marker(scale(1.4mm)*unitcircle, blue, Fill);
+pen dataPenH1 = blue + 2bp;
 Label err_labelH1 = Label("$H^1$", fontsize(font));
 draw(graph(x, z), dataPenH1, err_labelH1, markH1);
-
-// Plot H2 error
-marker markH2 = marker(scale(1.2mm)*unitcircle, rgb(0,0.5,0), Fill); // Dark green
-pen dataPenH2 = rgb(0,0.5,0) + 1.8bp;
-Label err_labelH2 = Label("$H^2$", fontsize(font));
-draw(graph(x, w), dataPenH2, err_labelH2, markH2);
 
 // Axes
 pen thin = invisible;//gray(0.8) + linetype("0 2") + linewidth(0.1);
@@ -86,33 +77,29 @@ yaxis("", LeftRight,
     )
 );
 
+
 // Reference slope lines
 real x1 = 0.3, x2 = 0.06;
 real[] refx = {x1, x2};
 
-
-// Reference slopes
-real y_ref2 = 35; // base y for h^2
-real[] refy2 = {y_ref2, y_ref2 * (refx[1]/refx[0])^2};
-pen refPen2 = rgb(0.2, 0.8, 0.2)   + linetype("4 2") + 1.8bp;
-Label h2_label = Label("$ h^2$", fontsize(font));
-draw(graph(refx, refy2), refPen2, h2_label);
-
-// h^3 line
-real y_ref3 = 0.48; // adjust vertical placement if needed
-real[] refy3 = {y_ref3, y_ref3 * (refx[1]/refx[0])^3};
-pen refPen3 = 0.6*white + blue + linetype("4 2") + 1.8bp;
+// h^3 line (L2 reference)
+real y_ref = 0.004;
+real[] refy3 = {y_ref, y_ref * (refx[1]/refx[0])^3};
+pen refPen3 = rgb(1, 0.6, 0.6) + linetype("4 2") + 1.9bp;
 Label h3_label = Label("$ h^3$", fontsize(font));
-draw(graph(refx, refy3), refPen3, h3_label);
+draw(graph(refx, refy3), refPen3, h3_label );
 
-// h^4 line
-real y_ref4 = 0.014; // adjust vertical placement if needed
-real[] refy4 = {y_ref4, y_ref4 * (refx[1]/refx[0])^4};
-pen refPen4 = 0.6*white + red + linetype("4 2") + 1.8bp;
-Label h4_label = Label("$ h^4$", fontsize(font));
-draw(graph(refx, refy4), refPen4, h4_label);
+// h^2 line (H1 reference)
+real y_ref2 = 0.3;
+real[] refy2 = {y_ref2, y_ref2 * (refx[1]/refx[0])^2};
+pen refPen2 = rgb(0.6, 0.6, 1) + linetype("4 2") + 1.9bp; //rgb(0.6, 0.6, 1) 
+Label h2_label = Label("$ h^2$", fontsize(font));
+draw(graph(refx, refy2), refPen2, h2_label );
+
 // Attach legend
 pen pleg = black;
-attach(legend(linelength=10bp,2), point(SE), -15S + 16W, UnFill);
+attach(legend(linelength=30bp,1), point(SE), -15S + 16W, UnFill);
 
-label(shift(2mm*N)*Label("\textbf{Quarter of a ring: } $p=3$", fontsize(17pt)), point(N), N);
+label(shift(2mm*N)*Label("\textbf{Quarter of a ring: } $p=2$", fontsize(17pt)), point(N), N);
+
+

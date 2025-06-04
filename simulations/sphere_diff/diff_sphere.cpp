@@ -19,7 +19,7 @@ int main() {
     std::ofstream file(save_path + "L2_error.csv");
     file << "h_max,L2_error,H1_error\n";
 
-    std::vector<int> ref = {1, 2, 3, 4, 5};
+    std::vector<int> ref = {0,2,4,8,16,32};
 
     auto f_exact = diff_sphere::make_u_exact();
     auto u = diff_sphere::make_rhs();
@@ -27,7 +27,10 @@ int main() {
 
     for (const auto& r : ref) {
         auto mesh = IsoMesh<2, 3>::sphere();
+
         if (r > 0) mesh.refine_knots({r, r});
+        //mesh.elevate_degree({1 , 1});
+        
         double h_max = mesh.h_max();
 
         // Set a periodic Spline basis
@@ -38,6 +41,7 @@ int main() {
         for(int i = 0; i < 2; i++){
             new_degree[i] = mesh.degree()[i] ;
         }
+        std::cout << "New degree: " << new_degree[0] << ", " << new_degree[1] << "\n";
         for(int i = 0; i < 2; i++){
             open_uniform_knots[i] = pad_knots(mesh.param_nodes()[i], new_degree[i]);
             basis_dims[i] = open_uniform_knots[i].size() - new_degree[i] - 1;
@@ -53,9 +57,9 @@ int main() {
         TrialFunction f(Vh);
         TestFunction v(Vh);
 
-        auto a = integral(mesh, QGL2DP9)(dot(grad(f), grad(v)));
-        auto m = integral(mesh, QGL2DP9)(v);
-        auto F = integral(mesh, QGL2DP9)(u * v);
+        auto a = integral(mesh, QGL2DP16)(dot(grad(f), grad(v)));
+        auto m = integral(mesh, QGL2DP16)(v);
+        auto F = integral(mesh, QGL2DP16)(u * v);
 
         auto& dof_handler = Vh.dof_handler();
         Eigen::SparseMatrix<double> A = a.assemble();
@@ -94,7 +98,7 @@ int main() {
 
         ScalarField<M> err_H1physical(
             [&](const Vec& p) {
-                auto u = mesh.invert_point(p, 5);
+                auto u = mesh.invert_point(p, 10);
                 Eigen::Vector3d grad_exact;
                 for (int i = 0; i < M; ++i)
                     grad_exact(i) = df_exact(p)(i,0);
@@ -102,8 +106,8 @@ int main() {
                 return diff_vec(0) * diff_vec(0) + diff_vec(1) * diff_vec(1) + diff_vec(2) * diff_vec(2);
             });
 
-        auto errorL2 = std::sqrt(integral(mesh, QGL2DP9)(err_physical));
-        auto errorH1 =  std::sqrt(errorL2*errorL2 + integral(mesh, QGL2DP9)( err_H1physical ));
+        auto errorL2 = std::sqrt(integral(mesh, QGL2DP16)(err_physical));
+        auto errorH1 =  std::sqrt(errorL2*errorL2 + integral(mesh, QGL2DP16)( err_H1physical ));
         file << h_max << "," << errorL2 << "," << errorH1 << "\n";
 
         // Export mesh and solution

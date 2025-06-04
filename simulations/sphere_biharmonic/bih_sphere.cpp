@@ -19,7 +19,7 @@ int main() {
     std::ofstream file(save_path + "L2_error.csv");
     file << "h_max,L2_error,H1_error,H2_error\n";
 
-    std::vector<int> ref = {0, 1, 2, 3, 4};
+    std::vector<int> ref = {0, 2, 4, 8, 16};
 
     auto f_exact = bih_sphere::make_u_exact();
     auto u = bih_sphere::make_rhs();
@@ -29,7 +29,9 @@ int main() {
     for (const auto& r : ref) {
 
         auto mesh = IsoMesh<2, 3>::sphere();
+        //mesh.elevate_degree({1 , 1});
         if (r > 0) mesh.refine_knots({r, r});
+        //
         double h_max = mesh.h_max();
 
         // Set a periodic Spline basis
@@ -55,9 +57,9 @@ int main() {
         TrialFunction f(Vh);
         TestFunction v(Vh);
 
-        auto a = integral(mesh, QGL2DP9)(laplacian(f) * laplacian(v));
-        auto m = integral(mesh, QGL2DP9)(v);
-        auto F = integral(mesh, QGL2DP9)(u * v);
+        auto a = integral(mesh, QGL2DP16)(laplacian(f) * laplacian(v));
+        auto m = integral(mesh, QGL2DP16)(v);
+        auto F = integral(mesh, QGL2DP16)(u * v);
 
         auto& dof_handler = Vh.dof_handler();
         Eigen::SparseMatrix<double> A = a.assemble();
@@ -87,14 +89,14 @@ int main() {
 
         ScalarField<M> err_physical(
             [&](const Vec& p) {
-                auto u = mesh.invert_point(p, 5);
+                auto u = mesh.invert_point(p, 10);
                 auto err = solution(u) - f_exact(p);
                 return err * err;
             });
 
         ScalarField<M> err_H1physical(
             [&](const Vec& p) {
-                auto u = mesh.invert_point(p, 5);
+                auto u = mesh.invert_point(p, 10);
                 Eigen::Vector3d grad_exact;
                 for (int i = 0; i < M; ++i)
                     grad_exact(i) = df_exact(p)(i,0);
@@ -104,7 +106,7 @@ int main() {
 
         ScalarField<M> err_H2physical(
             [&](const Vec& p) {
-                auto u = mesh.invert_point(p, 5);
+                auto u = mesh.invert_point(p, 10);
                 Eigen::Matrix3d hess_exact;
                 for (int i = 0; i < M; ++i)
                     for (int j = 0; j < M; ++j)
@@ -115,9 +117,9 @@ int main() {
             });
 
 
-        auto errorL2 = std::sqrt(integral(mesh, QGL2DP9)(err_physical * err_physical));
-        auto errorH1 = std::sqrt(errorL2 * errorL2 + integral(mesh, QGL2DP9)(err_H1physical));
-        auto errorH2 = std::sqrt(integral(mesh, QGL2DP9)(err_H2physical) + errorH1 * errorH1) ;
+        auto errorL2 = std::sqrt(integral(mesh, QGL2DP16)(err_physical * err_physical));
+        auto errorH1 = std::sqrt(errorL2 * errorL2 + integral(mesh, QGL2DP16)(err_H1physical));
+        auto errorH2 = std::sqrt(integral(mesh, QGL2DP16)(err_H2physical) + errorH1 * errorH1) ;
 
         file << h_max << "," << errorL2 << "," << errorH1 << "," << errorH2 << "\n";
 

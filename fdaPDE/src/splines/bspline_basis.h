@@ -102,7 +102,7 @@ class BSplineBasis {
         unique_knots_.assign(unique_knots_set.begin(), unique_knots_set.end());
         // check if the knots are open and uniform
         if(periodicity_) {
-            n_basis_ = knots_.size() - 2* degree_ - 1;
+            n_basis_ = knots_.size() -  degree_ - 1;
         }
         else {
             n_basis_ = knots_.size() - degree_ - 1;

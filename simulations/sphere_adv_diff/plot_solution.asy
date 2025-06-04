@@ -1,22 +1,29 @@
 settings.render = 3; 
-settings.outformat = "png"; // "pdf", "png", "svg", "eps"
+settings.outformat = "pdf"; // "pdf", "png", "svg", "eps"
 
 import three;
 
 
 // === GRAPHICS ===
 size(230);
-currentprojection = perspective((14, 10,3),up=(0,0,1));
+//currentprojection = perspective((14, 10,10),up=(0,0,1));
+/*
 currentlight = light(
   diffuse = new pen[] {gray(1.0), gray(0.6)},     // brighter light
   position = new triple[] {(2, 2, 3), (-2, -1, 2)} // same directions
 );
-
-
+*/
+currentlight = nolight;
 
 // === SETTINGS ===
 int num_points_per_curve = 10; // number of points per curve in the surface patch
-string folder = "results/ref4/solution/" ; // Adjust this path to your data files
+string user = substr(settings.user, 0, length(settings.user) - 1);
+
+if(user == ""){
+  user = "4";
+}
+
+string folder = "./results/ref" + user + "/solution/" ;
 
 
 // === HELPERS ===

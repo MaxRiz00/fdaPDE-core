@@ -149,6 +149,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * @return Physical coordinate in embedding space
      */
     Eigen::Matrix<double, EmbedDim, 1> eval_param(const Eigen::Matrix<double, LocalDim,1>& u) const {
+        //std::cout << "Evaluating parametric coordinate at u: " << u.transpose() << std::endl;
         for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() - 1e-9 && u(i) <= knots_[i].back() + 1e-9);
         std::array<std::vector<double>,LocalDim> basis_eval;
         std::array<int,LocalDim> spans= {0};
@@ -375,16 +376,18 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             std::vector<double> refined_knots, knot_list(param_nodes_[j].begin(), param_nodes_[j].end());
         
             // Insert midpoint knots iteratively for the required density
-            for (int d = 0; d < density[j]; d++) {
-                std::vector<double> rknots;
-                for (size_t i = 0; i < knot_list.size() - 1; i++) {
-                    double midpoint = (knot_list[i] + knot_list[i + 1]) / 2.0;
-                    rknots.push_back(knot_list[i]);
-                    rknots.push_back(midpoint);
+            std::vector<double> rknots;
+            int num_subdiv = std::max(1, density[j]);
+
+            for (size_t i = 0; i < knot_list.size() - 1; i++) {
+                double a = knot_list[i], b = knot_list[i + 1];
+                for (int s = 0; s < num_subdiv; ++s) {
+                    double val = a + s * (b - a) / num_subdiv;
+                    rknots.push_back(val);
                 }
-                rknots.push_back(knot_list.back());
-                knot_list = rknots;  
             }
+            rknots.push_back(knot_list.back());
+            knot_list = rknots;
         
             // Compute valid knot insertions
             std::vector<double> valid_knots;
@@ -521,6 +524,120 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
     }
 
+    
+    void elevate_degree(const std::array<int, LocalDim>& elevation_amounts) {
+        std::array<std::vector<double>, LocalDim> updated_knots;
+        auto refined_cp = control_points_;
+        auto refined_weights = weights_;
+        auto previous_cp = control_points_;
+        auto previous_weights = weights_;
+        std::array<int, LocalDim + 1> cp_dims;
+        std::array<int, LocalDim> weights_dims;
+        std::array<int, LocalDim> new_degree = degree_;
+
+        for (int j = 0; j < LocalDim; ++j) {
+            cp_dims[j] = control_points_.extent(j);
+            weights_dims[j] = weights_.extent(j);
+        }
+        cp_dims[LocalDim] = control_points_.extent(LocalDim);
+
+        for (int k = 0; k < LocalDim; ++k) {
+            if (elevation_amounts[k] == 0) {
+                updated_knots[k] = knots_[k];
+                continue;
+            }
+
+            std::array<int, LocalDim + 1> temp_cp_dims;
+            std::array<int, LocalDim> temp_weights_dims;
+            for (int j = 0; j < LocalDim; ++j) {
+                if (j <= k) {
+                    temp_cp_dims[j] = cp_dims[j];
+                    temp_weights_dims[j] = weights_dims[j];
+                } else {
+                    temp_cp_dims[j] = control_points_.extent(j);
+                    temp_weights_dims[j] = weights_.extent(j);
+                }
+            }
+            temp_cp_dims[LocalDim] = EmbedDim;
+
+            // REMOVE: refined_cp.resize(temp_cp_dims); refined_weights.resize(temp_weights_dims);
+
+            int ref_size = 1;
+            for (int j = 0; j < LocalDim; ++j) {
+                if (j != k) ref_size *= previous_weights.extent(j);
+            }
+
+            std::array<int, LocalDim> index = {0};
+            for (int i = 0; i < ref_size; ++i) {
+                MdArray<double, MdExtents<Dynamic, Dynamic>> old_cp(previous_weights.extent(k), EmbedDim);
+                MdArray<double, MdExtents<Dynamic>> old_w(previous_weights.extent(k));
+
+                for (int m = 0; m < previous_weights.extent(k); ++m) {
+                    std::array<int, LocalDim> current_index = index;
+                    current_index[k] = m;
+                    for (int n = 0; n < EmbedDim; ++n) {
+                        std::array<int, LocalDim + 1> current_index_cp;
+                        for (int l = 0; l < LocalDim; ++l)
+                            current_index_cp[l] = current_index[l];
+                        current_index_cp[LocalDim] = n;
+                        old_cp(m, n) = previous_cp(current_index_cp);
+                    }
+                    old_w(m) = previous_weights(current_index);
+                }
+
+                IsoMeshData<1> mesh_data(knots_[k], old_w, old_cp, degree_[k], flags_);
+                auto elevated_mesh = iso_algorithms::degree_elevation(mesh_data, elevation_amounts[k]);
+
+                updated_knots[k] = elevated_mesh.knots[0];
+                new_degree[k] = elevated_mesh.degree[0];
+
+                auto new_w = elevated_mesh.weights;
+                auto new_cp = elevated_mesh.control_points;
+
+                // Now update dims from elevated mesh and resize
+                weights_dims[k] = new_w.extent(0);
+                cp_dims[k] = new_cp.extent(0);
+                refined_weights.resize(weights_dims);
+                refined_cp.resize(cp_dims);
+
+                for (int m = 0; m < new_w.extent(0); ++m) {
+                    std::array<int, LocalDim> current_index = index;
+                    current_index[k] = m;
+                    refined_weights(current_index) = new_w(m);
+                    for (int n = 0; n < EmbedDim; ++n) {
+                        std::array<int, LocalDim + 1> current_index_cp;
+                        for (int l = 0; l < LocalDim; ++l)
+                            current_index_cp[l] = current_index[l];
+                        current_index_cp[LocalDim] = n;
+                        refined_cp(current_index_cp) = new_cp(m, n);
+                    }
+                }
+                // Advance multi-index
+                for (int j = LocalDim - 1; j >= 0; --j) {
+                    if (j == k) continue;
+                    index[j]++;
+                    if (index[j] < previous_weights.extent(j)) break;
+                    index[j] = 0;
+                }
+            }
+
+            previous_cp = refined_cp;
+            previous_weights = refined_weights;
+        }
+
+        // Overwrite the current mesh
+        initialize(updated_knots, refined_weights, refined_cp, new_degree, flags_);
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     /**
      * @brief Perform point inversion from physical space (p) to parametric space (u).
      * 
@@ -542,6 +659,14 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         Eigen::Matrix<double, local_dim,1> u_old, u ;
         u.setZero();
         u_old.setZero();
+        
+        // Eigen::Matrix<double, embed_dim, 1> north_pole = {0,0,1};
+        // Eigen::Matrix<double, embed_dim, 1> south_pole = {0,0,-1};
+
+        // // handling poles
+        // if((p - north_pole).norm() < tol1) return Eigen::Matrix<double, local_dim, 1>::Constant(0.0);
+        // if((p - south_pole).norm() < tol1) return Eigen::Matrix<double, local_dim, 1>::Constant(1.0);
+
 
         auto Cp = this->control_points_;
 
@@ -673,6 +798,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         }
 
         if(counter == max_iters){
+            //std::cout<<"Point: "<<p.transpose()<<" could not be inverted to parametric coordinates."<<std::endl;
             std::cout<<"Max iterations reached: try to increase the numbers of evaluations."<<std::endl;
         }
 
@@ -1400,6 +1526,77 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         return mesh;
 
     }
+static IsoMesh<2, N> sphere_patch(double r,
+                                  double theta0_deg, double theta1_deg,
+                                  double phi0_deg, double phi1_deg,
+                                  int arc_degree = 2) {
+    fdapde_static_assert(N == 3, THIS_METHOD_IS_ONLY_FOR_3D_MANIFOLDS);
+    fdapde_assert(r > 0);
+
+    // Convert degrees to radians
+    const double deg_to_rad = M_PI / 180.0;
+    double theta0 = theta0_deg * deg_to_rad;
+    double theta1 = theta1_deg * deg_to_rad;
+    double theta_mid = 0.5 * (theta0 + theta1);
+    double phi_extent = (phi1_deg - phi0_deg) * deg_to_rad;
+    double phi_start = phi0_deg * deg_to_rad;
+    double phi_half = 0.5 * (theta1 - theta0);  // For weight computation
+
+    std::cout<< "Creating sphere patch with parameters:\n"
+              << "r = " << r << ", theta0 = " << theta0_deg << "°, theta1 = " << theta1_deg
+              << ", phi0 = " << phi0_deg << "°, phi1 = " << phi1_deg
+              << ", arc_degree = " << arc_degree << std::endl;
+
+    // Define the unrotated control points in the x–z plane
+    std::vector<std::vector<double>> P_local = {
+        {r * std::sin(theta0), 0., r * std::cos(theta0)},
+        {r * std::sin(theta_mid) / std::cos( phi_half), 0., r * std::cos(theta_mid) / std::cos( phi_half)},
+        {r * std::sin(theta1), 0., r * std::cos(theta1)}
+    };
+
+    // Rotate each control point by phi_start around z-axis
+    std::vector<std::vector<double>> P_rotated;
+    for (const auto& pt : P_local) {
+        double x = pt[0];
+        double y = pt[1];  // Should be 0
+        double z = pt[2];
+
+        double x_rot = std::cos(phi_start) * x - std::sin(phi_start) * y;
+        double y_rot = std::sin(phi_start) * x + std::cos(phi_start) * y;
+        P_rotated.push_back({x_rot, y_rot, z});
+    }
+
+    // Corresponding weights
+    std::vector<double> w = {
+        1.0,
+        std::cos( phi_half),
+        1.0
+    };
+
+    std::array<std::vector<double>, 1> knots = { std::vector<double>{0.0, 0.0, 0.0, 1.0, 1.0, 1.0} };
+    std::array<int, 1> degree = { arc_degree };
+
+    int n = P_rotated.size();
+    MdArray<double, MdExtents<Dynamic>> weights(n);
+    MdArray<double, MdExtents<Dynamic, Dynamic>> control_points(n, 3);
+
+    for (int i = 0; i < n; ++i) {
+        weights(i) = w[i];
+        for (int j = 0; j < 3; ++j)
+            control_points(i, j) = P_rotated[i][j];
+    }
+
+    std::cout<<"phi_extent = " << phi_extent << " radians (" 
+             << (phi_extent * 180.0 / M_PI) << " degrees)" << std::endl;
+
+    // Create the 1D arc and revolve
+    IsoMeshData<1> arc_data(knots, weights, control_points, degree);
+    IsoMeshData<2> patch_data = iso_algorithms::create_revolved_ISO_surface(
+        arc_data, phi_extent, Eigen::Matrix<double, 3, 1>(0, 0, 1)  // rotate around z
+    );
+
+    return IsoMesh<2, N>(patch_data.knots, patch_data.weights, patch_data.control_points, patch_data.degree);
+}
 
     /**
      * @brief Create a 2D NURBS mesh of a torus surface by revolving a circle.
@@ -2085,6 +2282,29 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
     mutable typename Base::CellType cell_;              ///< temporary cell object for non-cached access
 
 };
+
+template<int N>
+class IsoMesh<1,N>: public IsoMeshBase<1,N,IsoMesh<1,N>> {
+
+    public:
+    using Base = IsoMeshBase<1,N,IsoMesh<1,N>>;
+
+        IsoMesh() = default;
+
+    /**
+     * @brief Construct a 1D IsoMesh from NURBS data.
+     * @see IsoMeshBase::IsoMeshBase
+     */
+IsoMesh(std::array<std::vector<double>,1>& knots,
+        MdArray<double, MdExtents<Dynamic>>& weights,
+        MdArray<double, MdExtents<Dynamic, Dynamic>>& control_points,
+        std::array<int,1> degree,
+        int flags = 0)
+    : Base(knots, weights, control_points, degree, flags) // convert to array here
+{}
+};
+
+
 
 }; // namespace fdapde
 

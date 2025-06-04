@@ -2,7 +2,7 @@
 // PARTE MIA
 
 settings.render = 4; 
-settings.outformat = "png"; // "pdf", "png", "svg", "eps"
+settings.outformat = "pdf"; // "pdf", "png", "svg", "eps"
 //settings.prc = true; // if true animation 3d active
 
 import three;
@@ -11,8 +11,6 @@ import settings;
 import plain;
 
 
-
-size(250);
 //currentprojection = perspective((10,10,10));
 // sphere 
 //currentprojection = perspective(12*(1, 1, 1),  showtarget=true, autoadjust=false, center=true);
@@ -20,7 +18,8 @@ size(250);
 //currentlight = (5, 10, 10);
 
 
-currentprojection = orthographic((0, 0, 1), up = (0, 0, 1));
+size(230);
+currentprojection = perspective((14, 10,10),up=(0,0,1));
 //currentprojection = orthographic((0,0,1),up=(0,0,1));
 //defaultrender = render(merge = true);
 //currentlight = Viewport;
@@ -35,7 +34,7 @@ currentlight = light(
 
 
 // === SETTINGS ===
-int num_points_per_curve = 30;
+int num_points_per_curve = 10;
 pen interiorEdgePen = black + 0.5bp;
 pen boundaryEdgePen = interiorEdgePen;//red + 1.6bp;
 pen quadPen = lightblue ;
@@ -94,13 +93,13 @@ int[][] edges = loadEdgeList(folder + "edges.txt");
 int[] bflags = loadFlags(folder + "boundary_edges.txt");
 
 
-triple origin = O;//0.8*(1,-1,-1); // bottom-left corner of the merged surface
+triple origin = 0.8*(1,-1,-1); // bottom-left corner of the merged surface
 
 real axisLength = .2; // adjust as needed
 
-draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x$", origin + (axisLength+0.04,0,0),fontsize(11pt));
-draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$y$", origin + (0,axisLength+0.04,0),fontsize(11pt));
-draw(origin -- (origin + (0,0,axisLength)), Arrow3(5bp)); label("$z$", origin + (-0.04,-0.04,0),fontsize(11pt));
+draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x$", origin + (axisLength+0.04,0,0),fontsize(9pt));
+draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$y$", origin + (0,axisLength+0.04,0),fontsize(9pt));
+draw(origin -- (origin + (0,0,axisLength)), Arrow3(5bp)); label("$z$", origin + (0,0,axisLength+0.04),fontsize(9pt));;
 
 
 // === LOAD & PLOT SURFACE PATCHES ===
@@ -186,14 +185,14 @@ for (int i = 0; i < num_edges; ++i) {
   }
 }
   
-
+/*
 
 // === LOAD CONTROL POINTS GRID ===
 
-pen visibleLine = rgb(0.7, 0.0, 0.0) + 0.5bp;
-pen hiddenLine = black + opacity(0.5) + 0.5bp;
-pen visibleDot = red + 5bp;
-pen hiddenDot = rgb(0.7, 0.0, 0.0) + 5bp + opacity(0.6);
+pen visibleLine = black + 0.8bp;
+pen hiddenLine = black + opacity(0.5) + 0.8bp;
+pen visibleDot = black + 5bp;
+pen hiddenDot = black + 5bp + opacity(0.6);
 
 triple[] control_points_flat;
 int num_rows = 0;
@@ -253,7 +252,7 @@ if (control_points_flat.length != num_rows * num_cols) {
   }
 }
 
-
+*/
 
 
 

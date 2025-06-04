@@ -274,7 +274,7 @@ struct iso_assembler_base{
               }
               
               // evaluate Map nodes at quadrature nodes
-              xpr_apply_if<
+              xpr_for_each<
                 decltype([]<typename Xpr_, typename... Args>(Xpr_& xpr, Args&&... args) {
                     xpr.init(std::forward<Args>(args)...);
                     return;

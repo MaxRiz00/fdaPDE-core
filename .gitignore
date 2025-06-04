@@ -17,6 +17,8 @@ build/
 cmake-build-debug-docker/
 cmake-build-default/
 
+fdaPDE/core_old/
+
 cmake-build-debug/
 experiments/test_RSVD/performances.csv
 .vscode

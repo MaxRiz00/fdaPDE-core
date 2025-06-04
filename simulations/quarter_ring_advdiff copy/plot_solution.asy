@@ -5,8 +5,8 @@ import three;
 
 
 // === GRAPHICS ===
-size(230);
-currentprojection = perspective((14, 10,3),up=(0,0,1));
+size(300);
+currentprojection = orthographic((0, 0, 1), up = (0, 0, 1));
 currentlight = light(
   diffuse = new pen[] {gray(1.0), gray(0.6)},     // brighter light
   position = new triple[] {(2, 2, 3), (-2, -1, 2)} // same directions
@@ -16,7 +16,13 @@ currentlight = light(
 
 // === SETTINGS ===
 int num_points_per_curve = 10; // number of points per curve in the surface patch
-string folder = "results/ref4/solution/" ; // Adjust this path to your data files
+string user = substr(settings.user, 0, length(settings.user) - 1);
+
+if(user == ""){
+  user = "3";
+}
+
+string folder = "./results/ref" + user + "/solution/" ;
 
 
 // === HELPERS ===
@@ -80,13 +86,13 @@ triple[] loadTriples(string filename) {
 }
 
 
-triple origin = 0.8*(1,-1,-1); // bottom-left corner of the merged surface
+triple origin = O;//0.8*(1,-1,-1); // bottom-left corner of the merged surface
 
 real axisLength = .2; // adjust as needed
 
-draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x$", origin + (axisLength+0.04,0,0),fontsize(9pt));
-draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$y$", origin + (0,axisLength+0.04,0),fontsize(9pt));
-draw(origin -- (origin + (0,0,axisLength)), Arrow3(5bp)); label("$z$", origin + (0,0,axisLength+0.04),fontsize(9pt));
+draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x$", origin + (axisLength+0.04,0,0),fontsize(11pt));
+draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$y$", origin + (0,axisLength+0.04,0),fontsize(11pt));
+draw(origin -- (origin + (0,0,axisLength)), Arrow3(5bp)); label("$z$", origin + (-0.04,-0.04,0),fontsize(11pt));
 
 
 // === LOAD & PLOT SURFACE PATCHES ===

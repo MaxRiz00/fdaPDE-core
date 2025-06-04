@@ -299,3 +299,46 @@ TEST(PDETest, BiharmonicMatrix) {
 
     EXPECT_TRUE(isotesting::almost_equal(A, A_correct));
 }
+
+
+TEST(NewTest, DegElevation) {
+    typedef Eigen::Matrix<double, 2, 1> Point2D;
+    // Original quadratic NURBS arc (quarter circle)
+    std::vector<double> knots = {0.0, 0.0, 0.0, 1.0, 1.0, 1.0}; // degree 2
+    MdArray<double, MdExtents<Dynamic>> weights(3);
+    MdArray<double, MdExtents<Dynamic, Dynamic>> control_points(3, 2);
+
+    weights(0) = 1.0;
+    weights(1) = std::sqrt(2) / 2;
+    weights(2) = 1.0;
+
+    control_points(0, 0) = 1.0; control_points(0, 1) = 0.0;
+    control_points(1, 0) = 1.0; control_points(1, 1) = 1.0;
+    control_points(2, 0) = 0.0; control_points(2, 1) = 1.0;
+
+    IsoMeshData<1> curve(knots, weights, control_points, 2);
+
+    // Degree elevate by 1
+    IsoMeshData<1> elevated = iso_algorithms::degree_elevation(curve, 1);
+    EXPECT_EQ(elevated.degree[0], 3);
+
+    // Geometry check: evaluate at 5 sample points in parametric domain
+    std::vector<double> test_params = {0.0, 0.25, 0.5, 0.75, 1.0};
+
+    IsoMesh<1,2> new_mesh(elevated.knots, elevated.weights, elevated.control_points, elevated.degree);
+    IsoMesh<1,2> old_mesh(curve.knots, curve.weights, curve.control_points, curve.degree);
+
+    Eigen::Matrix<double,1,1> u_param;
+    u_param(0) = 0.0; // Initialize u_param for evaluation
+
+    for (double u : test_params) {
+        u_param(0) = u; // Set the parameter for evaluation
+        Point2D pt_orig = old_mesh.eval_param(u_param);//evaluate_nurbs_curve<2>(curve, u);
+        Point2D pt_elev = new_mesh.eval_param(u_param);//evaluate_nurbs_curve<2>(elevated, u);
+
+        for (int d = 0; d < 2; ++d) {
+            EXPECT_TRUE(isotesting::almost_equal(pt_orig(d), pt_elev(d)));
+            //    << "Mismatch at param u = " << u << " in dimension " << d;
+        }
+    }
+}
