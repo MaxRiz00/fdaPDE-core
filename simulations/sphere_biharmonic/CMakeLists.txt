@@ -19,8 +19,7 @@ find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 include_directories(../../fdaPDE)
 
 # Add the executable
-add_executable(BihRing bih_ring.cpp)
+add_executable(BihSphere bih_sphere.cpp)
 
 # Link libraries
-target_link_libraries(BihRing PRIVATE Eigen3::Eigen)
-
+target_link_libraries(BihSphere PRIVATE Eigen3::Eigen)
