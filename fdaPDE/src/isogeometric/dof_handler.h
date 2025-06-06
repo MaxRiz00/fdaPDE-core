@@ -627,7 +627,7 @@ public:
 
     // Constraints
     std::vector<int> dofs_markers_; // dofs markers
-    DofConstraints<DofHandler> dof_constraints_; // strong constraints on DOFs
+    DofConstraints<DofHandler,iso_tag> dof_constraints_; // strong constraints on DOFs
 
 };
 

@@ -322,11 +322,12 @@ void get_iso_quadrature(int degree, T& quad_nodes, T& quad_weights) {
 }// namespace internals
 
 
-
+#ifndef __FDAPDE_SP_INTEGRATION_H__
 // 1D formulas ( da chiedere se usare quella di spline, altrimenti ci sono conflitti)
 [[maybe_unused]] static struct QGL1DP1_ : internals::iso_quadrature_gauss_legendre<1, 1> { } QGL1DP1;
 [[maybe_unused]] static struct QGL1DP2_ : internals::iso_quadrature_gauss_legendre<1, 2> { } QGL1DP2;
 [[maybe_unused]] static struct QGL1DP3_ : internals::iso_quadrature_gauss_legendre<1, 3> { } QGL1DP3;
+#endif
 // 2D formulas
 [[maybe_unused]] static struct QGL2DP1_ : internals::iso_quadrature_gauss_legendre<2, 1> { } QGL2DP1;
 [[maybe_unused]] static struct QGL2DP4_ : internals::iso_quadrature_gauss_legendre<2, 4> { } QGL2DP4;

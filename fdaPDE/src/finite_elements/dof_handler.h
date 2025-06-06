@@ -215,7 +215,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class fe_dof_handler_bas
     Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_;
     BinaryVector<Dynamic> boundary_dofs_;   // whether the i-th dof is on boundary or not
     std::vector<int> dofs_to_cell_;         // for each dof, the id of (one of) the cell containing it
-    DofConstraints<Derived> dof_constraints_;
+    DofConstraints<Derived,finite_element_tag> dof_constraints_;
     std::vector<int> dofs_markers_;
     int n_dofs_per_cell_ = 0, n_dofs_ = 0, n_unique_dofs_ = 0;
     Eigen::Matrix<double, Dynamic, Dynamic> reference_dofs_barycentric_coords_;

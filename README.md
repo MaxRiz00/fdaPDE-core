@@ -17,7 +17,7 @@ The official documentation of fdaPDE, still under developement, can be found on 
 **fdaPDE** is an header-only library, therefore it does not require any installation. Just make sure to have it in your include path. Neverthless, the following dependencies are required to compile the code and run the simulations:
 
 - **GCC/G++-compliant compiler**  
-  A C++ compiler that supports **C++17 or later** is required. *Note: Apple Clang is currently not supported.*
+  Use `g++14` or newer. On Ubuntu or Debian-based systems, you can install it with: `sudo apt install g++`. For other platforms, refer to the official [GCC installation guide](https://gcc.gnu.org/install/).
 
 - **make**  
   A build automation tool. Install it on Ubuntu/Debian with: `sudo apt install make`. For other platforms, refer to the official [GNU Make installation guide](https://www.gnu.org/software/make/).
@@ -75,17 +75,3 @@ The official documentation of fdaPDE, still under developement, can be found on 
     ```
     The `-u <ref>` option is used to set the refinement level of the mesh. The default value is 3, but it can be changed to any integer value to increase or decrease the resolution of the plot. Note that the corresponding refinement must be set in the source files.
 
-## Example Simulation Results
-The following images show the results of diffusion simulations on a **sphere** and a **torus** domain. Each row includes the computational mesh and the corresponding numerical solution.
-
-### 🌐 Sphere Domain
-<div align="center">
-  <img src="simulations/sphere_diff/plot_mesh.png" alt="Sphere Mesh" width="300" style="margin: 30px;"/>
-  <img src="simulations/sphere_diff/plot_solution.png" alt="Sphere Solution" width="300" style="margin: 30px;"/>
-</div>
-
-### 🌀 Torus Domain
-<div align="center">
-  <img src="simulations/torus_diff/plot_mesh.png" alt="Torus Mesh" width="300" style="margin: 30px;"/>
-  <img src="simulations/torus_diff/plot_solution.png" alt="Torus Solution" width="300" style="margin: 30px;"/>
-</div>

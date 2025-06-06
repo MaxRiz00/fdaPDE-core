@@ -46,7 +46,7 @@ int main() {
         }
         MdArray<double, full_dynamic_extent_t<2>> unitary_weights;
         unitary_weights.resize(basis_dims);
-        unitary_weights.set_constant(1.0);
+        std::fill(unitary_weights.begin(), unitary_weights.end(), 1.0); 
         auto basis_pde = NurbsBasis<2>(open_uniform_knots, unitary_weights, new_degree, mesh.is_periodic()); //bas
         //
         

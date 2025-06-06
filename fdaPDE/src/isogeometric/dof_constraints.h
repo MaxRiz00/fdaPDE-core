@@ -5,27 +5,29 @@
 
 namespace fdapde {
 
-// Pair-like object for constraint values
-template <typename Scalar_> class Duplet {
- public:
-  using Index = int;
-  using Scalar = Scalar_;
-  Duplet() : row_(0), value_() { }
-  Duplet(int row, const Scalar& value) : row_(row), value_(value) { }
 
-  Index row() const { return row_; }
-  const Scalar& value() const { return value_; }
-  Scalar& value() { return value_; }
 
- private:
-  Index row_;
-  Scalar value_;
-};
-
+template <typename DofHandler, typename DiscretizationCategory> class DofConstraints;
 
 
 // Management of affine constraints of the form ∑_j c_ij * dof_j = b_i
-template <typename DofHandler> class DofConstraints {
+template <typename DofHandler> class DofConstraints<DofHandler, iso_tag> {
+    // Pair-like object for constraint values
+        template <typename Scalar_> class Duplet {
+        public:
+        using Index = int;
+        using Scalar = Scalar_;
+        Duplet() : row_(0), value_() { }
+        Duplet(int row, const Scalar& value) : row_(row), value_(value) { }
+
+        Index row() const { return row_; }
+        const Scalar& value() const { return value_; }
+        Scalar& value() { return value_; }
+
+        private:
+        Index row_;
+        Scalar value_;
+        };
     public:
     using DofHandlerType = std::decay_t<DofHandler>;
     static constexpr int local_dim = DofHandlerType::local_dim;

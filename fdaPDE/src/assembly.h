@@ -181,7 +181,7 @@ template <int LocalDim, int EmbedDim, typename Xpr_, int Options_, typename... Q
     }
 };
 
-
+#ifdef __FDAPDE_ISOGEOMETRIC_MODULE_H__
 // generic integration loop to integrate scalar expressions over physical domains (ISO version)
 template <int LocalDim, int EmbedDim, typename Xpr_, int Options_, typename... Quadrature_>
 class std_integration_loop<IsoMesh<LocalDim, EmbedDim>, Xpr_, Options_, Quadrature_...> {
@@ -239,6 +239,7 @@ class std_integration_loop<IsoMesh<LocalDim, EmbedDim>, Xpr_, Options_, Quadratu
         return integral_;
   }
 };
+#endif
 
 // main assembly loop dispatching type. This class instantiates the correctly assembly loop for the form to integrate
 template <typename Triangulation, int Options, typename... Quadrature> class integrator_dispatch {
@@ -314,6 +315,27 @@ auto integral(
   const std::pair<BoundaryIterator<Triangulation>, BoundaryIterator<Triangulation>>& range, Quadrature... quadrature) {
     return internals::integrator_dispatch<Triangulation, FaceMajor, Quadrature...>(
       range.first, range.second, quadrature...);
+}
+
+// geometric object operators
+
+enum class geo_assembler_flags {
+    compute_geo_id      = 0x10000,
+    compute_face_normal = 0x20000
+};
+  
+namespace internals {
+
+template <int EmbedDim> struct geo_assembler_packet {
+    static constexpr int embed_dim = EmbedDim;
+    geo_assembler_packet() : geo_id(0), measure(0), normal() { }
+    geo_assembler_packet(geo_assembler_packet&&) noexcept = default;
+    geo_assembler_packet(const geo_assembler_packet&) noexcept = default;
+
+    int geo_id;   // active geo identifier
+    double measure;
+    MdArray<double, MdExtents<embed_dim, 1>> normal;
+};
 }
 
   
