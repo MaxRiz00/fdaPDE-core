@@ -401,7 +401,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         // Step 2: Add user-specified knots
         for(int j = 0; j < LocalDim; j++){
             for (size_t i = 0; i < add_knot_list[j].size(); i++) {
-                refinement_knots[j].push_back(add_knot_list[j][i]);
+                int s = std::count(knots_[j].begin(), knots_[j].end(), add_knot_list[j][i]);  
+                if (s == 0) refinement_knots[j].push_back(add_knot_list[j][i]);
             }
         }
 
@@ -425,7 +426,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         
         MdArray<double,full_dynamic_extent_t<LocalDim>> previous_weights = weights_;
         MdArray<double,full_dynamic_extent_t<LocalDim+1>> previous_cp = control_points_;
-        
 
         // Step 5: Apply Knot Refinement for each dimension
         for(int k = 0; k < LocalDim; k++){ 
@@ -518,6 +518,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         }
         // Update the mesh
         initialize(updated_knots, refined_weights, refined_cp, degree_, flags_);
+
     }
 
     /**
@@ -707,6 +708,8 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         for (int i = 0; i < LocalDim; ++i) {
             u(i) = param_nodes_[i][multi_index[i]];
         }
+        //std::cout << "Evaluating physical node for ID " << id << " at parametric coordinates: " << u.transpose() << std::endl;
+        //std::cout<<"Evaluated physical node: "<< eval_param(u).transpose() << std::endl;
         return eval_param(u);
     }
     
@@ -754,6 +757,22 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             }
         }
         return false;
+    }
+
+    //nodes method build a n_nodes x Embeddim matrix with all the nodes
+    /**
+     * @brief Get the physical coordinates of all nodes in the mesh.
+     * 
+     * @return Matrix of shape (n_nodes x EmbedDim)
+     */
+    Eigen::Matrix<double, Dynamic, EmbedDim> nodes() const {
+        Eigen::Matrix<double, Dynamic, EmbedDim> nodes;
+        nodes.resize(n_nodes_, EmbedDim);
+        for (int i = 0; i < n_nodes_; ++i) {
+            // use teh phys_node method
+            nodes.row(i) = phys_node(i).transpose();
+        }
+        return nodes;
     }
 
     /**

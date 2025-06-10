@@ -24,8 +24,10 @@
 #include "utility.h"
 #include "fields.h"
 #include "geometry.h"
-#include "finite_elements.h"
-#include "splines.h"
+//#include "splines.h"
+#include "isogeometric.h"
+//#include "finite_elements.h"
+
 #include "optimization.h"
 #include "geoframe.h"
 

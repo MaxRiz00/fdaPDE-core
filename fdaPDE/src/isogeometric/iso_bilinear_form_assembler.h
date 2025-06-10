@@ -27,6 +27,7 @@ class iso_bilinear_form_assembly_loop :
     public iso_assembler_base<IsoMesh_, Form_, Options_, Quadrature_...>,
     public assembly_xpr_base<iso_bilinear_form_assembly_loop<IsoMesh_, Form_, Options_, Quadrature_...>> {
     // detect trial and test spaces from bilinear form
+    public:
     using TestSpace = test_space_t<Form_>;
     using TrialSpace = trial_space_t<Form_>;
     static_assert(TestSpace::local_dim == TrialSpace::local_dim && TestSpace::embed_dim == TrialSpace::embed_dim);
@@ -37,6 +38,7 @@ class iso_bilinear_form_assembly_loop :
     
     using DofHandlerType = typename Base::DofHandlerType;
     using discretization_category = typename TestSpace::discretization_category;
+    private:
 
     fdapde_static_assert(
         std::is_same_v<discretization_category FDAPDE_COMMA iso_tag>, TEST_AND_TRIAL_SPACE_MUST_HAVE_THE_SAME_DISCRETIZATION_CATEGORY);
@@ -136,7 +138,6 @@ class iso_bilinear_form_assembly_loop :
         
 
         for(iterator it = begin; it!= end; ++it) {
-            //std::cout << "Assembling cell: " << it->id() << std::endl;
 
             test_active_dofs = it->dofs();
 
@@ -316,6 +317,7 @@ class iso_bilinear_form_assembly_loop :
     constexpr int rows() const { return test_dof_handler()->n_dofs(); }
     constexpr int cols() const { return trial_dof_handler()->n_dofs(); }
     constexpr const TrialSpace& trial_space() const { return *trial_space_; } 
+
     
 };
 

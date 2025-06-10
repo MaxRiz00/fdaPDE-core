@@ -151,6 +151,7 @@ struct iso_assembler_base{
         }
 
         const TestSpace& test_space() const { return *test_space_; }
+        const IsoMesh& mesh() const { return *dof_handler_->mesh(); }
 
         protected:
         

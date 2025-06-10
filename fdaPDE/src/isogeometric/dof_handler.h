@@ -173,6 +173,12 @@ template<int N> class DofHandler<2, N, iso_tag> {
     }
 
     void set_hom_dirichlet_constraint(int marker = BoundaryAll) {
+        for(int i = 0; i < n_dofs_; ++i) {
+            if (is_dof_on_boundary(i) && (dofs_markers_[i] == marker || marker == BoundaryAll)) {
+                dirichlet_dofs_.push_back(i);
+                dirichlet_vals_.push_back(0.0); // default value for homogeneous Dirichlet condition
+            }
+        }
         dof_constraints_.set_hom_dirichlet_constraint(marker);
         
     }
@@ -314,6 +320,8 @@ template<int N> class DofHandler<2, N, iso_tag> {
     int n_dofs_per_cell() const { return n_dofs_per_cell_; }
     bool is_dof_on_boundary(int i) const { return boundary_dofs_[i]; }
     bool is_dof_on_adjacent_boundary(int i) const { return adj_boundary_dofs_[i]; }
+    std::vector<int> dirichlet_dofs() const { return dirichlet_dofs_; }
+    std::vector<double> dirichlet_values() const { return dirichlet_vals_; }
     const std::vector<int>& dofs_markers() const { return dofs_markers_; }
     int dof_marker(int dof) const { return dofs_markers_[dof]; }
     int n_boundary_dofs() const { return boundary_dofs_.count(); }
@@ -339,6 +347,7 @@ template<int N> class DofHandler<2, N, iso_tag> {
         return dofs;
     }
 
+    int n_mapped_dofs() const { return n_mapped_dofs_; }
     // iterate over geometric cells coupled with dofs, possibly filtered by marker
     class cell_iterator :  public internals::filtering_iterator<cell_iterator, CellType> {
         using Base = internals::filtering_iterator<cell_iterator, CellType>;
@@ -618,6 +627,8 @@ public:
     Eigen::Matrix<int, Dynamic, Dynamic, Eigen::RowMajor> dofs_; // [cell_id][local_dof]
     BinaryVector<Dynamic> boundary_dofs_; // boundary dofs
     BinaryVector<Dynamic> adj_boundary_dofs_; // nonvanishing first der boundary dofs
+    std::vector<int> dirichlet_dofs_; // dirichlet dofs
+    std::vector<double> dirichlet_vals_; // dirichlet values
 
 
     // DOF mapping and reduction (for periodicity)

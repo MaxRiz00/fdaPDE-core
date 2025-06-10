@@ -618,6 +618,7 @@ struct GeoLayer {
             if constexpr (std::is_same_v<geo_t, internals::point_layer_descriptor>) {
                 // print point coordinate
                 out[Ns].push_back("<POINT>");
+                std::cout<<"n_rows: "<<n_rows<<std::endl;
                 for (int i = 0; i < n_rows; ++i) {
                     auto coord = std::get<Ns>(data.geometry(i));
                     std::string coord_str = "";
