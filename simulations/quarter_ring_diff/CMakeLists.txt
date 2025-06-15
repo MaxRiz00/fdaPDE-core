@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Enable warnings and optimizations
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_FLAGS "-g -O2 -march=native")
+set(CMAKE_CXX_FLAGS "-g -O2 -Wno-psabi -march=native")
 
 
 # Find Eigen3
