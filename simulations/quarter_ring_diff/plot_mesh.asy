@@ -2,7 +2,7 @@
 // PARTE MIA
 
 settings.render = 4; 
-settings.outformat = "png"; // "pdf", "png", "svg", "eps"
+settings.outformat = "pdf"; // "pdf", "png", "svg", "eps"
 //settings.prc = true; // if true animation 3d active
 
 import three;
@@ -12,7 +12,7 @@ import plain;
 
 
 
-size(250);
+size(200);
 //currentprojection = perspective((10,10,10));
 // sphere 
 //currentprojection = perspective(12*(1, 1, 1),  showtarget=true, autoadjust=false, center=true);
@@ -97,11 +97,14 @@ int[] bflags = loadFlags(folder + "boundary_edges.txt");
 triple origin = O;//0.8*(1,-1,-1); // bottom-left corner of the merged surface
 
 real axisLength = .2; // adjust as needed
-
+/*
 draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x$", origin + (axisLength+0.04,0,0),fontsize(11pt));
 draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$y$", origin + (0,axisLength+0.04,0),fontsize(11pt));
 draw(origin -- (origin + (0,0,axisLength)), Arrow3(5bp)); label("$z$", origin + (-0.04,-0.04,0),fontsize(11pt));
+*/
 
+draw(origin -- (origin + (axisLength,0,0)), Arrow3(5bp)); label("$x_1$", origin + (axisLength,-0.08,0),fontsize(12pt));
+draw(origin -- (origin + (0,axisLength,0)), Arrow3(5bp)); label("$x_2$", origin + (-0.08,axisLength,0),fontsize(12pt));
 
 // === LOAD & PLOT SURFACE PATCHES ===
 

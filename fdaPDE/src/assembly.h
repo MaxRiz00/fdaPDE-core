@@ -19,6 +19,9 @@
 
 namespace fdapde {
 
+// forward declarations if isomesh
+template <int LocalDim, int EmbedDim> class IsoMesh;
+
 [[maybe_unused]] static constexpr int CellMajor = 0;
 [[maybe_unused]] static constexpr int FaceMajor = 1;
 
@@ -181,7 +184,6 @@ template <int LocalDim, int EmbedDim, typename Xpr_, int Options_, typename... Q
     }
 };
 
-#ifdef __FDAPDE_ISOGEOMETRIC_MODULE_H__
 // generic integration loop to integrate scalar expressions over physical domains (ISO version)
 template <int LocalDim, int EmbedDim, typename Xpr_, int Options_, typename... Quadrature_>
 class std_integration_loop<IsoMesh<LocalDim, EmbedDim>, Xpr_, Options_, Quadrature_...> {
@@ -239,7 +241,6 @@ class std_integration_loop<IsoMesh<LocalDim, EmbedDim>, Xpr_, Options_, Quadratu
         return integral_;
   }
 };
-#endif
 
 // main assembly loop dispatching type. This class instantiates the correctly assembly loop for the form to integrate
 template <typename Triangulation, int Options, typename... Quadrature> class integrator_dispatch {

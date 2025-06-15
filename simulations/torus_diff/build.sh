@@ -19,7 +19,7 @@ cd "$BUILD_DIR"
 
 # Step 3: Run CMake to configure the build system
 echo "Configuring the project with CMake..."
-cmake .. -Wno-dev -DCMAKE_CXX_COMPILER=/usr/local/bin/g++-14
+cmake .. #-DCMAKE_CXX_COMPILER=/usr/local/bin/g++-14
 
 # Step 4: Build the project
 echo "Building the project..."
