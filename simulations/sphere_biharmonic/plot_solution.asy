@@ -153,7 +153,7 @@ for (int c = 0; c < grid.length; ++c) {
 
       // Triangle 1: p1-p2-p3
       real t1 = ((s1 + s2 + s3) / 3 - minScalar) / (maxScalar - minScalar + 1e-10);
-      pen color1 = colormap2(t1);
+      pen color1 = colormap2(round(t1*1000)/1000); // round to 3 decimal places
       draw(surface(p1--p2--p3--cycle),      surfacepen = material(
         diffusepen = color1              // gives surface its color under light
         ,emissivepen = gray(0.1)       // Helps in shadows
@@ -162,7 +162,7 @@ for (int c = 0; c < grid.length; ++c) {
 
       // Triangle 2: p1-p3-p4
       real t2 = ((s1 + s3 + s4) / 3 - minScalar) / (maxScalar - minScalar + 1e-10);
-      pen color2 = colormap2(t2);
+      pen color2 = colormap2(round(t2*1000)/1000); // round to 3 decimal places
       draw(surface(p1--p3--p4--cycle), surfacepen = material(
         diffusepen = color2
         ,emissivepen = gray(0.1)      // Helps in shadows
