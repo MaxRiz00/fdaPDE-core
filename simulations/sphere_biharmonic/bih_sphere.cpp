@@ -19,7 +19,7 @@ int main() {
     std::ofstream file(save_path + "L2_error.csv");
     file << "h_max,L2_error,H1_error,H2_error\n";
 
-    std::vector<int> ref = {0, 1, 2, 3, 4, 5};
+    std::vector<int> ref = {0, 1, 2, 3, 4};
 
     auto f_exact = bih_sphere::make_u_exact();
     auto u = bih_sphere::make_rhs();

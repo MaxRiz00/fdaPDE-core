@@ -19,7 +19,7 @@ int main() {
     std::ofstream file(save_path + "L2_error.csv");
     file << "h_max,L2_error,H1_error\n";
 
-    std::vector<int> ref = {1, 2, 3, 4, 5, 6};
+    std::vector<int> ref = {1, 2, 3, 4, 5};
 
     auto f_exact = diff_sphere::make_u_exact();
     auto u = diff_sphere::make_rhs();
