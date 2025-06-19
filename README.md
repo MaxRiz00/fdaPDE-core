@@ -1,4 +1,4 @@
-<div align="center"> <h1> fdaPDE: High-Order PDEs on Surfaces via Isogeometric Analysis </h1>
+<div align="center"> <h1> fdaPDE: Solving PDEs on Manifolds via Isogeometric Analysis </h1>
 
 <h5> fdaPDE - Physics-Informed Spatial and Functional Data Analysis </h5> </div>
 
