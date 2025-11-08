@@ -324,6 +324,7 @@ IsoMeshData<1> knots_refinement(const IsoMeshData<1>& mesh_data, std::vector<dou
     return IsoMeshData<1>(new_knots, new_w, new_cp, new_order);
 }
 
+<<<<<<< HEAD
 // ALGORITHM A5.9: Degree elevation for NURBS curves (1D)
 IsoMeshData<1> degree_elevation(const IsoMeshData<1>& mesh_data, int t) {
     int n = mesh_data.control_points.extent(0) - 1;
@@ -504,6 +505,8 @@ IsoMeshData<1> degree_elevation(const IsoMeshData<1>& mesh_data, int t) {
     return IsoMeshData<1>(new_knots, weights, cps, new_order);
 }
 
+=======
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 } // namespace iso_algorithms
 } // namespace fdapde
 

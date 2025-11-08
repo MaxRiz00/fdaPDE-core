@@ -28,9 +28,13 @@ int main() {
     for (const auto& r : ref) {
 
         auto mesh = IsoMesh<2, 3>::torus();
+<<<<<<< HEAD
         mesh.elevate_degree({1 , 1});
         if (r > 0) mesh.refine_knots({r, r});
 
+=======
+        if (r > 0) mesh.refine_knots({r, r});
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         double h_max = mesh.h_max();
 
         // Set a periodic Spline basis
@@ -56,9 +60,15 @@ int main() {
         TrialFunction f(Vh);
         TestFunction v(Vh);
 
+<<<<<<< HEAD
         auto a = integral(mesh, QGL2DP16)(dot(grad(f), grad(v)));
         auto m = integral(mesh, QGL2DP16)(v);
         auto F = integral(mesh, QGL2DP16)(u * v);
+=======
+        auto a = integral(mesh, QGL2DP9)(dot(grad(f), grad(v)));
+        auto m = integral(mesh, QGL2DP9)(v);
+        auto F = integral(mesh, QGL2DP9)(u * v);
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 
         auto& dof_handler = Vh.dof_handler();
         Eigen::SparseMatrix<double> A = a.assemble();
@@ -104,8 +114,13 @@ int main() {
                 return diff_vec(0) * diff_vec(0) + diff_vec(1) * diff_vec(1) + diff_vec(2) * diff_vec(2);
             });
 
+<<<<<<< HEAD
         auto errorL2 = std::sqrt(integral(mesh, QGL2DP16)(err_physical));
         auto errorH1 =  std::sqrt(errorL2*errorL2 + integral(mesh, QGL2DP16)( err_H1physical ));
+=======
+        auto errorL2 = std::sqrt(integral(mesh, QGL2DP9)(err_physical));
+        auto errorH1 =  std::sqrt(errorL2*errorL2 + integral(mesh, QGL2DP9)( err_H1physical ));
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         file << h_max << "," << errorL2 << "," << errorH1 << "\n";
 
         // Export mesh and solution

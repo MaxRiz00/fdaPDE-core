@@ -18,7 +18,11 @@ int main() {
     std::ofstream file(save_path + "L2_error.csv");
     file << "h_max,L2_error,H1_error,H2_error\n";
 
+<<<<<<< HEAD
     std::vector<int> ref = {2,4,8,16,32,64};
+=======
+    std::vector<int> ref = {1, 2, 3, 4, 5, 6};
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 
     auto f_exact = bih_ring::make_u_exact();
     auto u = bih_ring::make_rhs();
@@ -28,11 +32,17 @@ int main() {
     for (const auto& r : ref) {
 
         auto mesh = IsoMesh<2, 2>::quarter_ring();
+<<<<<<< HEAD
         mesh.elevate_degree({1,1});
         mesh.refine_knots({r, r});
         double h_max = mesh.h_max();
 
 
+=======
+        mesh.refine_knots({r, r});
+        double h_max = mesh.h_max();
+
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         IsoSpace Vh(mesh);
         TrialFunction f(Vh);
         TestFunction v(Vh);
@@ -42,7 +52,10 @@ int main() {
 
         auto& dof_handler = Vh.dof_handler();
         Eigen::SparseMatrix<double> A = a.assemble();
+<<<<<<< HEAD
         //A.setIdentity();
+=======
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         auto b = F.assemble();
 
         dof_handler.set_clamped_hom_constraint();
@@ -95,6 +108,7 @@ int main() {
         auto errorH2 =  std::sqrt(errorH1*errorH1 + integral(mesh, QGL2DP9)(err_H2physical));
 
         file << h_max << "," << errorL2 << "," << errorH1 <<","<<errorH2<< "\n";
+<<<<<<< HEAD
         
 
         std::string level_path = save_path + "ref" + std::to_string(r) + "/mesh/";
@@ -103,6 +117,13 @@ int main() {
         std::string solution_path = save_path + "ref" + std::to_string(r) + "/solution/";
         helpers::export_results(mesh, solution, solution_path, 30);
         
+=======
+
+        std::string level_path = save_path + "ref" + std::to_string(r) + "/mesh/";
+        helpers::export_mesh(mesh, level_path);
+        std::string solution_path = save_path + "ref" + std::to_string(r) + "/solution/";
+        helpers::export_results(mesh, solution, solution_path, 10);
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 
         std::cout << "\n===========================================\n";
         std::cout << "Refinement level: " << r << "\n";
@@ -114,7 +135,10 @@ int main() {
         std::cout << "Mesh exported to: " << level_path << "\n";
         std::cout << "PDE results to  : " << solution_path << "\n";
         std::cout << "===========================================\n";
+<<<<<<< HEAD
         
+=======
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
     }
 
     return 0;

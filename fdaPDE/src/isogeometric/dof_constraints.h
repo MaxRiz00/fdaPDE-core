@@ -63,6 +63,7 @@ template <typename DofHandler> class DofConstraints<DofHandler, iso_tag> {
     void set_hom_dirichlet_constraint(int marker = BoundaryAll) { // for Callable g it can be done :)
         int n_boundary_dofs = dof_handler_->n_boundary_dofs(marker);
          fdapde_assert(marker == BoundaryAll || n_boundary_dofs > 0);
+<<<<<<< HEAD
          int counter =0;
 
         for (typename DofHandlerType::boundary_dofs_iterator it = dof_handler_->boundary_dofs_begin(marker);
@@ -71,6 +72,14 @@ template <typename DofHandler> class DofConstraints<DofHandler, iso_tag> {
             constraint_pattern_.emplace_back(dof_id, dof_id, 1.0);  // fix DOF
             constraint_values_.emplace_back(dof_id, 0.0);           // to 0
             counter++;
+=======
+
+        for (typename DofHandlerType::boundary_dofs_iterator it = dof_handler_->boundary_dofs_begin(marker);
+            it != dof_handler_->boundary_dofs_end(marker); ++it) {
+            int dof_id = it->id();
+            constraint_pattern_.emplace_back(dof_id, dof_id, 1.0);  // fix DOF
+            constraint_values_.emplace_back(dof_id, 0.0);           // to 0
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         }
     }
 

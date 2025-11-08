@@ -36,6 +36,7 @@
 #include "src/fields/gradient.h"
 #include "src/fields/hessian.h"
 
+<<<<<<< HEAD
 #include "src/fields/polynomial.h"
 #include "src/fields/spline.h"
 
@@ -43,5 +44,11 @@
 
 
 // clang-format on
+=======
+#include "fields/polynomial.h"
+#include "fields/scalar_field.h"
+#include "fields/space_time_field.h"
+#include "fields/spline.h"
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 
 #endif   // __FDAPDE_FIELDS_MODULE_H__

@@ -65,6 +65,7 @@ yaxis("", LeftRight,
 real x1 = 0.7, x2 = 0.17;
 real[] refx = {x1, x2};
 
+<<<<<<< HEAD
 real y_ref = 0.0007;
 real[] refy3 = {y_ref, y_ref * (refx[1]/refx[0])^4};
 pen refPen3 = rgb(1, 0.6, 0.6) + linetype("4 2") + 1.9bp;
@@ -75,6 +76,18 @@ real y_ref2 = 0.02;
 real[] refy2 = {y_ref2, y_ref2 * (refx[1]/refx[0])^3};
 pen refPen2 = rgb(0.6, 0.6, 1) + linetype("4 2") + 1.9bp;
 Label h2_label = Label("$ h^3$", fontsize(font));
+=======
+real y_ref = 0.007;
+real[] refy3 = {y_ref, y_ref * (refx[1]/refx[0])^3};
+pen refPen3 = rgb(1, 0.6, 0.6) + linetype("4 2") + 1.9bp;
+Label h3_label = Label("$ h^3$", fontsize(font));
+draw(graph(refx, refy3), refPen3, h3_label );
+
+real y_ref2 = 0.2;
+real[] refy2 = {y_ref2, y_ref2 * (refx[1]/refx[0])^2};
+pen refPen2 = rgb(0.6, 0.6, 1) + linetype("4 2") + 1.9bp;
+Label h2_label = Label("$ h^2$", fontsize(font));
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 draw(graph(refx, refy2), refPen2, h2_label );
 
 // Legend & Title

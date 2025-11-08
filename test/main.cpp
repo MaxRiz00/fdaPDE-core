@@ -37,7 +37,10 @@
 #include "src/vector_space_test.cpp"
 #include "src/binary_matrix_test.cpp"
 */
+<<<<<<< HEAD
 
+=======
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 // #include "src/rand_linear_algebra_test.cpp"
 /*
 // finite_elements

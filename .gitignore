@@ -17,8 +17,11 @@ build/
 cmake-build-debug-docker/
 cmake-build-default/
 
+<<<<<<< HEAD
 fdaPDE/core_old/
 
+=======
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 cmake-build-debug/
 experiments/test_RSVD/performances.csv
 .vscode

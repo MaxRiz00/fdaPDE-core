@@ -18,7 +18,11 @@ int main() {
     std::ofstream file(save_path + "L2_error.csv");
     file << "h_max,L2_error,H1_error\n";
 
+<<<<<<< HEAD
     std::vector<int> ref = {1, 2, 3, 4, 5};
+=======
+    std::vector<int> ref = {1, 2, 3, 4, 5, 6};
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 
     auto f_exact = diff_ring::make_u_exact();
     auto u = diff_ring::make_rhs();
@@ -28,7 +32,10 @@ int main() {
 
         auto mesh = IsoMesh<2, 2>::quarter_ring();
         mesh.refine_knots({r, r});
+<<<<<<< HEAD
         //mesh.elevate_degree({1 , 1});
+=======
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         double h_max = mesh.h_max();
 
         std::string level_path = save_path + "ref" + std::to_string(r) + "/mesh/";

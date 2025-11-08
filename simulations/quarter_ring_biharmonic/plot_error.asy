@@ -91,6 +91,7 @@ real x1 = 0.3, x2 = 0.06;
 real[] refx = {x1, x2};
 
 
+<<<<<<< HEAD
 // Reference slopes
 real y_ref2 = 35; // base y for h^2
 real[] refy2 = {y_ref2, y_ref2 * (refx[1]/refx[0])^2};
@@ -111,8 +112,28 @@ real[] refy4 = {y_ref4, y_ref4 * (refx[1]/refx[0])^4};
 pen refPen4 = 0.6*white + red + linetype("4 2") + 1.8bp;
 Label h4_label = Label("$ h^4$", fontsize(font));
 draw(graph(refx, refy4), refPen4, h4_label);
+=======
+// h^2 line (H1 reference)
+real y_ref2 = 1;
+real[] refy2 = {y_ref2, y_ref2 * (refx[1]/refx[0])^2};
+pen refPen2 = gray(0.6) + linetype("4 2") + 1.8bp; // Light gray
+Label h2_label = Label("$ h^2$", fontsize(font));
+draw(graph(refx, refy2), refPen2, h2_label);
+
+// h^1 line (H2 reference)
+real y_refH2 = 200;
+real[] refyH2 = {y_refH2, y_refH2 * (refx[1]/refx[0])^(1)};
+pen refPenH2 = rgb(0.2, 0.8, 0.2t) + linetype("4 2") + 1.8bp;
+Label h1neg_label = Label("$ h^{1}$", fontsize(font));
+draw(graph(refx, refyH2), refPenH2, h1neg_label);
+
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 // Attach legend
 pen pleg = black;
 attach(legend(linelength=10bp,2), point(SE), -15S + 16W, UnFill);
 
+<<<<<<< HEAD
 label(shift(2mm*N)*Label("\textbf{Quarter of a ring: } $p=3$", fontsize(17pt)), point(N), N);
+=======
+label(shift(2mm*N)*Label("\textbf{Quarter of a ring: } $p=2$", fontsize(17pt)), point(N), N);
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3

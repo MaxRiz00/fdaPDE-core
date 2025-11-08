@@ -19,7 +19,8 @@ find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 include_directories(../../fdaPDE)
 
 # Add the executable
-add_executable(DiffTorus diff_torus.cpp)
+add_executable(BihRing bih_ring.cpp)
 
 # Link libraries
-target_link_libraries(DiffTorus PRIVATE Eigen3::Eigen)
+target_link_libraries(BihRing PRIVATE Eigen3::Eigen)
+

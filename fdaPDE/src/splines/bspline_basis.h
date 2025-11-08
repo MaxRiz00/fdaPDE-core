@@ -84,12 +84,22 @@ class BSplineBasis {
     // constructor from user defined knot vector
     
     template <typename KnotsVectorType>
+<<<<<<< HEAD
     requires(requires(KnotsVectorType knots, int i) {
                 { knots[i] } -> std::convertible_to<double>;
                 { knots.size() } -> std::convertible_to<std::size_t>;
             })
     BSplineBasis(KnotsVectorType&& knots, int degree, bool periodicity = false)
         : degree_(degree), knots_(pad_knots(knots, degree)), periodicity_(periodicity) {
+=======
+        requires(requires(KnotsVectorType knots, int i) {
+                    { knots[i] } -> std::convertible_to<double>;
+                    { knots.size() } -> std::convertible_to<std::size_t>;
+                })
+    SplineBasis(KnotsVectorType&& knots, int order) : order_(order) {
+
+        //fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end(), std::less_equal<double>()));
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         int n = knots.size();
         basis_.reserve(n - degree_ - 1);
 
@@ -102,13 +112,18 @@ class BSplineBasis {
         unique_knots_.assign(unique_knots_set.begin(), unique_knots_set.end());
         // check if the knots are open and uniform
         if(periodicity_) {
+<<<<<<< HEAD
             n_basis_ = knots_.size() -  degree_ - 1;
+=======
+            n_basis_ = knots_.size() - 2* degree_ - 1;
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         }
         else {
             n_basis_ = knots_.size() - degree_ - 1;
         }
 
     }
+<<<<<<< HEAD
     // Constructor from geometric interval (no repeated knots)
     BSplineBasis(const Triangulation<1, 1>& interval, int degree, bool periodicity = false)
         : degree_(degree), periodicity_(periodicity) {
@@ -119,6 +134,17 @@ class BSplineBasis {
         basis_.reserve(n - degree_ - 1);
         for (int i = 0; i < n - degree_ - 1; ++i) {
             basis_.emplace_back(knots_, i, degree_);
+=======
+    // constructor from geometric interval (no repeated knots)
+    SplineBasis(const Triangulation<1, 1>& interval, int order, bool already_padded = false) : order_(order) {
+        // construct knots vector
+        Eigen::Matrix<double, Dynamic, 1> knots = interval.nodes();
+        fdapde_assert(std::is_sorted(knots.begin() FDAPDE_COMMA knots.end() FDAPDE_COMMA std::less_equal<double>()));
+        int n = knots.size();
+        basis_.reserve(n - order_ + 1);
+        for (int i = 0; i < n - order_ - 1; ++i) {
+            basis_.emplace_back(knots_, i, order_);
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         }
     }
 

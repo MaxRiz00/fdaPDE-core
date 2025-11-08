@@ -299,6 +299,7 @@ TEST(PDETest, BiharmonicMatrix) {
 
     EXPECT_TRUE(isotesting::almost_equal(A, A_correct));
 }
+<<<<<<< HEAD
 
 
 TEST(NewTest, DegElevation) {
@@ -342,3 +343,5 @@ TEST(NewTest, DegElevation) {
         }
     }
 }
+=======
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3

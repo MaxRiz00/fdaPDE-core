@@ -27,4 +27,8 @@ cmake --build .
 
 # Step 5: Run the resulting executable
 echo "Running the executable..."
+<<<<<<< HEAD
 ./IsoTest --gtest_filter=NewTest.*
+=======
+./IsoTest #--gtest_filter=NurbsTest.NurbsSBasis2D
+>>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
