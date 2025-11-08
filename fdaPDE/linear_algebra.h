@@ -59,7 +59,6 @@ template <typename XprType> constexpr bool is_eigen_sparse_xpr_v = is_eigen_spar
 #include "utility.h"
 #include "src/linear_algebra/utility.h"
 
-<<<<<<< HEAD
 #include "src/linear_algebra/eigen_helper.h"
 #include "src/linear_algebra/fspai.h"
 #include "src/linear_algebra/kronecker.h"
@@ -70,24 +69,6 @@ template <typename XprType> constexpr bool is_eigen_sparse_xpr_v = is_eigen_spar
 #include "src/linear_algebra/rsi.h"
 #include "src/linear_algebra/rbki.h"
 #include "src/linear_algebra/rp_chol.h"
-=======
-#include "linear_algebra/eigen_helper.h"
-#include "linear_algebra/fspai.h"
-#include "linear_algebra/kronecker.h"
-#include "linear_algebra/lumping.h"
-#include "linear_algebra/sparse_block_matrix.h"
-#include "linear_algebra/fspai.h"
-#include "linear_algebra/lumping.h"
-
-#include "fdaPDE/linear_algebra/randomized_algorithms/rand_range_finder.h"
-#include "fdaPDE/linear_algebra/randomized_algorithms/randomized_svd.h"
-#include "fdaPDE/linear_algebra/randomized_algorithms/rand_nys_approximation.h"
-
-
-#include "fdaPDE/linear_algebra/randomized_algorithms/rsvd.h"
-#include "fdaPDE/linear_algebra/randomized_algorithms/revd.h"
-#include "fdaPDE/linear_algebra/randomized_algorithms/nystrom.h"
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 
 // clang-format on
 

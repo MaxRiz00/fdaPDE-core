@@ -458,13 +458,10 @@ struct IsoMap :
                 }
             }
         }
-<<<<<<< HEAD
         //std::cout <<"Tutto ok"<<std::endl;
         // print map rows and columns
         //std::cout << "map_ rows: " << map_.rows() << ", cols: " << map_.cols() << std::endl;
         // print first 10 rows of
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 	return;
     }
     // fe assembler evaluation
@@ -481,15 +478,12 @@ struct IsoMap :
     }
     constexpr auto eval(int i, const InputType& iso_packet) const {
         fdapde_static_assert(Rows != 1 && Cols == 1, THIS_METHOD_IS_ONLY_FOR_VECTOR_FIELDS);
-<<<<<<< HEAD
         //std::cout << "quad_node_id = " << iso_packet.quad_node_id
         //  << ", i = " << i
         //  << ", map_.rows() = " << map_.rows()
         //  << ", map_.cols() = " << map_.cols()
         //  << std::endl;
         //std::cout << "eval called with i = " << map_(iso_packet.quad_node_id, i) << std::endl;
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         return map_(iso_packet.quad_node_id, i);
     }
     constexpr auto eval(int i, int j, const InputType& iso_packet) const {

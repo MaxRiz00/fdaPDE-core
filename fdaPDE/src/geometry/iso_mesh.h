@@ -149,10 +149,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
      * @return Physical coordinate in embedding space
      */
     Eigen::Matrix<double, EmbedDim, 1> eval_param(const Eigen::Matrix<double, LocalDim,1>& u) const {
-<<<<<<< HEAD
         //std::cout << "Evaluating parametric coordinate at u: " << u.transpose() << std::endl;
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         for(int i = 0; i < LocalDim; i++) fdapde_assert(u(i) >= knots_[i].front() - 1e-9 && u(i) <= knots_[i].back() + 1e-9);
         std::array<std::vector<double>,LocalDim> basis_eval;
         std::array<int,LocalDim> spans= {0};
@@ -379,7 +376,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             std::vector<double> refined_knots, knot_list(param_nodes_[j].begin(), param_nodes_[j].end());
         
             // Insert midpoint knots iteratively for the required density
-<<<<<<< HEAD
             std::vector<double> rknots;
             int num_subdiv = std::max(1, density[j]);
 
@@ -392,18 +388,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
             }
             rknots.push_back(knot_list.back());
             knot_list = rknots;
-=======
-            for (int d = 0; d < density[j]; d++) {
-                std::vector<double> rknots;
-                for (size_t i = 0; i < knot_list.size() - 1; i++) {
-                    double midpoint = (knot_list[i] + knot_list[i + 1]) / 2.0;
-                    rknots.push_back(knot_list[i]);
-                    rknots.push_back(midpoint);
-                }
-                rknots.push_back(knot_list.back());
-                knot_list = rknots;  
-            }
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         
             // Compute valid knot insertions
             std::vector<double> valid_knots;
@@ -540,7 +524,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
 
     }
 
-<<<<<<< HEAD
     
     void elevate_degree(const std::array<int, LocalDim>& elevation_amounts) {
         std::array<std::vector<double>, LocalDim> updated_knots;
@@ -655,8 +638,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
     
     
     
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
     /**
      * @brief Perform point inversion from physical space (p) to parametric space (u).
      * 
@@ -678,7 +659,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         Eigen::Matrix<double, local_dim,1> u_old, u ;
         u.setZero();
         u_old.setZero();
-<<<<<<< HEAD
         
         // Eigen::Matrix<double, embed_dim, 1> north_pole = {0,0,1};
         // Eigen::Matrix<double, embed_dim, 1> south_pole = {0,0,-1};
@@ -687,8 +667,6 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         // if((p - north_pole).norm() < tol1) return Eigen::Matrix<double, local_dim, 1>::Constant(0.0);
         // if((p - south_pole).norm() < tol1) return Eigen::Matrix<double, local_dim, 1>::Constant(1.0);
 
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 
         auto Cp = this->control_points_;
 
@@ -820,10 +798,7 @@ template <int LocalDim, int EmbedDim, typename Derived> class IsoMeshBase{
         }
 
         if(counter == max_iters){
-<<<<<<< HEAD
             //std::cout<<"Point: "<<p.transpose()<<" could not be inverted to parametric coordinates."<<std::endl;
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
             std::cout<<"Max iterations reached: try to increase the numbers of evaluations."<<std::endl;
         }
 
@@ -1551,7 +1526,6 @@ template <int N> class IsoMesh<2, N>: public IsoMeshBase<2, N, IsoMesh<2, N>> {
         return mesh;
 
     }
-<<<<<<< HEAD
 static IsoMesh<2, N> sphere_patch(double r,
                                   double theta0_deg, double theta1_deg,
                                   double phi0_deg, double phi1_deg,
@@ -1623,8 +1597,6 @@ static IsoMesh<2, N> sphere_patch(double r,
 
     return IsoMesh<2, N>(patch_data.knots, patch_data.weights, patch_data.control_points, patch_data.degree);
 }
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 
     /**
      * @brief Create a 2D NURBS mesh of a torus surface by revolving a circle.
@@ -2311,7 +2283,6 @@ template<> class IsoMesh<3,3>: public IsoMeshBase<3,3,IsoMesh<3,3>>{
 
 };
 
-<<<<<<< HEAD
 template<int N>
 class IsoMesh<1,N>: public IsoMeshBase<1,N,IsoMesh<1,N>> {
 
@@ -2335,8 +2306,6 @@ IsoMesh(std::array<std::vector<double>,1>& knots,
 
 
 
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 }; // namespace fdapde
 
 #endif // __ISO_MESH_H__

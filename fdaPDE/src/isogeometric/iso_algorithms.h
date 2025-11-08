@@ -145,6 +145,13 @@ IsoMeshData<2> create_revolved_ISO_surface(const IsoMeshData<1>& curve, double r
 		knotVectorU[jj + i] = 1.0;
 	}
 
+    // print the knot vector U
+    std::cout << "Knot vector U: ";
+    for (const auto& knot : knotVectorU) {
+        std::cout << knot << " ";
+    }
+    std::cout << std::endl;
+
 	int n = 2 * narcs;
 	double wm = std::cos(dtheta / 2.0);
 	double angle = 0.0;
@@ -167,8 +174,6 @@ IsoMeshData<2> create_revolved_ISO_surface(const IsoMeshData<1>& curve, double r
     MdArray<double, MdExtents<Dynamic,Dynamic>> weights(n + 1, m + 1);
     MdArray<double, MdExtents<Dynamic, Dynamic,Dynamic>> control_points(n + 1, m + 1, 3);
 
-    //std::cout << "m: " << m << std::endl;
-
 
     for (int i = 0; i <= m; i++){
         Point3D P(3);
@@ -180,7 +185,7 @@ IsoMeshData<2> create_revolved_ISO_surface(const IsoMeshData<1>& curve, double r
 
         r = X.norm();
         X = X.normalized();
-        Point3D Y = axis.cross(X)/r; 
+        Point3D Y = axis.cross(X); // /r; 
 
         P0 = P;
 
@@ -194,7 +199,7 @@ IsoMeshData<2> create_revolved_ISO_surface(const IsoMeshData<1>& curve, double r
         index = 0;
 
         for(int m=1; m<=narcs; m++){
-            P2 = (r < 1e-8) ? O : O + r * (cosines[m] * X + sines[m] * r * Y);
+            P2 = (r < 1e-8) ? O : O + r * (cosines[m] * X + sines[m] * Y);
             
             for(int h=0; h < 3; h++) control_points(index + 2, i, h) = P2(h);
             weights(index + 2, i) = curve.weights(i);
@@ -324,7 +329,6 @@ IsoMeshData<1> knots_refinement(const IsoMeshData<1>& mesh_data, std::vector<dou
     return IsoMeshData<1>(new_knots, new_w, new_cp, new_order);
 }
 
-<<<<<<< HEAD
 // ALGORITHM A5.9: Degree elevation for NURBS curves (1D)
 IsoMeshData<1> degree_elevation(const IsoMeshData<1>& mesh_data, int t) {
     int n = mesh_data.control_points.extent(0) - 1;
@@ -505,8 +509,6 @@ IsoMeshData<1> degree_elevation(const IsoMeshData<1>& mesh_data, int t) {
     return IsoMeshData<1>(new_knots, weights, cps, new_order);
 }
 
-=======
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
 } // namespace iso_algorithms
 } // namespace fdapde
 

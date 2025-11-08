@@ -17,15 +17,11 @@
 #ifndef __FDAPDE_TYPE_ERASURE_H__
 #define __FDAPDE_TYPE_ERASURE_H__
 
-<<<<<<< HEAD
-#include "header_check.h"
-=======
 #include <typeinfo>
 #include <typeindex>
 #include <unordered_map>
 #include "assert.h"
-#include "traits.h"
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
+//#include "traits.h"
 
 namespace fdapde {
 

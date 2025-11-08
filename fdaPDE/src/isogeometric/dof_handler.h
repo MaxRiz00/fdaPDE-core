@@ -264,19 +264,11 @@ template<int N> class DofHandler<2, N, iso_tag> {
             // Assign
             dof_map_[slave] = master;
         };
-<<<<<<< HEAD
         // Corner collapse (both directions periodic)
         if (mesh_->is_periodic(0) && mesh_->is_periodic(1)) {
             int n0 = dims_[0], n1 = dims_[1];
             int p0 = degree_[0], p1 = degree_[1];
             //int p0 = 1, p1 = 1;
-=======
-    
-        // Corner collapse (both directions periodic)
-        if (mesh_->is_periodic(0) && mesh_->is_periodic(1)) {
-            int p0 = degree_[0], p1 = degree_[1];
-            int n0 = dims_[0], n1 = dims_[1];
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
     
             for (int i = 0; i < p0; ++i) {
                 for (int j = 0; j < p1; ++j) {
@@ -292,7 +284,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
         for (int d = 0; d < local_dim; ++d) {
             if (!mesh_->is_periodic(d)) continue;
             int n = dims_[d];
-<<<<<<< HEAD
             int p = degree_[d];
     
             for (int i = 0; i < n_dofs_; ++i) {
@@ -300,21 +291,12 @@ template<int N> class DofHandler<2, N, iso_tag> {
                 if (multi[d] < p) {
                     auto mapped = multi;
                     mapped[d] += n - p;
-=======
-    
-            for (int i = 0; i < n_dofs_; ++i) {
-                auto multi = unflatten(i);
-                if (multi[d] < degree_[d]) {
-                    auto mapped = multi;
-                    mapped[d] += n - degree_[d];
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
                     int target = flatten(mapped);
                     if (target != i)
                         assign_slave(i, target);
                 }
             }
         }
-<<<<<<< HEAD
         
         
         int n0 = dims_[0]; // number of basis in u (longitudinal)
@@ -340,9 +322,6 @@ template<int N> class DofHandler<2, N, iso_tag> {
         
 
 
-=======
-    
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
         // Step 2: Flatten all dof_map_ so every entry directly points to its root
         for (int i = 0; i < n_dofs_; ++i) {
             int root = i;
@@ -691,8 +670,4 @@ public:
 }
 
 
-<<<<<<< HEAD
 #endif // __FDAPDE_NURBS_DOF_HANDLER_H__
-=======
-#endif // __FDAPDE_NURBS_DOF_HANDLER_H__
->>>>>>> 83d36e468bb0645bef6011c3dba6beeb1937d2b3
