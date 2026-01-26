@@ -1533,6 +1533,10 @@ static IsoMesh<2, N> sphere_patch(double r,
     fdapde_static_assert(N == 3, THIS_METHOD_IS_ONLY_FOR_3D_MANIFOLDS);
     fdapde_assert(r > 0);
 
+    // Validate input angles
+    //fdapde_assert(theta0_deg >= 0 && theta1_deg <= 180 && theta1_deg > theta0_deg);
+    //fdapde_assert(phi0_deg >= 0 && phi1_deg <= 360 && phi1_deg > phi0_deg);
+
     // Convert degrees to radians
     const double deg_to_rad = M_PI / 180.0;
     double theta0 = theta0_deg * deg_to_rad;
